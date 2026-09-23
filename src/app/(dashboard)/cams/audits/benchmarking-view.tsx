@@ -1,0 +1,175 @@
+"use client";
+
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
+import { SEVERITY_CHIP, labelize, engagementTypeLabel, type Analytics } from "../lib-cams";
+import { INK, NAVY, STATUS } from "@/lib/design/midnight";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+
+// Midnight Executive. Audit severity is an ordered STATUS scale, not five
+// identities, so it takes the reserved three-step scale (crimson / gold / navy)
+// rather than five hues. The two non-conformance-free steps sit on the navy
+// ramp because "observation" and "opportunity" are not failures and must not
+// read like faded versions of one.
+const SEV_HEX: Record<string, string> = {
+  CRITICAL_NC: STATUS.high.ink,
+  MAJOR_NC: STATUS.high.bar,
+  MINOR_NC: STATUS.medium.bar,
+  OBSERVATION: NAVY[400],
+  OPPORTUNITY_FOR_IMPROVEMENT: NAVY[300],
+};
+// Conformance is a status reading, so it wears the status scale — no orange,
+// no sea green. The band thresholds are unchanged.
+function conformanceHex(pct: number) {
+  return pct >= 90 ? NAVY[600] : pct >= 75 ? STATUS.medium.bar : STATUS.high.ink;
+}
+
+function Panel({ title, children, hint }: { title: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-[color:var(--me-line)] bg-white">
+      <div className="border-b border-[color:var(--me-line-soft)] px-4 py-2.5">
+        <h2 className="text-sm font-semibold text-[color:var(--me-ink-strong)]">{title}</h2>
+        {hint && <p className="text-[11px] text-[color:var(--me-ink-faint)]">{hint}</p>}
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+export function AnalyticsView({ a }: { a: Analytics }) {
+  const p = a.programme;
+  const sevData = ["CRITICAL_NC", "MAJOR_NC", "MINOR_NC", "OBSERVATION", "OPPORTUNITY_FOR_IMPROVEMENT"]
+    .map((k) => ({ key: k, label: labelize(k), count: a.findingsBySeverity[k] ?? 0 }))
+    .filter((d) => d.count > 0);
+  const benchData = a.benchmarkingBySite.filter((b) => b.avgScorePct != null)
+    .map((b) => ({ name: b.siteName ?? "—", score: b.avgScorePct as number }));
+
+  return (
+    <div className="space-y-5">
+      {/* The KPI strip that stood here is gone. Completion, Overdue and Avg
+          Closure are now ContextKPI tiles rendered by the Analytics Screen
+          Contract above, computed by the shared flow engine with real
+          prior-period comparators; the three CAMS-specific figures (open
+          findings, repeat-finding rate, CAPA overdue) are ContextKPI tiles in
+          ./domain-kpis. Keeping a second, comparator-free copy here is exactly
+          how two screens come to disagree about the same number. */}
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Benchmarking */}
+        <Panel title="Benchmarking — average score by site" hint="Normalised: avg conformance score across conducted audits. The North vs South gap.">
+          {benchData.length ? (
+            <div style={{ width: "100%", height: 220 }}>
+              <ResponsiveContainer>
+                <BarChart data={benchData} margin={{ top: 16, right: 8, left: -16, bottom: 0 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: number) => [`${v}%`, "Avg score"]} />
+                  <Bar dataKey="score" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="score" position="top" formatter={(v: number) => `${v}%`} style={{ fontSize: 11, fill: INK.muted }} />
+                    {benchData.map((d, i) => <Cell key={i} fill={conformanceHex(d.score)} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <Empty />}
+          <div className="mt-3 overflow-x-auto">
+            <Table className="w-full text-xs">
+              <TableHeader><TableRow className="text-left text-[10px] uppercase tracking-wider text-[color:var(--me-ink-faint)]">
+                <TableHead className="py-1 pr-2">Site</TableHead><TableHead className="py-1 pr-2 text-center">Conducted</TableHead><TableHead className="py-1 pr-2 text-center">Avg %</TableHead>
+                <TableHead className="py-1 pr-2 text-center">Findings</TableHead><TableHead className="py-1 pr-2 text-center">Density</TableHead><TableHead className="py-1 pr-2 text-center">Maj/Crit</TableHead><TableHead className="py-1 text-center">Repeat</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {a.benchmarkingBySite.map((b) => (
+                  <TableRow key={b.siteId ?? "corp"} className="border-t border-[color:var(--me-line-soft)]">
+                    <TableCell className="py-1 pr-2 text-[color:var(--me-ink-base)]">{b.siteName}</TableCell>
+                    <TableCell className="py-1 pr-2 text-center tabular-nums">{b.auditsConducted}/{b.auditsPlanned}</TableCell>
+                    <TableCell className="py-1 pr-2 text-center font-semibold tabular-nums" style={{ color: b.avgScorePct != null ? conformanceHex(b.avgScorePct) : INK.faint }}>{b.avgScorePct != null ? `${b.avgScorePct}%` : "—"}</TableCell>
+                    <TableCell className="py-1 pr-2 text-center tabular-nums">{b.findingCount}</TableCell>
+                    <TableCell className="py-1 pr-2 text-center tabular-nums">{b.findingDensity}</TableCell>
+                    <TableCell className="py-1 pr-2 text-center tabular-nums text-[color:var(--me-status-high)]">{b.majorCriticalCount}</TableCell>
+                    <TableCell className="py-1 text-center tabular-nums text-[color:var(--me-status-high)]">{b.repeatCount}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Panel>
+
+        {/* Findings by severity */}
+        <Panel title="Findings by severity">
+          {sevData.length ? (
+            <div style={{ width: "100%", height: 220 }}>
+              <ResponsiveContainer>
+                <BarChart data={sevData} margin={{ top: 16, right: 8, left: -16, bottom: 0 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-12} textAnchor="end" height={50} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: INK.muted }} />
+                    {sevData.map((d, i) => <Cell key={i} fill={SEV_HEX[d.key] ?? INK.faint} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <Empty />}
+        </Panel>
+
+        {/* Pareto by clause */}
+        <Panel title="Findings Pareto — by ISO clause" hint="Where non-conformances concentrate. Drill into the Findings register filtered by clause.">
+          {a.paretoByClause.length ? (
+            <div style={{ width: "100%", height: Math.max(140, a.paretoByClause.length * 30) }}>
+              <ResponsiveContainer>
+                <BarChart data={a.paretoByClause} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 4 }}>
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="label" width={120} tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill={NAVY[600]} radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="count" position="right" style={{ fontSize: 11, fill: INK.muted }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <Empty />}
+        </Panel>
+
+        {/* Clause conformance */}
+        <Panel title="Clause conformance" hint="% of audits assessing each clause that conformed. Worst first.">
+          {a.clauseConformance.length ? (
+            <div className="space-y-2">
+              {a.clauseConformance.slice(0, 10).map((c) => (
+                <div key={c.clause} className="flex items-center gap-2">
+                  <span className="w-32 shrink-0 truncate text-[11px] text-[color:var(--me-ink-muted)]" title={c.clause}>{c.clause}</span>
+                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-[color:var(--me-surface)]">
+                    <div className="h-full rounded-full" style={{ width: `${c.conformancePct}%`, background: conformanceHex(c.conformancePct) }} />
+                  </div>
+                  <span className="w-10 shrink-0 text-right text-[11px] font-semibold tabular-nums" style={{ color: conformanceHex(c.conformancePct) }}>{c.conformancePct}%</span>
+                </div>
+              ))}
+            </div>
+          ) : <Empty msg="Conformance renders once audits with clause-mapped checklists are executed." />}
+        </Panel>
+      </div>
+
+      {/* Provenance + type */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Panel title="Audit activity by source" hint="Proves the shared engine — CAMS-native vs consumer-raised (Fire / PPE / Pharma / EPC).">
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(a.bySourceModule).map(([k, v]) => (
+              <span key={k} className="rounded-lg border border-[color:var(--me-line)] bg-[color:var(--me-surface)] px-3 py-1.5 text-xs text-[color:var(--me-ink-base)]">{k} <span className="ml-1 font-semibold tabular-nums">{v}</span></span>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Engagements by type">
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(a.byType).map(([k, v]) => (
+              <span key={k} className="rounded-lg border border-[color:var(--me-line)] bg-[color:var(--me-surface)] px-3 py-1.5 text-xs text-[color:var(--me-ink-base)]">{engagementTypeLabel(k)} <span className="ml-1 font-semibold tabular-nums">{v}</span></span>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+function Empty({ msg = "No data yet." }: { msg?: string }) {
+  return <div className="py-8 text-center text-xs text-[color:var(--me-ink-faint)]">{msg}</div>;
+}

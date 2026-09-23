@@ -1,0 +1,331 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Plus, X } from "lucide-react";
+import { UserPicker } from "@/components/ui/user-picker";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectItem } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { POLICY_TYPES, POLICY_TYPE_LABEL } from "@/app/(dashboard)/erm/lib-t3";
+import { Label } from "@/components/ui/label";
+
+type PlantOption = { id: string; name: string };
+type RiskOption = { id: string; riskCode: string; title: string };
+type ProcOption = { id: string; processCode: string; name: string };
+
+export function NewPolicyButton() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button type="button" onClick={() => setOpen(true)}>
+        <Plus size={16} /> New Policy
+      </Button>
+      {open && (
+        <NewPolicyModal
+          onClose={() => setOpen(false)}
+          onDone={(id) => {
+            setOpen(false);
+            router.push(`/erm/insurance/policies/${id}`);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function NewPolicyModal({ onClose, onDone }: { onClose: () => void; onDone: (id: string) => void }) {
+  const [policyName, setPolicyName] = useState("");
+  const [policyType, setPolicyType] = useState<string>("PROPERTY_FIRE");
+  const [insurerName, setInsurerName] = useState("");
+  const [brokerName, setBrokerName] = useState("");
+  const [policyNumber, setPolicyNumber] = useState("");
+  const [siteScope, setSiteScope] = useState<string[]>([]);
+  const [sumInsuredInr, setSumInsuredInr] = useState("");
+  const [premiumAnnualInr, setPremiumAnnualInr] = useState("");
+  const [deductibleInr, setDeductibleInr] = useState("");
+  const [coverageStartDate, setCoverageStartDate] = useState("");
+  const [coverageEndDate, setCoverageEndDate] = useState("");
+  const [renewalLeadDays, setRenewalLeadDays] = useState("30");
+  const [exclusionsText, setExclusionsText] = useState("");
+  const [coveredRiskIds, setCoveredRiskIds] = useState<string[]>([]);
+  const [coveredProcessIds, setCoveredProcessIds] = useState<string[]>([]);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+
+  const [plants, setPlants] = useState<PlantOption[]>([]);
+  const [risks, setRisks] = useState<RiskOption[]>([]);
+  const [procs, setProcs] = useState<ProcOption[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/plants").then((r) => (r.ok ? r.json() : [])).then((d) => { if (!cancelled) setPlants((d?.items ?? d ?? []).map((p: any) => ({ id: p.id, name: p.name }))); }).catch(() => {});
+    fetch("/api/erm/risks").then((r) => (r.ok ? r.json() : { items: [] })).then((d) => { if (!cancelled) setRisks((d?.items ?? d ?? []).map((p: any) => ({ id: p.id, riskCode: p.riskCode, title: p.title }))); }).catch(() => {});
+    fetch("/api/erm/bcm/processes").then((r) => (r.ok ? r.json() : { items: [] })).then((d) => { if (!cancelled) setProcs((d?.items ?? d ?? []).map((p: any) => ({ id: p.id, processCode: p.processCode, name: p.name }))); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  function toggleSite(id: string) {
+    setSiteScope((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function toggleRisk(id: string) {
+    setCoveredRiskIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function toggleProc(id: string) {
+    setCoveredProcessIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    const keyExclusions = exclusionsText.split("\n").map((s) => s.trim()).filter(Boolean);
+    try {
+      const res = await fetch("/api/erm/insurance/policies", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          policyName: policyName.trim(),
+          policyType,
+          insurerName: insurerName.trim(),
+          brokerName: brokerName.trim() || null,
+          policyNumber: policyNumber.trim(),
+          siteScope,
+          sumInsuredInr: Number(sumInsuredInr) || 0,
+          premiumAnnualInr: Number(premiumAnnualInr) || 0,
+          deductibleInr: deductibleInr.trim() ? Number(deductibleInr) : null,
+          coverageStartDate,
+          coverageEndDate,
+          renewalLeadDays: Number(renewalLeadDays) || 0,
+          keyExclusions,
+          coveredRiskIds,
+          coveredProcessIds,
+          ownerId,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(j.detail || j.error || `Failed to create policy (${res.status}).`);
+        setBusy(false);
+        return;
+      }
+      onDone(j.id);
+    } catch (e: any) {
+      setError(e?.message ?? "Network error creating policy.");
+      setBusy(false);
+    }
+  }
+
+  const valid =
+    policyName.trim() &&
+    insurerName.trim() &&
+    policyNumber.trim() &&
+    coverageStartDate &&
+    coverageEndDate &&
+    ownerId &&
+    Number(sumInsuredInr) > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900">New Policy</h2>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="h-8 w-8 text-slate-400 hover:text-slate-700">
+            <X size={18} />
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <Label className="mb-1 block text-xs font-medium text-slate-600">Policy name</Label>
+            <Input
+              value={policyName}
+              onChange={(e) => setPolicyName(e.target.value)}
+              placeholder="e.g. Standard Fire & Special Perils — Plant A"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Policy type</Label>
+              <Select
+                value={policyType}
+                onChange={(e) => setPolicyType(e.target.value)}
+              >
+                {POLICY_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>{POLICY_TYPE_LABEL[t] ?? t.replace(/_/g, " ")}</SelectItem>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Policy number</Label>
+              <Input
+                value={policyNumber}
+                onChange={(e) => setPolicyNumber(e.target.value)}
+                placeholder="Insurer policy no."
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Insurer</Label>
+              <Input
+                value={insurerName}
+                onChange={(e) => setInsurerName(e.target.value)}
+                placeholder="e.g. New India Assurance"
+              />
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Broker (optional)</Label>
+              <Input
+                value={brokerName}
+                onChange={(e) => setBrokerName(e.target.value)}
+                placeholder="Broker name"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Sum insured (₹)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={sumInsuredInr}
+                onChange={(e) => setSumInsuredInr(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Annual premium (₹)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={premiumAnnualInr}
+                onChange={(e) => setPremiumAnnualInr(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Deductible (₹, optional)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={deductibleInr}
+                onChange={(e) => setDeductibleInr(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Coverage start</Label>
+              <Input
+                type="date"
+                value={coverageStartDate}
+                onChange={(e) => setCoverageStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Coverage end</Label>
+              <Input
+                type="date"
+                value={coverageEndDate}
+                onChange={(e) => setCoverageEndDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs font-medium text-slate-600">Renewal lead (days)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={renewalLeadDays}
+                onChange={(e) => setRenewalLeadDays(e.target.value)}
+              />
+            </div>
+          </div>
+          <p className="-mt-2 text-[11px] text-slate-400">Coverage end must be after the start date.</p>
+
+          <div>
+            <Label className="mb-1 block text-xs font-medium text-slate-600">Owner</Label>
+            <UserPicker value={ownerId} onChange={(id) => setOwnerId(id)} placeholder="Select policy owner" />
+          </div>
+
+          <div>
+            <Label className="mb-1 block text-xs font-medium text-slate-600">Site scope</Label>
+            {plants.length === 0 ? (
+              <p className="text-xs text-slate-400">No sites available.</p>
+            ) : (
+              <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-slate-200 p-2">
+                {plants.map((p) => (
+                  <Label key={p.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-slate-50 font-normal leading-normal">
+                    <Checkbox checked={siteScope.includes(p.id)} onChange={() => toggleSite(p.id)} />
+                    <span className="text-slate-700">{p.name}</span>
+                  </Label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label className="mb-1 block text-xs font-medium text-slate-600">Covered risks</Label>
+            {risks.length === 0 ? (
+              <p className="text-xs text-slate-400">No risks available.</p>
+            ) : (
+              <div className="max-h-36 space-y-1 overflow-y-auto rounded-md border border-slate-200 p-2">
+                {risks.map((r) => (
+                  <Label key={r.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-slate-50 font-normal leading-normal">
+                    <Checkbox checked={coveredRiskIds.includes(r.id)} onChange={() => toggleRisk(r.id)} />
+                    <span className="font-medium text-primary-700">{r.riskCode}</span>
+                    <span className="truncate text-slate-600">{r.title}</span>
+                  </Label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label className="mb-1 block text-xs font-medium text-slate-600">Covered processes</Label>
+            {procs.length === 0 ? (
+              <p className="text-xs text-slate-400">No processes available.</p>
+            ) : (
+              <div className="max-h-36 space-y-1 overflow-y-auto rounded-md border border-slate-200 p-2">
+                {procs.map((p) => (
+                  <Label key={p.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-slate-50 font-normal leading-normal">
+                    <Checkbox checked={coveredProcessIds.includes(p.id)} onChange={() => toggleProc(p.id)} />
+                    <span className="font-medium text-primary-700">{p.processCode}</span>
+                    <span className="truncate text-slate-600">{p.name}</span>
+                  </Label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label className="mb-1 block text-xs font-medium text-slate-600">Key exclusions (one per line)</Label>
+            <Textarea
+              value={exclusionsText}
+              onChange={(e) => setExclusionsText(e.target.value)}
+              rows={3}
+              placeholder={"War & terrorism\nWear and tear\nConsequential loss"}
+            />
+          </div>
+
+          {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{error}</div>}
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={submit} disabled={busy || !valid}>
+            {busy ? "Creating…" : "Create policy"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,93 @@
+{
+  "_comment": [
+    "CANONICAL HAND-AUTHORED FORM CONFIG — the fixture behind the Part B §4 parity proof.",
+    "",
+    "This is what an engineer would write by hand, exactly as they would write it. Three",
+    "independent consumers must agree on it, and the whole point is that they are checked",
+    "against THIS file rather than against each other's assumptions:",
+    "",
+    "  1. prisma/parity-form-builder.ts  — replays the Form Designer's authoring gestures",
+    "     (makeField / insertAt / setAt / fromEditable) and asserts the schema it produces",
+    "     deep-equals `schemaJson` below. This is the proof that the Builder is a UI over",
+    "     the config model and not a second system.",
+    "",
+    "  2. tests/test_form_engine.py::test_the_parity_fixture_*  — asserts the SAME bytes pass",
+    "     the engine's publish gate and compute the expected values. A Builder that produced",
+    "     config the engine rejects would be worse than no Builder.",
+    "",
+    "  3. Any human reading it — it is deliberately plain JSON with no generated noise.",
+    "",
+    "Shape chosen to exercise everything Part B claims: a repeatable table, a conditionally",
+    "required field, and two calculated fields where one reads the other (which forces the",
+    "engine's dependency ordering rather than schema order).",
+    "",
+    "If you change this file, all three consumers must be re-run. That coupling is the feature."
+  ],
+  "key": "parity_energy",
+  "title": "Energy Consumption",
+  "module": "SUSTAINABILITY",
+  "numberPattern": "SUS-ENERGY-{YYYY}-{####}",
+  "schemaJson": [
+    {
+      "key": "reporting_period",
+      "type": "text",
+      "label": "Reporting period",
+      "required": true
+    },
+    {
+      "key": "sources",
+      "type": "table",
+      "label": "Energy sources",
+      "columns": [
+        {
+          "key": "source_type",
+          "type": "select",
+          "label": "Source",
+          "required": true,
+          "options": [
+            { "value": "GRID", "label": "Grid electricity" },
+            { "value": "DIESEL", "label": "Diesel" },
+            { "value": "SOLAR", "label": "Solar" }
+          ]
+        },
+        {
+          "key": "quantity_gj",
+          "type": "decimal",
+          "label": "Quantity",
+          "required": true,
+          "unit": "GJ"
+        }
+      ]
+    },
+    {
+      "key": "production_output",
+      "type": "decimal",
+      "label": "Production output",
+      "required": true
+    },
+    {
+      "key": "has_renewable",
+      "type": "boolean",
+      "label": "Any renewable source this period?"
+    },
+    {
+      "key": "renewable_certificate_no",
+      "type": "text",
+      "label": "Renewable certificate no.",
+      "required": true,
+      "visible_if": { "field": "has_renewable", "operator": "=", "value": true }
+    },
+    {
+      "key": "total_energy_gj",
+      "type": "calculated",
+      "label": "Total energy (GJ)",
+      "formula": "SUM(sources.quantity_gj)"
+    },
+    {
+      "key": "energy_intensity",
+      "type": "calculated",
+      "label": "Energy intensity",
+      "formula": "ROUND(total_energy_gj / production_output, 3)"
+    }
+  ]
+}
