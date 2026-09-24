@@ -1,5 +1,6 @@
 "use client";
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,7 +47,7 @@ export function NewSubmissionForm({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setError(body.error ?? `HTTP ${res.status}`);
+        setError(body.error ?? httpStatusMessage(res.status));
         setSubmitting(false);
         return;
       }

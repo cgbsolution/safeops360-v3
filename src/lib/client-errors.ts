@@ -1,3 +1,12 @@
+// Plain-language text for an HTTP status with no usable message in the body.
+// Access failures read as what they are — not as "HTTP 403".
+export function httpStatusMessage(status: number, fallback = "Request failed"): string {
+  if (status === 401) return "Your session has expired — sign in again.";
+  if (status === 403) return "You don't have permission to view or do this. Ask your administrator if you need access.";
+  if (status === 404) return "Not found — it may have been removed or belong to another site.";
+  return `${fallback} (HTTP ${status})`;
+}
+
 // Client-side helper to extract a meaningful error message from a fetch
 // Response. Tries JSON `{error}` first, then text body, then status reason.
 // This is what every form should call on `!res.ok` so users never see a
@@ -5,7 +14,7 @@
 export async function readApiError(res: Response, fallback = "Request failed"): Promise<string> {
   try {
     const text = await res.text();
-    if (!text) return `${fallback} (HTTP ${res.status})`;
+    if (!text) return httpStatusMessage(res.status, fallback);
     try {
       const j = JSON.parse(text);
       if (j && typeof j === "object") {
@@ -43,13 +52,13 @@ export async function readApiError(res: Response, fallback = "Request failed"): 
         }
         if (typeof j.reason === "string" && j.reason.trim()) return j.reason;
       }
-      return `${fallback} (HTTP ${res.status})`;
+      return httpStatusMessage(res.status, fallback);
     } catch {
       // Non-JSON body. Truncate so we don't dump an HTML error page in the UI.
       const trimmed = text.replace(/<[^>]*>/g, "").trim().slice(0, 200);
-      return trimmed || `${fallback} (HTTP ${res.status})`;
+      return trimmed || httpStatusMessage(res.status, fallback);
     }
   } catch {
-    return `${fallback} (HTTP ${res.status})`;
+    return httpStatusMessage(res.status, fallback);
   }
 }

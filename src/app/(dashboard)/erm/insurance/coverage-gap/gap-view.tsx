@@ -1,5 +1,6 @@
 "use client";
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Printer, ShieldCheck, X } from "lucide-react";
@@ -254,7 +255,7 @@ function NewAssessmentModal({ onClose, onDone }: { onClose: () => void; onDone: 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/erm/insurance/coverage-gap/risks")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
       .then((d) => {
         if (cancelled) return;
         const rows: RiskRow[] = (d ?? []).map((x: any) => ({ riskId: x.riskId, riskCode: x.riskCode, title: x.title, residualBand: x.residualBand ?? null }));

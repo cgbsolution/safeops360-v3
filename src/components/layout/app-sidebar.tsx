@@ -476,7 +476,7 @@ export function AppSidebar() {
   const { data: session } = useSession();
   const user = session?.user as any;
   const permissions = usePermissions();
-  const { hasModule } = useLicence();
+  const { hasModule, loading: licenceLoading } = useLicence();
   // Display-label overrides (nav.<href>, nav.section.<key>, term.*); every
   // lookup falls back to the literal below, so plants without a profile render as before.
   const L = useLabels();
@@ -603,7 +603,12 @@ export function AppSidebar() {
             // Module entitlement gate (licence) — hide items whose module the
             // licence doesn't include. Core/unmatched routes (module === null)
             // always pass. This is UX; the API enforces independently.
-            if (!modulesForPath(item.href).every(hasModule)) return false;
+            // While the active site's module set is still loading, hide gated
+            // items instead of failing open: a click in that window used to
+            // land on a module the site has switched off (403 → error page).
+            const mods = modulesForPath(item.href);
+            if (licenceLoading && mods.length) return false;
+            if (!mods.every(hasModule)) return false;
             if (!item.permission) return true;
             return !!permissions[item.permission];
           });

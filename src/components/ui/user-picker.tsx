@@ -1,5 +1,6 @@
 "use client";
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import * as React from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Check, ChevronDown, Loader2, Search, User as UserIcon, X } from "lucide-react";
@@ -168,7 +169,7 @@ export function UserPicker(props: UserPickerProps) {
     setError(null);
     const qs = buildQuery(filter, debounced);
     fetch(`/api/users?${qs}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
       .then((data) => {
         if (cancelled) return;
         const list: PickerUser[] = data.users ?? [];

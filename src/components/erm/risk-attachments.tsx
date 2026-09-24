@@ -1,5 +1,6 @@
 "use client";
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload,
@@ -107,7 +108,7 @@ export function RiskAttachments({ riskId, canEdit = true }: { riskId: string; ca
     setItems(null);
     setLoadError(null);
     fetch(`/api/erm/risks/${riskId}/attachments`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
       .then((j) => {
         if (cancelled) return;
         const rows: AttachmentRow[] = Array.isArray(j) ? j : j.items ?? [];

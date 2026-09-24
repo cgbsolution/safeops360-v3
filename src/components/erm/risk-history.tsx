@@ -1,5 +1,6 @@
 "use client";
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -136,7 +137,7 @@ export function RiskHistory({ riskId, riskCode }: { riskId: string; riskCode?: s
     setEntries(null);
     setError(null);
     fetch(`/api/erm/risks/${riskId}/history`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
       .then((j) => {
         if (cancelled) return;
         const rows: HistoryEntry[] = Array.isArray(j?.entries) ? j.entries : [];

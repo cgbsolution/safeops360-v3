@@ -1,5 +1,6 @@
 "use client";
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -409,7 +410,7 @@ function AddMappingModal({ controlId, existing, onClose, onSaved }: { controlId:
     let cancelled = false;
     const url = targetType === "risk" ? "/api/erm/risks" : "/api/erm/bcm/processes";
     fetch(url)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
       .then((data) => {
         if (cancelled) return;
         const items: any[] = data?.items ?? data ?? [];

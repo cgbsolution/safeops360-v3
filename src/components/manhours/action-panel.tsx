@@ -1,5 +1,6 @@
 "use client";
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -103,7 +104,7 @@ function PlantHeadReviewPanel({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
+        throw new Error(body.error ?? httpStatusMessage(res.status));
       }
       const fresh = await fetchSubmission(submission.id);
       onUpdated(fresh);
@@ -208,7 +209,7 @@ function CorporateLockPanel({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
+        throw new Error(body.error ?? httpStatusMessage(res.status));
       }
       const fresh = await fetchSubmission(submission.id);
       onUpdated(fresh);
@@ -298,7 +299,7 @@ function UnlockPanel({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
+        throw new Error(body.error ?? httpStatusMessage(res.status));
       }
       const fresh = await fetchSubmission(submission.id);
       onUpdated(fresh);
@@ -381,7 +382,7 @@ function UnlockedBanner({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
+        throw new Error(body.error ?? httpStatusMessage(res.status));
       }
       const fresh = await fetchSubmission(submission.id);
       onUpdated(fresh);

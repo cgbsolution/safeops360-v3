@@ -1,5 +1,6 @@
 "use client";
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -49,7 +50,7 @@ function NewProcessModal({ onClose, onCreated }: { onClose: () => void; onCreate
   useEffect(() => {
     let cancelled = false;
     fetch("/api/plants")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
       .then((data) => {
         if (cancelled) return;
         const items: PlantOption[] = (data?.items ?? data ?? []).map((p: any) => ({ id: p.id, name: p.name }));

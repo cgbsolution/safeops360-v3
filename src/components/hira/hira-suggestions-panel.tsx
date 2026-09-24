@@ -12,6 +12,7 @@
 // caller's plantId + areaId. The panel polls when those props change so
 // the suggestions stay in sync as the user picks the location.
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, ExternalLink, ShieldAlert } from "lucide-react";
@@ -91,7 +92,7 @@ export function HiraSuggestionsPanel({
           setForbidden(true);
           return null;
         }
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) throw new Error(httpStatusMessage(r.status));
         return r.json();
       })
       .then((data) => {

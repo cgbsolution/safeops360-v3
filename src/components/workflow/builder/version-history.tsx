@@ -1,5 +1,6 @@
 "use client";
 
+import { httpStatusMessage } from "@/lib/client-errors";
 import { useEffect, useState } from "react";
 import { X, History, RotateCcw, Loader2, User as UserIcon, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ export function VersionHistoryDrawer({
     setLoading(true);
     setError(null);
     fetch(`/api/workflow/definitions/${definitionId}/versions`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
       .then((j) => { if (!cancelled) setVersions(j.versions ?? []); })
       .catch((e: Error) => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });

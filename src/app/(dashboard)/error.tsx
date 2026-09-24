@@ -19,7 +19,8 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, FileQuestion, Lock, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 // Returns true if the error looks like a transient webpack/HMR chunk-load
@@ -45,6 +46,78 @@ function isChunkLoadError(error: Error & { digest?: string }): boolean {
     // message *together with* the webpack module-factory frame — not either
     // one on its own.
     (factoryBug && stack.includes("options.factory"))
+  );
+}
+
+// Access failures: backendFetch stamps a stable digest on 401/403/404 (see
+// ACCESS_DIGEST_PREFIX in lib/backend/fetch.ts) because production strips the
+// message. In dev the message is also checked so the behaviour matches.
+type AccessKind = { status: 401 | 403 | 404; code: string | null } | null;
+
+function accessFailure(error: Error & { digest?: string; status?: number }): AccessKind {
+  const m = /^SAFEOPS_HTTP_(401|403|404)(?::([A-Z0-9_]+))?$/.exec(error?.digest ?? "");
+  if (m) return { status: Number(m[1]) as 401 | 403 | 404, code: m[2] ?? null };
+  if (error?.name === "BackendError" && [401, 403, 404].includes(Number(error.status))) {
+    return { status: Number(error.status) as 401 | 403 | 404, code: null };
+  }
+  return null;
+}
+
+const ACCESS_COPY: Record<string, { title: string; body: string }> = {
+  MODULE_DISABLED_FOR_PLANT: {
+    title: "This module isn't enabled for this site",
+    body: "Your organisation hasn't switched this module on for the site you're working in. Switch site from the header, or ask your administrator to enable it.",
+  },
+  CAMS_FIRE_ONLY: {
+    title: "Only Fire Safety audits are available here",
+    body: "This site uses the audit module for Fire Safety audits only. Open the Fire Safety Audits register instead.",
+  },
+};
+
+function AccessDenied({ kind, reset }: { kind: NonNullable<AccessKind>; reset: () => void }) {
+  const copy =
+    (kind.code && ACCESS_COPY[kind.code]) ??
+    (kind.status === 404
+      ? {
+          title: "We couldn't find that",
+          body: "The record or page doesn't exist for the site you're working in — the link may be out of date, or it belongs to another site.",
+        }
+      : kind.status === 401
+        ? {
+            title: "Your session has expired",
+            body: "Sign in again to continue.",
+          }
+        : {
+            title: "You don't have access to this page",
+            body: "Your role doesn't include permission to view this. If you need it, ask your administrator to grant the permission to your role.",
+          });
+  const Icon = kind.status === 404 ? FileQuestion : Lock;
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4 p-8">
+      <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
+        <Icon className="text-amber-600" size={28} />
+      </div>
+      <h2 className="text-xl font-semibold text-slate-800">{copy.title}</h2>
+      <p className="text-slate-500 max-w-md text-sm">{copy.body}</p>
+      <div className="flex items-center gap-2">
+        {kind.status === 401 ? (
+          <Button asChild>
+            <Link href="/login">Sign in</Link>
+          </Button>
+        ) : (
+          <Button asChild>
+            <Link href="/dashboard">Back to dashboard</Link>
+          </Button>
+        )}
+        <Button onClick={reset} variant="outline" size="sm">
+          Try again
+        </Button>
+      </div>
+      <p className="text-[11px] text-slate-400 font-mono pt-2">
+        HTTP {kind.status}
+        {kind.code ? ` · ${kind.code}` : ""}
+      </p>
+    </div>
   );
 }
 
@@ -96,6 +169,9 @@ export default function DashboardError({
       }
     }
   }, [error]);
+
+  const access = accessFailure(error);
+  if (access) return <AccessDenied kind={access} reset={reset} />;
 
   // Best-effort classification. In dev `message` is populated and we
   // recognise the Supabase pool error; in prod we fall back to a
