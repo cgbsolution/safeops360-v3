@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { backendFetch } from "@/lib/backend/fetch";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Can } from "@/components/auth/can";
@@ -33,6 +35,20 @@ export default async function EngagementsPage(props: {
   for (const k of ["status", "siteId", "sourceModule", "q"]) {
     const v = get(k);
     if (v) query[k] = v;
+  }
+  // A site that runs CAMS for Fire Safety only (general CAMS switched off —
+  // see the backend's plant_modules.CAMS_GENERAL) has no ComplianceAudit flow;
+  // its Fire Safety audits are CAMS engagements, so this register lists every
+  // FIRE engagement (audits and inspections). Other sites: unchanged.
+  const session = await getServerSession(authOptions);
+  const home = (session?.user as any)?.plantId as string | undefined;
+  const mods = home
+    ? await backendFetch<{ disabledModules?: string[] }>("/api/licensing/modules", { query: { plantId: home } }).catch(() => null)
+    : null;
+  const fireOnly = !!mods?.disabledModules?.includes("CAMS_GENERAL");
+  if (fireOnly || query.sourceModule === "FIRE") {
+    delete query.engagementType;
+    query.sourceModule = "FIRE";
   }
 
   let data: EngagementListResponse = { items: [], total: 0, statusCounts: {}, typeCounts: {} };
@@ -72,13 +88,21 @@ export default async function EngagementsPage(props: {
   return (
     <div>
       <PageHeader
-        title="Inspections"
-        description="Routine inspections on the CAMS engine — scheduled, executed, scored, closed. Consumer-raised inspections (Fire / PPE / Pharma / EPC) appear here with a source badge. Audits run on the audit flow under Audits."
-        breadcrumbs={[{ label: "CAMS", href: "/cams" }, { label: "Inspections" }]}
+        title={L("nav./cams/engagements", "Inspections")}
+        description={
+          fireOnly
+            ? "Fire Safety audits and inspections on the CAMS engine — lead auditor, fire standards, independence-checked assignment, findings and CAPA. Each audit carries a live Compliance Snapshot from the fire register and routine checklists."
+            : "Routine inspections on the CAMS engine — scheduled, executed, scored, closed. Consumer-raised inspections (Fire / PPE / Pharma / EPC) appear here with a source badge. Audits run on the audit flow under Audits."
+        }
+        breadcrumbs={[{ label: "CAMS", href: "/cams" }, { label: L("nav./cams/engagements", "Inspections") }]}
         action={
-          <Can permission="CAMS.SCHEDULE">
-            <ScheduleEngagementButton auditTypes={auditTypes} templates={templates} plants={plants} inspectionOnly />
-          </Can>
+          // Fire-only sites schedule Fire Safety audits through /api/fire/audits
+          // (independence-checked); the generic CAMS scheduler is refused there.
+          fireOnly ? undefined : (
+            <Can permission="CAMS.SCHEDULE">
+              <ScheduleEngagementButton auditTypes={auditTypes} templates={templates} plants={plants} inspectionOnly />
+            </Can>
+          )
         }
       />
 

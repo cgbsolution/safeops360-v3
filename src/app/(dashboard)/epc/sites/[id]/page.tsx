@@ -208,7 +208,17 @@ export default function SiteDetailPage() {
         }
         if (gateRes.ok) {
           const gateData = await gateRes.json();
-          setGateLog(gateData.entries ?? gateData ?? []);
+          // The log endpoint returns check rows (overallResult / checkCompletedAt);
+          // normalise to the entry shape this page renders.
+          const rows: any[] = Array.isArray(gateData?.entries) ? gateData.entries : Array.isArray(gateData) ? gateData : [];
+          setGateLog(
+            rows.map((e) => ({
+              ...e,
+              result: e.result ?? e.overallResult ?? "",
+              checkedAt: e.checkedAt ?? e.checkCompletedAt ?? e.createdAt,
+              gatePassNumber: e.gatePassNumber ?? e.gatePass?.passNumber ?? null,
+            })),
+          );
           if (gateData.complianceConfig) setComplianceConfig(gateData.complianceConfig);
         }
         if (inductionRes.ok) {

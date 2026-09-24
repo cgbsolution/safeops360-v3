@@ -142,7 +142,7 @@ export default function NewSitePage() {
                 id="siteName"
                 value={form.siteName}
                 onChange={(e) => set("siteName", e.target.value)}
-                placeholder="e.g. Sipat Phase II Power Plant"
+                placeholder={L("epc.site_name_example", "e.g. Sipat Phase II Power Plant")}
                 required
                 className="mt-1"
               />
@@ -245,7 +245,7 @@ export default function NewSitePage() {
                 id="district"
                 value={form.district}
                 onChange={(e) => set("district", e.target.value)}
-                placeholder="e.g. Korba"
+                placeholder={L("epc.district_example", "e.g. Korba")}
                 className="mt-1"
               />
             </div>
@@ -262,7 +262,7 @@ export default function NewSitePage() {
                 id="clientName"
                 value={form.clientName}
                 onChange={(e) => set("clientName", e.target.value)}
-                placeholder="e.g. NTPC Limited"
+                placeholder={L("epc.client_example", "e.g. NTPC Limited")}
                 required
                 className="mt-1"
               />

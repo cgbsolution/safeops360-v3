@@ -169,7 +169,22 @@ export default function GateClearancePage() {
     setLogLoading(true);
     fetch(`/api/epc/gate/log?siteId=${selectedSiteId}`)
       .then((r) => r.json())
-      .then((d) => setGateLog(d.entries ?? d ?? []))
+      // The log endpoint returns check rows (overallResult / checkCompletedAt);
+      // normalise to the entry shape this table renders.
+      .then((d) => {
+        const rows: any[] = Array.isArray(d?.entries) ? d.entries : Array.isArray(d) ? d : [];
+        setGateLog(
+          rows.map((e) => ({
+            id: e.id,
+            workerCode: e.workerCode,
+            workerName: e.workerName,
+            result: e.result ?? e.overallResult ?? "",
+            checkedAt: e.checkedAt ?? e.checkCompletedAt ?? e.createdAt,
+            gatePassNumber: e.gatePassNumber ?? e.gatePass?.passNumber ?? null,
+            checkMethod: e.checkMethod,
+          })),
+        );
+      })
       .catch(() => setGateLog([]))
       .finally(() => setLogLoading(false));
   }, [selectedSiteId, result]);

@@ -86,7 +86,24 @@ export async function backendFetch(
       } as any)) as unknown as Response;
       return res;
     }
-    return await fetch(url, { ...rest, signal: ctrl.signal });
+    // Follow the backend's own redirects (FastAPI answers `/api/epc/sites` with
+    // a 307 to `/api/epc/sites/`) ourselves. Left to fetch, the redirect target
+    // is built from the backend's view of its host/scheme, which behind a load
+    // balancer is a different origin — so fetch drops the Authorization header
+    // and the retried request comes back 401. Re-issuing against the ORIGINAL
+    // origin keeps the caller's headers and body intact.
+    const first = await fetch(url, { ...rest, redirect: "manual", signal: ctrl.signal });
+    if ([307, 308].includes(first.status)) {
+      const loc = first.headers.get("location");
+      if (loc) {
+        const target = new URL(loc, url);
+        const origin = new URL(url);
+        target.protocol = origin.protocol;
+        target.host = origin.host;
+        return await fetch(target.toString(), { ...rest, redirect: "manual", signal: ctrl.signal });
+      }
+    }
+    return first;
   } finally {
     if (timer !== null) clearTimeout(timer);
   }
