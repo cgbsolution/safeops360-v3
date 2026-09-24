@@ -153,14 +153,33 @@ export type HiraPrefill = {
   residualRiskLevel: string | null;
 };
 
+/** Per-plant permit-type curation from /api/ptw-type-config. A plant absent
+ *  from the map uses every type and opens on Hot Work, as before. */
+export type PermitTypeConfigs = Record<
+  string,
+  { enabledTypes: string[]; defaultType: string; blockedHazards: string[] }
+>;
+
+function gasDefaultsFor(t: string): GasParam[] {
+  if (t !== "HOT_WORK" && t !== "CONFINED_SPACE") return [];
+  return DEFAULT_GAS_PARAMS[t].map((d) => ({
+    parameter: d.parameter,
+    lowLimit: d.lowLimit?.toString() ?? "",
+    highLimit: d.highLimit?.toString() ?? "",
+    unit: d.unit
+  }));
+}
+
 export function PermitForm({
   plants,
   defaultPlantId,
-  hiraPrefill
+  hiraPrefill,
+  typeConfigs
 }: {
   plants: Plant[];
   defaultPlantId?: string | null;
   hiraPrefill?: HiraPrefill | null;
+  typeConfigs?: PermitTypeConfigs;
 }) {
   const L = useLabels();
   const router = useRouter();
@@ -169,14 +188,41 @@ export function PermitForm({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Plant is picked on step 2 but decided up-front: it drives which permit
+  // types (and which default card) step 1 offers.
+  // Default to the originator's own plant — that's where the issuers, crew and
+  // equipment that match the permit actually live. Falling back to plants[0]
+  // (alphabetical) used to land the wizard on a plant with no PERMIT_ISSUER /
+  // equipment, leaving the Step-3 pickers empty and the user unable to proceed.
+  // A HIRA prefill wins over the session plant: the permit has to be raised
+  // against the plant the assessed activity actually sits in.
+  const initialPlantId =
+    (hiraPrefill?.plantId && plants.some((p) => p.id === hiraPrefill.plantId)
+      ? hiraPrefill.plantId
+      : null) ??
+    (defaultPlantId && plants.some((p) => p.id === defaultPlantId) ? defaultPlantId : null) ??
+    plants[0]?.id ??
+    "";
+
   // ─── Step 1 — type + validity ───
-  // A HIRA-driven permit opens on the type the hazard implies rather than the
-  // generic Hot Work default.
-  const [type, setType] = useState<string>(
-    hiraPrefill?.suggestedPermitType && TYPES.some((t) => t.value === hiraPrefill.suggestedPermitType)
+  // The plant's curation narrows the cards and picks the default (e.g. a
+  // retail site has no Confined Space / Excavation and opens on Electrical /
+  // LOTO). A HIRA-driven permit opens on the type the hazard implies, if the
+  // plant uses it. Otherwise the generic Hot Work default.
+  const typesFor = (pid: string) => {
+    const cfg = typeConfigs?.[pid];
+    return cfg ? TYPES.filter((t) => cfg.enabledTypes.includes(t.value)) : [...TYPES];
+  };
+  const defaultTypeFor = (pid: string) => {
+    const cfg = typeConfigs?.[pid];
+    return cfg && cfg.enabledTypes.includes(cfg.defaultType) ? cfg.defaultType : "HOT_WORK";
+  };
+  const [initialType] = useState<string>(() =>
+    hiraPrefill?.suggestedPermitType && typesFor(initialPlantId).some((t) => t.value === hiraPrefill.suggestedPermitType)
       ? hiraPrefill.suggestedPermitType
-      : "HOT_WORK"
+      : defaultTypeFor(initialPlantId)
   );
+  const [type, setType] = useState<string>(initialType);
   const typeMeta = useMemo<TypeMeta>(() => TYPES.find((t) => t.value === type) ?? TYPES[0], [type]);
   const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   const defaultEnd = new Date(Date.now() + 4 * 3_600_000 - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -196,13 +242,6 @@ export function PermitForm({
   // equipment, leaving the Step-3 pickers empty and the user unable to proceed.
   // A HIRA prefill wins over the session plant: the permit has to be raised
   // against the plant the assessed activity actually sits in.
-  const initialPlantId =
-    (hiraPrefill?.plantId && plants.some((p) => p.id === hiraPrefill.plantId)
-      ? hiraPrefill.plantId
-      : null) ??
-    (defaultPlantId && plants.some((p) => p.id === defaultPlantId) ? defaultPlantId : null) ??
-    plants[0]?.id ??
-    "";
   const [plantId, setPlantId] = useState(initialPlantId);
   const [departmentId, setDepartmentId] = useState("");
   const [areaId, setAreaId] = useState(hiraPrefill?.areaId ?? "");
@@ -228,7 +267,7 @@ export function PermitForm({
   const [isolations, setIsolations] = useState<IsolationRow[]>([]);
 
   // ─── Step 5 — PPE + tools + subject equipment ───
-  const [ppe, setPpe] = useState<string[]>(PPE_DEFAULTS["HOT_WORK"]);
+  const [ppe, setPpe] = useState<string[]>(PPE_DEFAULTS[initialType] ?? ["helmet", "shoes"]);
   const [tools, setTools] = useState<ToolRow[]>([]);
   const [subjectEq, setSubjectEq] = useState<SubjectEqRow[]>([]);
   // LOTO cross-reference (LOTO spec §6 / Part A). Optional at every permit type
@@ -236,8 +275,8 @@ export function PermitForm({
   const [lotoLink, setLotoLink] = useState<WizardLotoLinkValue | null>(null);
 
   // ─── Step 6 — gas test plan ───
-  const [gasRefreshMinutes, setGasRefreshMinutes] = useState("120");
-  const [gasParams, setGasParams] = useState<GasParam[]>([]);
+  const [gasRefreshMinutes, setGasRefreshMinutes] = useState(initialType === "HOT_WORK" ? "240" : "120");
+  const [gasParams, setGasParams] = useState<GasParam[]>(() => gasDefaultsFor(initialType));
   const [gasInstrumentSerial, setGasInstrumentSerial] = useState("");
   const [gasInstrumentCalibrated, setGasInstrumentCalibrated] = useState("");
 
@@ -299,18 +338,24 @@ export function PermitForm({
       return Object.fromEntries(Object.entries(prev).filter(([k]) => keep.has(k)));
     });
     setPpe(PPE_DEFAULTS[newType] ?? ["helmet", "shoes"]);
+    setGasParams(gasDefaultsFor(newType));
     if (newType === "HOT_WORK" || newType === "CONFINED_SPACE") {
-      const defaults = DEFAULT_GAS_PARAMS[newType];
-      setGasParams(defaults.map((d) => ({
-        parameter: d.parameter,
-        lowLimit: d.lowLimit?.toString() ?? "",
-        highLimit: d.highLimit?.toString() ?? "",
-        unit: d.unit
-      })));
       setGasRefreshMinutes(newType === "HOT_WORK" ? "240" : "120");
-    } else {
-      setGasParams([]);
     }
+  }
+
+  const availableTypes = useMemo(() => typesFor(plantId), [plantId, typeConfigs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const blockedHazards = typeConfigs?.[plantId]?.blockedHazards;
+
+  // Switching to a plant that doesn't use the chosen type (or an attached
+  // annexure) resets to that plant's default rather than carrying it over.
+  function onPlantChange(nextPlantId: string) {
+    setPlantId(nextPlantId);
+    setAreaId("");
+    setDepartmentId("");
+    if (!typesFor(nextPlantId).some((t) => t.value === type)) onTypeChange(defaultTypeFor(nextPlantId));
+    const blocked = typeConfigs?.[nextPlantId]?.blockedHazards;
+    if (blocked?.length) setHazards((prev) => prev.filter((h) => !blocked.includes(h)));
   }
 
   // Load departments + equipment when plant changes.
@@ -649,7 +694,7 @@ export function PermitForm({
               aria-label="Permit type"
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
             >
-              {TYPES.map((t) => {
+              {availableTypes.map((t) => {
                 const selected = type === t.value;
                 const TypeIcon = t.icon;
                 return (
@@ -754,7 +799,7 @@ export function PermitForm({
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
                 <Label>{`${L(TERM.plant, "Plant")} `}<span className="text-rose-600">*</span></Label>
-                <Select value={plantId} onChange={(e) => { setPlantId(e.target.value); setAreaId(""); setDepartmentId(""); }} required>
+                <Select value={plantId} onChange={(e) => onPlantChange(e.target.value)} required>
                   {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </Select>
               </div>
@@ -1147,6 +1192,7 @@ export function PermitForm({
               onActiveHazardChange={setActiveHazard}
               catalogLoading={catalogLoading}
               validityHours={validityHours}
+              blockedHazards={blockedHazards}
             />
           </CardContent>
         </Card>

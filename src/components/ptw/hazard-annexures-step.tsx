@@ -67,6 +67,9 @@ export type HazardAnnexuresStepProps = {
   catalogLoading?: boolean;
   /** Hours currently requested, so the cap warning can be concrete. */
   validityHours: number | null;
+  /** Annexures this plant does not use (its permit-type curation removed the
+   *  type they belong to). Omitted → every hazard is attachable. */
+  blockedHazards?: readonly string[];
 };
 
 export function HazardAnnexuresStep({
@@ -79,11 +82,15 @@ export function HazardAnnexuresStep({
   activeHazard,
   onActiveHazardChange,
   catalogLoading = false,
-  validityHours
+  validityHours,
+  blockedHazards
 }: HazardAnnexuresStepProps) {
   const baseHazard = hazardForBaseType(baseType);
   const inForce = useMemo(() => effectiveHazards(baseType, hazards), [baseType, hazards]);
-  const attachable = useMemo(() => attachableHazards(baseType), [baseType]);
+  const attachable = useMemo(
+    () => attachableHazards(baseType).filter((h) => !blockedHazards?.includes(h)),
+    [baseType, blockedHazards]
+  );
 
   const cap = validityCapHours(baseType, hazards);
   const capDriver = bindingCapHazard(baseType, hazards);

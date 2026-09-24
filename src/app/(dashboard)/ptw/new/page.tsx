@@ -1,17 +1,26 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
-import { PermitForm, type HiraPrefill } from "../permit-form";
+import { PermitForm, type HiraPrefill, type PermitTypeConfigs } from "../permit-form";
 import { requirePermission } from "@/lib/auth/server";
 import { backendFetch } from "@/lib/backend/fetch";
 
 export const dynamic = "force-dynamic";
+
+type PlantOption = { id: string; name: string; areas: { id: string; name: string }[] };
 
 export default async function NewPermitPage(
   props: { searchParams: Promise<{ hiraEntryId?: string; hiraEntryHazardId?: string }> }
 ) {
   const user = await requirePermission("PTW.CREATE");
   const searchParams = await props.searchParams;
-  const plants = await prisma.plant.findMany({ include: { areas: true }, orderBy: { name: "asc" } });
+  // Scoped server-side to the plants the originator can act in — a Retail
+  // store manager must not be offered Manufacturing plants (or vice versa).
+  const plants = await backendFetch<PlantOption[]>("/api/plants?include_areas=true");
+  // Per-plant permit-type curation. A plant absent from the map keeps the full
+  // set and the Hot Work default; a failed lookup degrades to exactly that.
+  const typeConfig = await backendFetch<{ configs: PermitTypeConfigs }>("/api/ptw-type-config")
+    .then((r) => r.configs)
+    .catch(() => ({} as PermitTypeConfigs));
 
   // Default the wizard to the originator's home plant. The session carries it,
   // but fall back to a DB lookup if it's missing so the wizard never opens on
@@ -44,8 +53,10 @@ export default async function NewPermitPage(
         breadcrumbs={[{ label: "Permits", href: "/ptw" }, { label: "New" }]}
       />
       <PermitForm
-        plants={plants.map((p) => ({ id: p.id, name: p.name, areas: p.areas.map((a) => ({ id: a.id, name: a.name })) }))}
+        plants={plants.map((p) => ({ id: p.id, name: p.name, areas: p.areas ?? [] }))}
         defaultPlantId={defaultPlantId}
+        hiraPrefill={hiraPrefill}
+        typeConfigs={typeConfig}
       />
     </div>
   );
