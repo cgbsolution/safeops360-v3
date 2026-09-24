@@ -28,6 +28,20 @@ const ANCHOR_ADMIN = {
 // Single, plant-wide "base" accounts — one named account per role (not the
 // role×dept×plant cartesian). These span the whole org and unlock the ERM
 // suite (register, BCM, controls, vendor, insurance) end-to-end.
+// Meridian Retail — a separate demo tenant (40 stores + 3 distribution
+// centers) seeded by Safeops360-backend/scripts/meridian_retail. One account per
+// Retail job role; each is scoped to Retail sites only. Names match the seed.
+const RETAIL_PERSONAS: { email: string; name: string; role: string; covers: string }[] = [
+  { email: "store-ops.admin@meridian-retail.in", name: "Kavya Menon", role: "Ops & Safety Admin", covers: "Head — Store Operations & Safety · all 40 stores + 3 DCs" },
+  { email: "sm.s001@meridian-retail.in", name: "Meera Joshi", role: "Store Manager", covers: "Store 001 Andheri West, Mumbai" },
+  { email: "dc.manager.dc01@meridian-retail.in", name: "Riya Joshi", role: "DC Manager", covers: "West DC Bhiwandi" },
+  { email: "floor.s001.a@meridian-retail.in", name: "Manoj Patel", role: "Store Floor Staff", covers: "Customer Service Associate · Store 001 — files field reports" },
+  { email: "fire.tech1@meridian-retail.in", name: "Tanvi Sharma", role: "Fire Safety Technician", covers: "AMC technician · Stores 001–010 + DCs — runs routine checklists" },
+  { email: "fire.auditor1@meridian-retail.in", name: "Saanvi Joshi", role: "Fire Safety Lead Auditor", covers: "CAMS Fire Safety audits · Stores 001–014" },
+  { email: "dc.maint.dc01@meridian-retail.in", name: "Gurpreet Iyer", role: "DC Maintenance Lead", covers: "West DC Bhiwandi — permits & lockout" },
+  { email: "projects@meridian-retail.in", name: "Imran Qureshi", role: "Projects & Contractor Coordinator", covers: "Store fit-outs & renovations · contractor safety" },
+];
+
 const PERSONA_GROUPS = ["Enterprise Risk Leadership", "Tier 3 Specialists", "Risk Owners & Operations"] as const;
 const KEY_PERSONAS: { email: string; name: string; designation: string; group: (typeof PERSONA_GROUPS)[number]; covers: string }[] = [
   { email: "anand.krishnan@safeops360.in", name: "Anand Krishnan", designation: "Chief Risk Officer", group: "Enterprise Risk Leadership", covers: "All ERM phases + Controls · Vendor · Insurance" },
@@ -78,7 +92,7 @@ export default function LoginPage() {
 
   // Demo picker mode: "persona" shows the single plant-wide base accounts,
   // "matrix" shows the Meridian role×dept×plant full matrix.
-  const [pickerMode, setPickerMode] = useState<"persona" | "matrix">("persona");
+  const [pickerMode, setPickerMode] = useState<"persona" | "matrix" | "retail">("persona");
 
   // Filter UI: pick plant + dept + role to compose a demo email.
   const [plantSlug, setPlantSlug] = useState(DEMO_PLANTS[0].slug);
@@ -358,7 +372,38 @@ export default function LoginPage() {
                 >
                   Meridian Full Matrix
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setPickerMode("retail")}
+                  className={`flex-1 text-[11px] font-medium py-1.5 px-2 rounded-md transition-colors ${pickerMode === "retail" ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Meridian Retail
+                </button>
               </div>
+
+              {/* ── Meridian Retail — separate demo tenant, one account per job role ── */}
+              {!searchActive && pickerMode === "retail" && (
+                <div className="space-y-2">
+                  <div className="text-[10px] text-slate-500">Meridian Retail — 40 stores + 3 distribution centers. A separate tenant: these accounts see Retail sites only.</div>
+                  <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+                    {RETAIL_PERSONAS.map((p) => (
+                      <div key={p.email} className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[11px] font-semibold text-slate-900">
+                            {p.name} <span className="font-normal text-slate-500">· {p.role}</span>
+                          </div>
+                          <div className="truncate text-[10px] text-slate-500">{p.covers}</div>
+                          <div className="truncate font-mono text-[10px] text-slate-400">{p.email}</div>
+                        </div>
+                        <Button type="button" size="sm" onClick={() => fillPersona(p.email)} className="shrink-0">Use this</Button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    Password: <code className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">{DEMO_PASSWORD}</code> · Store managers: sm.s001 … sm.s040@meridian-retail.in
+                  </div>
+                </div>
+              )}
 
               {/* ── Key Accounts mode — single plant-wide base accounts ── */}
               {!searchActive && pickerMode === "persona" && (

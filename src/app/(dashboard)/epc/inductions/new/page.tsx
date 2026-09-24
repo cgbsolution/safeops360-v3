@@ -91,8 +91,8 @@ export default function NewInductionPage() {
 
   // Fetch sites and workers on mount
   useEffect(() => {
-    fetch("/api/epc/sites").then(r => r.json()).then(d => setSites(d.sites ?? d ?? []));
-    fetch("/api/epc/workers").then(r => r.json()).then(d => setWorkers(d.workers ?? d ?? []));
+    fetch("/api/epc/sites").then(r => r.json()).then(d => setSites(Array.isArray(d?.sites) ? d.sites : Array.isArray(d) ? d : []));
+    fetch("/api/epc/workers").then(r => r.json()).then(d => setWorkers(Array.isArray(d?.workers) ? d.workers : Array.isArray(d) ? d : []));
   }, []);
 
   // When both worker and site are selected, fetch matching mobilizations
