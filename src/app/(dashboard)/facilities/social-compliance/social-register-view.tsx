@@ -30,6 +30,8 @@ import {
   type SocialComplianceRegisterRow,
   type SocialComplianceRollup,
 } from "../lib";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 const FLAG_RANK: Record<ComplianceFlag, number> = {
   NON_COMPLIANT: 3,
@@ -104,6 +106,7 @@ function FlagDot({ flag, title }: { flag: ComplianceFlag; title: string }) {
 }
 
 export function SocialRegisterView({ data }: { data: SocialComplianceRegisterResponse }) {
+  const L = useLabels();
   const canExport = usePermission("FACILITY.EXPORT");
   const allRows = data.items;
   const [stateFilter, setStateFilter] = useState<string | null>(null);
@@ -150,7 +153,7 @@ export function SocialRegisterView({ data }: { data: SocialComplianceRegisterRes
 
   function exportCsv() {
     const scope = stateFilter ? `${stateFilter.toLowerCase().replace(/\s+/g, "-")}_` : "";
-    downloadCsv(`workforce-sa8000-register_${scope}${stamp()}.csv`, workforceRegisterCsv(rows, view));
+    downloadCsv(`workforce-sa8000-register_${scope}${stamp()}.csv`, workforceRegisterCsv(rows, view, L));
   }
 
   const compliant = view.flagCounts["COMPLIANT"] ?? 0;
@@ -175,7 +178,7 @@ export function SocialRegisterView({ data }: { data: SocialComplianceRegisterRes
     <div className="space-y-4">
       {/* Roll-up strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi label="Group Workforce" value={fmtNum(view.totalWorkforce)} sub={`${view.factoryCount} factories`} />
+        <Kpi label="Group Workforce" value={fmtNum(view.totalWorkforce)} sub={`${view.factoryCount} ${L("term.factories_lc", "factories")}`} />
         <Kpi
           label="Perm / Contract / Appr."
           value={`${fmtNum(view.permanentCount)} / ${fmtNum(view.contractCount)} / ${fmtNum(view.apprenticeTraineeCount)}`}
@@ -186,7 +189,7 @@ export function SocialRegisterView({ data }: { data: SocialComplianceRegisterRes
         <Kpi
           label="Social-Compliant"
           value={fmtNum(compliant)}
-          sub={`of ${view.factoryCount} factories`}
+          sub={`of ${view.factoryCount} ${L("term.factories_lc", "factories")}`}
           tone="emerald"
         />
         <Kpi
@@ -237,7 +240,7 @@ export function SocialRegisterView({ data }: { data: SocialComplianceRegisterRes
                 ? "border-amber-400 bg-amber-50 text-amber-800"
                 : "border-slate-300 bg-white text-slate-700 hover:border-amber-300 hover:text-amber-700"
             )}
-            title="Show only factories that would raise a flag in a buyer audit today"
+            title={L("facilities.social.exception_lens_tip", "Show only factories that would raise a flag in a buyer audit today")}
           >
             <Filter size={15} /> Exception lens{exceptionOnly ? ` · ${rows.length}` : ""}
           </Button>
@@ -259,7 +262,7 @@ export function SocialRegisterView({ data }: { data: SocialComplianceRegisterRes
         <Table className="w-full min-w-[1180px] text-sm">
           <TableHeader className="bg-slate-50/95">
             <TableRow className="text-left text-[11px] uppercase tracking-wider text-slate-500">
-              <SortHead k="factoryName" label="Factory" />
+              <SortHead k="factoryName" label={L(TERM.factory, "Factory")} />
               <SortHead k="state" label="State" />
               <SortHead k="totalWorkforce" label="Workforce" className="text-right" />
               <TableHead className="px-3 py-2.5 text-right">Perm / Cont / Appr</TableHead>
@@ -334,7 +337,7 @@ export function SocialRegisterView({ data }: { data: SocialComplianceRegisterRes
             {rows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={12} className="px-3 py-10 text-center text-sm text-slate-400">
-                  {exceptionOnly ? "No factories raise a flag — clean estate for this view." : "No factories match this filter."}
+                  {exceptionOnly ? L("facilities.social.no_factories_flagged", "No factories raise a flag — clean estate for this view.") : L("facilities.social.no_factories_match", "No factories match this filter.")}
                 </TableCell>
               </TableRow>
             )}
@@ -344,7 +347,7 @@ export function SocialRegisterView({ data }: { data: SocialComplianceRegisterRes
 
       {/* Legend / exception summary */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-slate-500">
-        <span className="inline-flex items-center gap-1.5"><Users size={13} /> {fmtNum(view.totalWorkforce)} workers across {view.factoryCount} factories</span>
+        <span className="inline-flex items-center gap-1.5"><Users size={13} /> {fmtNum(view.totalWorkforce)} workers across {view.factoryCount}{` ${L("term.factories_lc", "factories")}`}</span>
         <span className="inline-flex items-center gap-1.5"><Scale size={13} /> {view.wageFlagCount} wage flag{view.wageFlagCount === 1 ? "" : "s"}</span>
         <span className="inline-flex items-center gap-1.5"><Clock size={13} /> {view.overtimeFlagCount} overtime (&gt;12h) flag{view.overtimeFlagCount === 1 ? "" : "s"}</span>
         <span className="inline-flex items-center gap-1.5"><ShieldCheck size={13} /> {view.foaFlagCount} freedom-of-association flag{view.foaFlagCount === 1 ? "" : "s"}</span>

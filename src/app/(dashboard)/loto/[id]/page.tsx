@@ -28,6 +28,7 @@ import {
   PROCEDURE_STATUS_LABEL,
   type Procedure
 } from "../_meta";
+import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function LotoProcedurePage(props: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await props.params;
+  const L = await getServerLabels();
 
   // NB: the redirect MUST happen outside the try. redirect() signals by
   // throwing, so a bare `catch {}` around it would swallow the navigation and
@@ -146,7 +148,7 @@ export default async function LotoProcedurePage(props: {
             <div className="font-mono text-xs text-slate-500">{procedure.equipmentTag}</div>
           )}
         </Meta>
-        <Meta label="Site / area">
+        <Meta label={`${L("term.site", "Site")} / area`}>
           <div className="text-slate-800">{procedure.siteName ?? "—"}</div>
           {procedure.area && <div className="text-xs text-slate-500">{procedure.area}</div>}
         </Meta>

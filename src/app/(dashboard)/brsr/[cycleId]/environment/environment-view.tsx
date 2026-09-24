@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useLabels } from "@/components/labels/label-provider";
 
 type Plant = { id: string; name: string };
 type Draft = Record<string, { quantity: string; dataQuality: string; treatmentLevel: string }>;
@@ -33,6 +34,7 @@ export function EnvironmentView({
   totals: EnvTotals | null;
   plants: Plant[];
 }) {
+  const L = useLabels();
   const router = useRouter();
   const locked = cycle.status === "FILED";
   const [selectedId, setSelectedId] = useState<string | null>(metrics[0]?.id ?? null);
@@ -234,7 +236,7 @@ export function EnvironmentView({
                   className="block w-full border-b border-slate-50 px-3 py-2.5 text-left last:border-0"
                   style={m.id === selectedId ? { background: MX.ice } : undefined}
                 >
-                  <div className="text-sm font-medium text-slate-800">{m.siteName ?? "Site"}</div>
+                  <div className="text-sm font-medium text-slate-800">{m.siteName ?? L("term.site", "Site")}</div>
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <span
                       className="rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
@@ -258,14 +260,14 @@ export function EnvironmentView({
           {creating && (
             <div className="rounded-xl border border-slate-200 bg-white p-3">
               <Label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                Site
+                {L("term.site", "Site")}
               </Label>
               <Select
                 className="h-auto w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                 value={newSiteId}
                 onChange={(e) => setNewSiteId(e.target.value)}
               >
-                <SelectItem value="">Choose a site…</SelectItem>
+                <SelectItem value="">{L("term.choose_site", "Choose a site…")}</SelectItem>
                 {availableSites.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
@@ -298,7 +300,7 @@ export function EnvironmentView({
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
                 <div>
                   <h3 className="text-sm font-semibold" style={{ fontFamily: MX.display, color: MX.navy }}>
-                    {selected.siteName ?? "Site"} — {selected.periodLabel}
+                    {selected.siteName ?? L("term.site", "Site")} — {selected.periodLabel}
                   </h3>
                   <p className="text-[11px] text-slate-400">
                     {selected.status === "VERIFIED"

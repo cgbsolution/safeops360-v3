@@ -3,6 +3,8 @@ import { backendFetch, BackendError } from "@/lib/backend/fetch";
 import { requirePermission } from "@/lib/auth/server";
 import { PrintButton } from "@/components/ui/print-button";
 import { Table, TableBody, TableRow, TableCell, TableHeader, TableHead } from "@/components/ui/table";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +101,7 @@ export default async function HiraReportPage(
 ) {
   await requirePermission("HIRA.READ");
   const { id } = await props.params;
+  const L = await getServerLabels();
 
   let detail: StudyDetail;
   try {
@@ -152,7 +155,7 @@ export default async function HiraReportPage(
         <Table className="w-full text-sm mb-6">
           <TableBody>
             {[
-              ["Plant", detail.plantName ?? "—"],
+              [L(TERM.plant, "Plant"), detail.plantName ?? "—"],
               ["Department", detail.departmentName ?? "—"],
               ["Area", detail.areaName ?? "—"],
               ["Scope type", study.scopeType.replace(/_/g, " ")],
@@ -414,7 +417,7 @@ export default async function HiraReportPage(
               <TableCell className="px-2 py-1.5"></TableCell>
             </TableRow>
             <TableRow className="hover:bg-transparent border-t h-14">
-              <TableCell className="px-2 py-1.5">Plant Head</TableCell>
+              <TableCell className="px-2 py-1.5">{L(TERM.plantHead, "Plant Head")}</TableCell>
               <TableCell className="px-2 py-1.5">{detail.approvedByName ?? "—"}</TableCell>
               <TableCell className="px-2 py-1.5">{study.approvedAt ? new Date(study.approvedAt).toLocaleDateString() : "—"}</TableCell>
               <TableCell className="px-2 py-1.5"></TableCell>

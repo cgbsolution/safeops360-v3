@@ -46,6 +46,8 @@ const DEROSTER_DECISION_ROLES = [
   "ADMIN"
 ];
 import { formatDate, statusColor, severityColor, humanize } from "@/lib/utils";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 import { CalendarDays, MapPin, User as UserIcon, AlertCircle, Clock, Camera, CheckCircle2 as CheckCircle2Icon } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +64,7 @@ export default async function ObservationDetailPage(
   const photoErrors = parseInt(searchParams?.["photo-errors"] ?? "0", 10) || 0;
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id ?? "";
+  const L = await getServerLabels();
 
   // Both reads are independent — run them in parallel so the slowest one
   // (network RTT to Postgres) doesn't stack on top of the other.
@@ -620,7 +623,7 @@ export default async function ObservationDetailPage(
             <CardHeader><CardTitle className="text-sm">Metadata</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">
               <Meta icon={CalendarDays} label="Date" value={formatDate(o.date)} />
-              <Meta icon={MapPin} label="Plant" value={o.plant.name} />
+              <Meta icon={MapPin} label={L(TERM.plant, "Plant")} value={o.plant.name} />
               <Meta icon={MapPin} label="Area" value={o.area?.name ?? "—"} />
               <Meta icon={UserIcon} label="Observer" value={o.observer.name} />
               {o.contractorCompany && (

@@ -6,6 +6,9 @@ import { Eye, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { useMemo } from "react";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 export interface UserRow {
   id: string;
@@ -19,7 +22,7 @@ export interface UserRow {
   department: string | null;
 }
 
-const columns: ColumnDef<UserRow>[] = [
+const buildColumns = (L: LabelFn): ColumnDef<UserRow>[] => [
   {
     accessorKey: "name",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
@@ -66,7 +69,7 @@ const columns: ColumnDef<UserRow>[] = [
   },
   {
     accessorKey: "plantName",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={L(TERM.plant, "Plant")} />,
     cell: ({ row }) => <span className="text-xs">{row.original.plantName ?? "—"}</span>,
     size: 160
   },
@@ -90,6 +93,8 @@ const columns: ColumnDef<UserRow>[] = [
 ];
 
 export function UsersTable({ data }: { data: UserRow[] }) {
+  const L = useLabels();
+  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}

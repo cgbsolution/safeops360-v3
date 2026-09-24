@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GripVertical, Save, AlertCircle, Camera, MessageSquare, Star, ChevronUp, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useLabels } from "@/components/labels/label-provider";
 
 const ITEM_TYPES = [
   { value: "PASS_FAIL", label: "Pass / Fail" },
@@ -49,6 +50,7 @@ type Props = {
 };
 
 export function ChecklistBuilder({ initial, inspectionTypes, preselectedTypeId }: Props) {
+  const L = useLabels();
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -246,7 +248,7 @@ export function ChecklistBuilder({ initial, inspectionTypes, preselectedTypeId }
             </div>
           </CardTitle>
           <CardDescription>
-            Critical items, when failed, raise a critical Finding that cascades to PTW gating, observation creation, and Plant Head notification.
+            {L("inspections.checklist.critical_items_note", "Critical items, when failed, raise a critical Finding that cascades to PTW gating, observation creation, and Plant Head notification.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

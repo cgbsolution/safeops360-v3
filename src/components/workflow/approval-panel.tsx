@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle2, XCircle, UserMinus, Clock, AlertCircle } from "lucide-react";
 import { daysBetween, formatDateTime, cn } from "@/lib/utils";
 import { UserPicker } from "@/components/ui/user-picker";
-import { stepDisplayName } from "@/lib/flra/terminology";
+import { StepName } from "@/components/workflow/step-name";
 import {
   EvidenceCapture,
   evidenceComplete,
@@ -17,6 +17,7 @@ import {
   useEvidenceCapture,
 } from "@/components/ptw/evidence-capture";
 import { Select, SelectItem } from "@/components/ui/select";
+import { useLabels } from "@/components/labels/label-provider";
 
 type Task = {
   id: string;
@@ -123,7 +124,7 @@ export function ApprovalPanel({
               <CardTitle className="text-primary-900">⏳ Action Required</CardTitle>
               <span className={cn("chip text-xs", slaBadge.className)}>{slaBadge.label}</span>
             </div>
-            <CardDescription className="text-primary-700">{stepDisplayName(task.stepName)}</CardDescription>
+            <CardDescription className="text-primary-700"><StepName name={task.stepName} /></CardDescription>
           </div>
           {task.dueAt && (
             <div className="text-right">
@@ -235,6 +236,7 @@ function ReassignDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const L = useLabels();
   const [users, setUsers] = useState<PickableUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [toUserId, setToUserId] = useState("");
@@ -310,7 +312,7 @@ function ReassignDialog({
             ? "Loading users…"
             : users.length === 0
               ? eligibleRoles && eligibleRoles.length > 0
-                ? `No eligible users (${eligibleRoles.join(" / ")}) at this plant`
+                ? `No eligible users (${eligibleRoles.join(" / ")}) at this ${L("term.plant_lc", "plant")}`
                 : "No users available"
               : "— Select user —"}
         </SelectItem>

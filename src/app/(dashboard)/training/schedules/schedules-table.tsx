@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { formatDate } from "@/lib/utils";
+import { useMemo } from "react";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700 border-slate-200",
@@ -34,7 +37,7 @@ export interface ScheduleRow {
   status: string;
 }
 
-const columns: ColumnDef<ScheduleRow>[] = [
+const buildColumns = (L: LabelFn): ColumnDef<ScheduleRow>[] => [
   {
     accessorKey: "scheduleNumber",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Number" />,
@@ -61,7 +64,7 @@ const columns: ColumnDef<ScheduleRow>[] = [
   {
     id: "plant",
     accessorFn: (r) => `${r.plantName} ${r.venue}`,
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant / Venue" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={`${L(TERM.plant, "Plant")} / Venue`} />,
     cell: ({ row }) => (
       <div className="text-xs">
         <div className="font-medium">{row.original.plantName}</div>
@@ -126,6 +129,8 @@ const columns: ColumnDef<ScheduleRow>[] = [
 ];
 
 export function SchedulesTable({ data }: { data: ScheduleRow[] }) {
+  const L = useLabels();
+  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}

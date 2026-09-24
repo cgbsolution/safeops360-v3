@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { readApiError } from "@/lib/client-errors";
 import { formatDateTime } from "@/lib/utils";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 import {
   EvidenceCapture,
   evidenceComplete,
@@ -160,11 +162,12 @@ export function EvidenceTimelineCard({
     photoCount: number;
   }[];
 }) {
+  const L = useLabels();
   if (items.length === 0) return null;
   const label: Record<string, string> = {
     APPROVE_ISSUER: "Issuer Approval",
     APPROVE_SAFETY: "Safety Officer Approval",
-    APPROVE_PLANT_HEAD: "Plant Head Approval",
+    APPROVE_PLANT_HEAD: `${L(TERM.plantHead, "Plant Head")} Approval`,
     APPROVE: "Approval",
     ISSUE: "Permit Issued",
     ACCEPT: "Receiver Acceptance",

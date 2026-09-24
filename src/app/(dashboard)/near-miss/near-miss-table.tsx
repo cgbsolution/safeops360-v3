@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 import { ArrowUpRight, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
@@ -25,7 +28,7 @@ export interface NearMissRow {
   signal?: Signal | null;
 }
 
-const columns: ColumnDef<NearMissRow>[] = [
+const buildColumns = (L: LabelFn): ColumnDef<NearMissRow>[] => [
   {
     accessorKey: "number",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Number" />,
@@ -55,7 +58,7 @@ const columns: ColumnDef<NearMissRow>[] = [
   {
     id: "plant",
     accessorFn: (r) => `${r.plantName} ${r.location}`,
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant / Location" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={`${L(TERM.plant, "Plant")} / Location`} />,
     cell: ({ row }) => (
       <div className="text-sm">
         <div className="text-foreground font-medium">{row.original.plantName}</div>
@@ -63,7 +66,7 @@ const columns: ColumnDef<NearMissRow>[] = [
       </div>
     ),
     size: 180,
-    meta: { label: "Plant / Location" }
+    meta: { label: `${L(TERM.plant, "Plant")} / Location` }
   },
   {
     accessorKey: "description",
@@ -118,6 +121,8 @@ const columns: ColumnDef<NearMissRow>[] = [
 ];
 
 export function NearMissTable({ data }: { data: NearMissRow[] }) {
+  const L = useLabels();
+  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}
@@ -129,7 +134,7 @@ export function NearMissTable({ data }: { data: NearMissRow[] }) {
         columns: [
           { header: "Number", value: (r) => r.number },
           { header: "Date", value: (r) => formatDate(r.date) },
-          { header: "Plant", value: (r) => r.plantName },
+          { header: L(TERM.plant, "Plant"), value: (r) => r.plantName },
           { header: "Location", value: (r) => r.location },
           { header: "Description", value: (r) => r.description },
           { header: "Potential severity", value: (r) => r.potentialSeverity },

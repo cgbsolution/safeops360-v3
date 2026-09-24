@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLabels } from "@/components/labels/label-provider";
 
 type Site = { id: string; siteName: string; siteCode: string };
 type Worker = { id: string; fullName: string; workerCode: string; primaryTrade: string };
@@ -49,6 +50,7 @@ const CHECKLIST_ITEMS = [
 ];
 
 export default function NewInductionPage() {
+  const L = useLabels();
   const router = useRouter();
   const searchParams = useSearchParams();
   const defaultSiteId = searchParams.get("siteId") ?? "";
@@ -186,10 +188,10 @@ export default function NewInductionPage() {
 
         {/* ── Site + Worker ── */}
         <div className="space-y-4">
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Worker & Site</h2>
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{`Worker & ${L("term.site", "Site")}`}</h2>
 
           <div>
-            <Label htmlFor="siteId">Construction Site *</Label>
+            <Label htmlFor="siteId">{`${L("term.construction_site", "Construction Site")} *`}</Label>
             <Select
               id="siteId"
               required
@@ -197,7 +199,7 @@ export default function NewInductionPage() {
               onChange={e => setForm(f => ({ ...f, siteId: e.target.value }))}
               className="mt-1"
             >
-              <SelectItem value="">Select a site...</SelectItem>
+              <SelectItem value="">{L("term.select_a_site", "Select a site...")}</SelectItem>
               {sites.map(s => (
                 <SelectItem key={s.id} value={s.id}>{s.siteName} ({s.siteCode})</SelectItem>
               ))}

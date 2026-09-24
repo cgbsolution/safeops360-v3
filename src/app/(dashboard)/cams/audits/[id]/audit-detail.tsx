@@ -23,7 +23,7 @@ import { usePermission } from "@/components/auth/can";
 import {
   AuditDetail, AuditDashboard, AuditTeam, AuditTeamMember, CheckpointResponse, CheckpointInteraction, Finalizability, PlantUser, AuditReport, DisciplineRollup, StoredPhoto,
   STATUS_CHIP, STATUS_LABEL, CRITICALITY_CHIP, CRITICALITY_FALLBACK, VALUE_META,
-  WORKFLOW_STATE_META, INTERACTION_LABEL, Chip, fmtDate, fmtDateTime, apiErrorMessage, complianceColor, ragBar, ragText, INDUSTRY_LABEL,
+  WORKFLOW_STATE_META, interactionLabel, Chip, fmtDate, fmtDateTime, apiErrorMessage, complianceColor, ragBar, ragText, INDUSTRY_LABEL,
 } from "../lib";
 import { FileText, Download } from "lucide-react";
 import { MeetingRecords } from "@/components/assurance/meeting-record";
@@ -31,6 +31,8 @@ import { CompetenceSnapshotPanel } from "@/components/assurance/competence-panel
 import { SignOffPanel, type SignOffStatus } from "@/components/assurance/signoff-panel";
 import { SupplierPanel, type PortalSubmission } from "@/components/assurance/supplier-panel";
 import type { CompetenceSnapshotRow, MeetingsResponse } from "../../lib-assurance";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 export function AuditDetailView({
   audit, dashboard, userMap, users = [], reports = [], meetings = null, competence = [],
@@ -47,6 +49,7 @@ export function AuditDetailView({
   /** WP-45 — external submissions, empty for an own-facility audit. */
   submissions?: PortalSubmission[];
 }) {
+  const L = useLabels();
   const router = useRouter();
   const { data: session } = useSession();
   const me = (session?.user as any)?.id as string | undefined;
@@ -127,7 +130,7 @@ export function AuditDetailView({
           <Meta label="Industry" value={INDUSTRY_LABEL[audit.industryCode] ?? audit.industryCode} />
           <Meta label="Template" value={audit.templateName ? `${audit.templateName}${audit.templateVersion ? ` · v${audit.templateVersion}` : ""}` : "—"} />
           <Meta label="Lead auditor" value={name(audit.leadAuditorUserId)} />
-          <Meta label="Plant manager" value={name(audit.plantManagerUserId)} />
+          <Meta label={L(TERM.plantManager, "Plant manager")} value={name(audit.plantManagerUserId)} />
           {/* Counts only — the named cast with their discipline scope is in the
               team panel below, which is where there is room for it. */}
           <Meta label="Co-auditors" value={`${audit.team?.coAuditors.length ?? 0}`} />
@@ -478,9 +481,10 @@ function Meta({ label, value }: { label: string; value: string }) {
  * leaving the scheduler to guess.
  */
 function TeamPanel({ team }: { team: AuditTeam }) {
+  const L = useLabels();
   const groups: { key: string; title: string; note: string; members: AuditTeamMember[] }[] = [
     { key: "lead", title: "Lead auditor", note: "Conducts every discipline not assigned to a co-auditor", members: team.leadAuditor ? [team.leadAuditor] : [] },
-    { key: "pm", title: "Plant manager (reviewer)", note: "Accepts, sends back or escalates auditee responses", members: team.plantManager ? [team.plantManager] : [] },
+    { key: "pm", title: `${L(TERM.plantManager, "Plant manager")} (reviewer)`, note: "Accepts, sends back or escalates auditee responses", members: team.plantManager ? [team.plantManager] : [] },
     { key: "co", title: "Co-auditors by discipline", note: "Conduct only the disciplines listed against their name", members: team.coAuditors },
     { key: "auditee", title: "Auditees", note: "Failed checkpoints in these disciplines route to them", members: team.auditees },
   ];
@@ -522,7 +526,7 @@ function TeamPanel({ team }: { team: AuditTeam }) {
                           <CheckCircle2 size={11} /> authorised
                         </span>
                       ) : (
-                        <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700" title={`Missing ${m.permission} at this plant`}>
+                        <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700" title={`Missing ${m.permission} at this ${L("term.plant_lc", "plant")}`}>
                           <AlertTriangle size={11} /> cannot act
                         </span>
                       )}
@@ -667,6 +671,7 @@ function IterationThread({ interactions, userMap, knownPhotos = [] }: {
   userMap: Record<string, string>;
   knownPhotos?: StoredPhoto[];
 }) {
+  const L = useLabels();
   return (
     <div>
       <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">
@@ -678,7 +683,7 @@ function IterationThread({ interactions, userMap, knownPhotos = [] }: {
             <span className="mt-1 size-1.5 shrink-0 rounded-full bg-slate-300" />
             <div className="min-w-0 flex-1 text-[13px]">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="font-medium text-slate-700">{INTERACTION_LABEL[i.action] ?? i.action}</span>
+                <span className="font-medium text-slate-700">{interactionLabel(L, i.action)}</span>
                 <span className="text-[11px] text-slate-400">{userMap[i.actorId] ?? i.actorRole.replace(/_/g, " ").toLowerCase()}</span>
                 {i.round > 0 && <span className="rounded bg-slate-100 px-1 text-[10px] text-slate-500">R{i.round}</span>}
                 <span className="text-[11px] text-slate-300">{fmtDateTime(i.timestamp)}</span>
@@ -797,6 +802,7 @@ function AuditorReview({ auditId, r, onChanged }: { auditId: string; r: Checkpoi
 }
 
 function PmDecision({ auditId, r, onChanged }: { auditId: string; r: CheckpointResponse; onChanged: () => void }) {
+  const L = useLabels();
   const { toast } = useToast();
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -809,7 +815,7 @@ function PmDecision({ auditId, r, onChanged }: { auditId: string; r: CheckpointR
   }
   return (
     <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3">
-      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-800">Plant manager decision</div>
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-800">{L("cams.interaction.pm_decision", "Plant manager decision")}</div>
       <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Decision comments…" className="mb-2 h-8 text-xs" />
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="success" size="sm" onClick={() => act("PM_ACCEPT")} disabled={!!busy}><CheckCircle2 size={14} /> Accept</Button>

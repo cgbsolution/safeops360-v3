@@ -17,6 +17,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import CertificationsTab from "./CertificationsTab";
+import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,7 @@ function fmtDateTime(d: string): string {
 }
 
 export default async function WorkerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const L = await getServerLabels();
   const { id } = await params;
 
   const [workerData, mobData, inductionData, gateData] = await Promise.all([
@@ -304,7 +306,7 @@ export default async function WorkerDetailPage({ params }: { params: Promise<{ i
                 <TableHeader>
                   <TableRow>
                     <TableHead>Mob. No.</TableHead>
-                    <TableHead>Site</TableHead>
+                    <TableHead>{L("term.site", "Site")}</TableHead>
                     <TableHead>Trade</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Start</TableHead>
@@ -359,7 +361,7 @@ export default async function WorkerDetailPage({ params }: { params: Promise<{ i
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Site</TableHead>
+                    <TableHead>{L("term.site", "Site")}</TableHead>
                     <TableHead>Induction Date</TableHead>
                     <TableHead>Valid Until</TableHead>
                     <TableHead>Status</TableHead>
@@ -400,7 +402,7 @@ export default async function WorkerDetailPage({ params }: { params: Promise<{ i
                 <TableHeader>
                   <TableRow>
                     <TableHead>Time</TableHead>
-                    <TableHead>Site</TableHead>
+                    <TableHead>{L("term.site", "Site")}</TableHead>
                     <TableHead>Result</TableHead>
                     <TableHead>Gate Pass</TableHead>
                   </TableRow>

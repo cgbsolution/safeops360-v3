@@ -13,6 +13,8 @@ import { ManhoursAnalyticsStrip } from "@/components/manhours/analytics-strip";
 import { getAccessiblePlantIds, stripPlantWhere } from "@/lib/dashboard/scope";
 import { ltifr, trir, sumCounts, NO_INJURIES, type InjuryCounts } from "@/lib/manhours/frequency-rates";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 /** One monthly Manhours return, as injury counts for the shared rate functions.
  *  `Manhours` is the canonical source for both halves of every rate on this
@@ -151,11 +153,12 @@ export default async function ManhoursPage() {
       });
   }
 
+  const L = await getServerLabels();
   return (
     <div>
       <PageHeader
         title="Manhours & Safety KPIs"
-        description="Monthly submissions per plant, with statutory KPI roll-up. Click any cell to start or resume a submission."
+        description={L("manhours.page_description", "Monthly submissions per plant, with statutory KPI roll-up. Click any cell to start or resume a submission.")}
         action={
           <div className="flex flex-wrap items-center gap-2">
             {/* One entry, not two: the MIS dashboard and the multi-period
@@ -270,7 +273,7 @@ export default async function ManhoursPage() {
           <Table className="w-full text-xs">
             <TableHeader className="border-b bg-slate-50">
               <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left text-[11px] uppercase tracking-wider text-slate-500">Plant</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left text-[11px] uppercase tracking-wider text-slate-500">{L(TERM.plant, "Plant")}</TableHead>
                 {axisMonths.map((m) => (
                   <TableHead key={`${m.year}-${m.month}`} className="px-2 py-2 text-center text-[11px] uppercase tracking-wider text-slate-500">
                     {m.label}

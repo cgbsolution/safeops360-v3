@@ -8,6 +8,9 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DeleteInspectionIconButton } from "@/components/inspections/delete-icon-button";
 import { formatDate, humanize, statusColor } from "@/lib/utils";
+import { useMemo } from "react";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 export interface InspectionRow {
   id: string;
@@ -22,7 +25,7 @@ export interface InspectionRow {
   status: string;
 }
 
-const columns: ColumnDef<InspectionRow>[] = [
+const buildColumns = (L: LabelFn): ColumnDef<InspectionRow>[] => [
   {
     accessorKey: "number",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Inspection" />,
@@ -46,7 +49,7 @@ const columns: ColumnDef<InspectionRow>[] = [
   },
   {
     accessorKey: "plantName",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={L(TERM.plant, "Plant")} />,
     cell: ({ row }) => <span className="text-sm">{row.original.plantName}</span>,
     size: 150
   },
@@ -116,6 +119,8 @@ const columns: ColumnDef<InspectionRow>[] = [
 ];
 
 export function InspectionsTable({ data }: { data: InspectionRow[] }) {
+  const L = useLabels();
+  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}

@@ -3,6 +3,7 @@
 // drift between the on-screen register and the downloadable file.
 
 import { toCsv, type Cell } from "./csv";
+import { DEFAULT_LABELS, TERM, type LabelFn } from "@/lib/labels/core";
 import {
   fmtDate,
   SOCIAL_FLAG_LABEL,
@@ -15,6 +16,11 @@ import {
 } from "./lib";
 
 const FLAG = (f: ComplianceFlag) => SOCIAL_FLAG_LABEL[f];
+// Display-label-aware "Factory Code" / "Factory Name" header cells (fallback = the literal).
+const factoryCodeHeader = (L: LabelFn) => `${L(TERM.factory, "Factory")} Code`;
+const factoryNameHeader = (L: LabelFn) => `${L(TERM.factory, "Factory")} Name`;
+const wfHeader = (L: LabelFn, h: string) =>
+  h === "Factory Code" ? factoryCodeHeader(L) : h === "Factory Name" ? factoryNameHeader(L) : h;
 const r1 = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : 0);
 
 // ── 4.1 Workforce & SA8000 register ──────────────────────────────────────────
@@ -66,17 +72,21 @@ export const WORKFORCE_CSV_COLUMNS: WfCol[] = [
   { h: "Overall Social-Compliance Flag", get: (r) => FLAG(r.effectiveFlag) },
 ];
 
-export function workforceRegisterCsv(rows: SocialComplianceRegisterRow[], rollup: SocialComplianceRollup): string {
-  const header = WORKFORCE_CSV_COLUMNS.map((c) => c.h);
+export function workforceRegisterCsv(
+  rows: SocialComplianceRegisterRow[],
+  rollup: SocialComplianceRollup,
+  L: LabelFn = DEFAULT_LABELS,
+): string {
+  const header = WORKFORCE_CSV_COLUMNS.map((c) => wfHeader(L, c.h));
   const body = rows.map((r) => WORKFORCE_CSV_COLUMNS.map((c) => c.get(r)));
   const totals = WORKFORCE_CSV_COLUMNS.map((c) => (c.total ? c.total(rollup) : ""));
   return toCsv([header, ...body, totals]);
 }
 
 // ── 4.2 Building register ────────────────────────────────────────────────────
-export function buildingRegisterCsv(res: BuildingRegisterResponse): string {
+export function buildingRegisterCsv(res: BuildingRegisterResponse, L: LabelFn = DEFAULT_LABELS): string {
   const header = [
-    "Factory Code", "Factory Name", "State", "Building Name", "Type", "Floors", "Area (sqm)",
+    factoryCodeHeader(L), factoryNameHeader(L), "State", "Building Name", "Type", "Floors", "Area (sqm)",
     "Max Occupancy", "Current Occupancy", "Assembly Point", "Emergency Exits", "Year Built", "Occupancy Certificate No",
   ];
   const body = res.items.map((b) => [
@@ -92,9 +102,9 @@ export function buildingRegisterCsv(res: BuildingRegisterResponse): string {
 }
 
 // ── 4.3 Certification register (sorted by expiry asc on the server) ──────────
-export function certificationRegisterCsv(res: CertificationRegisterResponse): string {
+export function certificationRegisterCsv(res: CertificationRegisterResponse, L: LabelFn = DEFAULT_LABELS): string {
   const header = [
-    "Factory Code", "Factory Name", "State", "Certification Type", "Certificate No", "Issuing Body",
+    factoryCodeHeader(L), factoryNameHeader(L), "State", "Certification Type", "Certificate No", "Issuing Body",
     "Issue Date", "Expiry Date", "Status", "Days To Expiry", "Scope Notes",
   ];
   const body = res.items.map((c) => [

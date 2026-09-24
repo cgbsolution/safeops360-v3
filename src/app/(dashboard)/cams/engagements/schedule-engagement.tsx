@@ -11,6 +11,7 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ENGAGEMENT_TYPES, STANDARDS, type AuditType, type Template } from "../lib-cams";
 import { Label } from "@/components/ui/label";
+import { useLabels } from "@/components/labels/label-provider";
 
 type Props = {
   auditTypes: AuditType[];
@@ -35,6 +36,7 @@ export function ScheduleEngagementButton({ auditTypes, templates, plants, inspec
 }
 
 function ScheduleModal({ auditTypes, templates, plants, inspectionOnly = false, onClose }: Props & { onClose: () => void }) {
+  const L = useLabels();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -132,7 +134,7 @@ function ScheduleModal({ auditTypes, templates, plants, inspectionOnly = false, 
           )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Site">
+            <Field label={L("term.site", "Site")}>
               <Select value={siteId} onChange={(e) => setSiteId(e.target.value)}>
                 <SelectItem value="">— corporate / unspecified —</SelectItem>
                 {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}

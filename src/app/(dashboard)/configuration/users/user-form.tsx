@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Save, Eye, EyeOff } from "lucide-react";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; name: string; code: string };
 type Role = { id: string; code: string; name: string };
@@ -19,6 +21,7 @@ export function UserForm({
   plants: Plant[];
   roles: Role[];
 }) {
+  const L = useLabels();
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -89,7 +92,7 @@ export function UserForm({
           </div>
           <div>
             <Label>Designation</Label>
-            <Input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Safety Officer / Plant Head / etc." />
+            <Input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder={`Safety Officer / ${L(TERM.plantHead, "Plant Head")} / etc.`} />
           </div>
           <div>
             <Label>Department</Label>
@@ -111,9 +114,9 @@ export function UserForm({
             </Select>
           </div>
           <div>
-            <Label>Plant</Label>
+            <Label>{L(TERM.plant, "Plant")}</Label>
             <Select value={plantId} onChange={(e) => setPlantId(e.target.value)}>
-              <SelectItem value="">— No plant assignment —</SelectItem>
+              <SelectItem value="">{L("users.no_plant_assignment", "— No plant assignment —")}</SelectItem>
               {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>)}
             </Select>
           </div>

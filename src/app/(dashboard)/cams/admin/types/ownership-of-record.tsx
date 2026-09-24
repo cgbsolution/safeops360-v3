@@ -26,6 +26,7 @@ import type { DisciplineOwnerRow } from "../../lib-assurance";
 import type { PlantOption } from "@/lib/plant-context";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
+import { useLabels } from "@/components/labels/label-provider";
 
 export function OwnershipOfRecord({
   owners, canConfig, plants,
@@ -148,6 +149,7 @@ function ScopeChip({
   estateWide: boolean;
   plantName: string | null | undefined;
 }) {
+  const L = useLabels();
   return estateWide ? (
     <span className="inline-flex items-center gap-1 rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-800">
       <Globe2 size={10} /> Estate-wide
@@ -156,7 +158,7 @@ function ScopeChip({
     <span className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-700">
       {/* Resolved by the backend. "Unknown site" beats a cuid when the plant
           row has gone — the reader can act on the former. */}
-      <Building2 size={10} /> {plantName ?? "Unknown site"}
+      <Building2 size={10} /> {plantName ?? L("term.unknown_site", "Unknown site")}
     </span>
   );
 }
@@ -193,6 +195,7 @@ function AddOwnerDialog({
   onClose: () => void;
   plants: PlantOption[];
 }) {
+  const L = useLabels();
   const router = useRouter();
   const [disciplineCode, setDisciplineCode] = useState("");
   const [disciplineLabel, setDisciplineLabel] = useState("");
@@ -274,7 +277,7 @@ function AddOwnerDialog({
             </div>
           </div>
           <div>
-            <Label htmlFor="plant" className="text-xs">Site (blank = estate-wide)</Label>
+            <Label htmlFor="plant" className="text-xs">{`${L("term.site", "Site")} (blank = estate-wide)`}</Label>
             {/* Was a free-text box asking the admin to paste a plant cuid — the
                 one place on the platform that made a person handle an id. */}
             <Select
@@ -283,7 +286,7 @@ function AddOwnerDialog({
               onChange={(e) => setPlantId(e.target.value)}
               className="mt-1"
             >
-              <SelectItem value="">Estate-wide — conflicts at every site</SelectItem>
+              <SelectItem value="">{L("term.estate_wide_conflicts_every_site", "Estate-wide — conflicts at every site")}</SelectItem>
               {plants.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name}

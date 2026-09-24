@@ -16,6 +16,7 @@ import {
   type Stage,
   scoreColor,
 } from "./lib";
+import { useLabels } from "@/components/labels/label-provider";
 
 export function StageBadge({ stage, className = "" }: { stage: Stage; className?: string }) {
   return (
@@ -175,6 +176,7 @@ export function PlantSelect({
   current: string | null;
   allowAll?: boolean;
 }) {
+  const L = useLabels();
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -189,8 +191,8 @@ export function PlantSelect({
       onChange={onChange}
       className="w-auto rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-primary-500 focus:outline-none"
     >
-      {!current && <SelectItem value="">Select a site…</SelectItem>}
-      {allowAll && <SelectItem value="all">◆ All sites (portfolio)</SelectItem>}
+      {!current && <SelectItem value="">{L("term.select_a_site_ellipsis", "Select a site…")}</SelectItem>}
+      {allowAll && <SelectItem value="all">{`◆ ${L("term.all_sites", "All sites")} (portfolio)`}</SelectItem>}
       {plants.map((p) => (
         <SelectItem key={p.id} value={p.id}>
           {p.name}
@@ -259,18 +261,19 @@ export function SiteRollupTable({
   averageLabel?: string;
   emptyHint?: string;
 }) {
+  const L = useLabels();
   const maxBar = Math.max(1, ...rows.map((r) => asNum(r[barKey])));
   const fmtHead = (r: RollupRow) => fmt(r[headlineKey], headlineFormat);
 
   if (rows.length === 0) {
-    return <EmptyState title="No sites in your scope" hint={emptyHint} />;
+    return <EmptyState title={L("term.no_sites_in_scope", "No sites in your scope")} hint={emptyHint} />;
   }
 
   return (
     <div className="rounded-xl border bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm font-semibold" style={{ color: PALETTE.navy }}>
-          {headlineLabel} — {rows.length} sites
+          {headlineLabel} — {rows.length}{` ${L("term.sites_lc", "sites")}`}
         </p>
         {average != null && (
           <span className="text-xs text-slate-500">

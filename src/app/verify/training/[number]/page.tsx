@@ -11,6 +11,8 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +64,7 @@ export default async function VerifyTrainingCertificatePage(props: {
 }) {
   const params = await props.params;
   const data = await fetchVerify(params.number);
+  const L = await getServerLabels();
 
   if (!data) {
     return (
@@ -146,7 +149,7 @@ export default async function VerifyTrainingCertificatePage(props: {
               <Field label="Certificate Number" value={data.certificateNumber} mono />
               <Field label="Holder" value={data.holderName} />
               <Field label="Program" value={data.programName} />
-              <Field label="Plant" value={data.plantName ?? "—"} />
+              <Field label={L(TERM.plant, "Plant")} value={data.plantName ?? "—"} />
               <Field label="Issued" value={formatDate(data.issuedAt)} />
               <Field label="Valid From" value={formatDate(data.validFrom)} />
               <Field

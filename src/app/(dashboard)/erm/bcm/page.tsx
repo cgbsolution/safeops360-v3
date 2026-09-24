@@ -11,10 +11,13 @@ import {
   type BcmDashboard,
 } from "@/app/(dashboard)/erm/lib-p3";
 import { fmtDate } from "@/app/(dashboard)/erm/lib";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
 export default async function BcmDashboardPage() {
+  const L = await getServerLabels();
   let d: BcmDashboard | null = null;
   let error: string | null = null;
   try {
@@ -115,7 +118,7 @@ export default async function BcmDashboardPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-slate-800">{g.name}</p>
                         <p className="text-[11px] text-slate-400">
-                          {g.processCode} · {g.siteId ? "Plant process" : "Corporate"}
+                          {g.processCode} · {g.siteId ? `${L(TERM.plant, "Plant")} process` : "Corporate"}
                         </p>
                       </div>
                       <span className={"rounded border px-2 py-0.5 text-[11px] " + (CRITICALITY_CHIP[g.criticality] ?? "")}>

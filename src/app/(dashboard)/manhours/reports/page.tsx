@@ -7,6 +7,8 @@ import { getAccessiblePlantIds } from "@/lib/dashboard/scope";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, FileText, TrendingUp } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +16,7 @@ const MONTHS = ["", "January", "February", "March", "April", "May", "June", "Jul
 
 export default async function ReportsLauncherPage() {
   await requirePermission("MANHOURS.READ");
+  const L = await getServerLabels();
 
   // Most-recently-completed month — submissions are post-period.
   const now = new Date();
@@ -121,12 +124,12 @@ export default async function ReportsLauncherPage() {
               Monthly Performance Report
             </CardTitle>
             <CardDescription>
-              Per-plant operational view. Uses the immutable KPI snapshot when the period is locked.
+              {L("manhours.reports.monthly_desc", "Per-plant operational view. Uses the immutable KPI snapshot when the period is locked.")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-xs text-slate-500">
-              Pick a plant + month from the list below, or go to the calendar grid.
+              {L("manhours.reports.pick_plant_month", "Pick a plant + month from the list below, or go to the calendar grid.")}
             </div>
           </CardContent>
         </Card>
@@ -146,7 +149,7 @@ export default async function ReportsLauncherPage() {
               <TableHeader className="text-[11px] uppercase tracking-wider text-slate-500 border-b">
                 <TableRow>
                   <TableHead className="px-3 py-2 text-left">Submission #</TableHead>
-                  <TableHead className="px-3 py-2 text-left">Plant</TableHead>
+                  <TableHead className="px-3 py-2 text-left">{L(TERM.plant, "Plant")}</TableHead>
                   <TableHead className="px-3 py-2 text-left">Period</TableHead>
                   <TableHead className="px-3 py-2 text-right">Status</TableHead>
                   <TableHead className="px-3 py-2"></TableHead>

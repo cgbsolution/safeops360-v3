@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 import { AuditLibrary, AuditTemplate, PlantUser, SCOPE_PRESETS, presetDisciplineCodes } from "./lib";
 
 /** A row from /api/cams-completion/suppliers/vendors (the vendor boundary DTO). */
@@ -51,6 +53,7 @@ export function ScheduleModal({
   defaultTitle?: string;
   dialogTitle?: string;
 }) {
+  const L = useLabels();
   const router = useRouter();
   const { toast } = useToast();
   const [, startTransition] = useTransition();
@@ -372,7 +375,7 @@ export function ScheduleModal({
 
   async function submit() {
     setTouched(true);
-    if (!plantId) { toast({ variant: "error", title: "No plant selected", description: "Select a plant before scheduling an audit." }); return; }
+    if (!plantId) { toast({ variant: "error", title: L("term.no_plant_selected", "No plant selected"), description: L("cams.select_plant_before_scheduling", "Select a plant before scheduling an audit.") }); return; }
     if (firstError) { toast({ variant: "error", title: "Missing required fields", description: firstError }); return; }
 
     // Distribute only the IN-SCOPE disciplines across the chosen auditees.
@@ -679,7 +682,7 @@ export function ScheduleModal({
             </Field>
           </div>
 
-          <Field label="Plant manager (reviewer)">
+          <Field label={`${L(TERM.plantManager, "Plant manager")} (reviewer)`}>
             <Select value={plantManagerUserId} onChange={(e) => setPM(e.target.value)} disabled={assignableLoading}>
               <SelectItem value="">— none —</SelectItem>
               {pmCandidates.map((u) => <SelectItem key={u.id} value={u.id}>{u.name} ({u.role.replace(/_/g, " ")})</SelectItem>)}
@@ -704,7 +707,7 @@ export function ScheduleModal({
             <PickerLegend state={auditorPreflight} noun="auditor" />
             <div className="max-h-28 overflow-y-auto rounded-md border border-slate-200">
               {coAuditorUsers.length === 0 && !assignableLoading && (
-                <div className="p-3 text-xs text-slate-400">No other authorised auditors at this plant.</div>
+                <div className="p-3 text-xs text-slate-400">{L("cams.no_other_auditors_at_plant", "No other authorised auditors at this plant.")}</div>
               )}
               {coAuditorUsers.map((u) => {
                 const on = coAuditorIds.includes(u.id);
@@ -763,7 +766,7 @@ export function ScheduleModal({
             <PickerLegend state={auditeePreflight} noun="auditee" />
             <div className="max-h-28 overflow-y-auto rounded-md border border-slate-200">
               {auditeeCandidates.length === 0 && !assignableLoading && (
-                <div className="p-3 text-xs text-slate-400">No authorised auditees at this plant.</div>
+                <div className="p-3 text-xs text-slate-400">{L("cams.no_auditees_at_plant", "No authorised auditees at this plant.")}</div>
               )}
               {auditeeCandidates.map((u) => {
                 const on = auditeeIds.includes(u.id);
@@ -862,13 +865,14 @@ function SlotHint({
   permission: string;
   error: string | null;
 }) {
+  const L = useLabels();
   if (error) return <p className="mt-1 text-[11px] text-rose-700">{error}</p>;
   if (loading) return <p className="mt-1 text-[11px] text-slate-400">Checking who is authorised…</p>;
   return (
     <p className={cn("mt-1 text-[11px]", count === 0 ? "text-amber-700" : "text-slate-500")}>
       {count === 0
-        ? `Nobody at this plant holds ${permission}. Grant it in Configuration → Roles.`
-        : `${count} authorised — holders of ${permission} at this plant.`}
+        ? `Nobody at this ${L("term.plant_lc", "plant")} holds ${permission}. Grant it in Configuration → Roles.`
+        : `${count} authorised — holders of ${permission} at this ${L("term.plant_lc", "plant")}.`}
     </p>
   );
 }

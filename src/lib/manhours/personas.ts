@@ -13,6 +13,7 @@
 // ────────────────────────────────────────────────────────────────────────
 
 import type { KpiCode } from "./kpi-registry";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 export const PERSONA_KEYS = ["plant-hse-manager", "plant-head", "corporate-hse", "ceo"] as const;
 export type PersonaKey = (typeof PERSONA_KEYS)[number];
@@ -23,6 +24,14 @@ export const PERSONA_LABELS: Record<PersonaKey, string> = {
   "corporate-hse": "Corporate HSE",
   ceo: "CEO / Board"
 };
+
+/** Display-label-aware PERSONA_LABELS lookup (fallback = the literal above). */
+export function personaLabel(L: LabelFn, key: PersonaKey): string {
+  const base = PERSONA_LABELS[key];
+  if (key === "plant-head") return L(TERM.plantHead, base);
+  if (key === "plant-hse-manager") return L("term.plant_hse_manager", base);
+  return base;
+}
 
 /** Map a user role to its default persona. ADMIN gets the highest-
  *  level view; users without a recognised role get an empty result —
@@ -180,6 +189,12 @@ export const PERSONA_LAYOUTS: Record<PersonaKey, PersonaLayout> = {
   "corporate-hse": CORPORATE_HSE_LAYOUT,
   ceo: CEO_LAYOUT
 };
+
+/** Display-label-aware persona layout description (fallback = the layout's literal). */
+export function personaDescription(L: LabelFn, key: PersonaKey): string {
+  const base = PERSONA_LAYOUTS[key].description;
+  return key === "ceo" ? base : L(`manhours.persona.${key}.description`, base);
+}
 
 // ─── Performance scorecard weights ───────────────────────────────
 

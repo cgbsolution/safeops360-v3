@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { WizardSubmission } from "./wizard-types";
 import { putVisitors, fetchSubmission } from "./wizard-api";
+import { useLabels } from "@/components/labels/label-provider";
 
 export function StepVisitors({
   submission,
@@ -17,6 +18,7 @@ export function StepVisitors({
   onSaved: (s: WizardSubmission) => void;
   isReadOnly: boolean;
 }) {
+  const L = useLabels();
   const initial = submission.visitors;
   const [count, setCount] = useState(initial?.totalVisitorCount ?? 0);
   const [hours, setHours] = useState(initial?.totalVisitorHours ?? 0);
@@ -71,7 +73,7 @@ export function StepVisitors({
             onChange={(e) => setCount(Number(e.target.value || 0))}
             disabled={isReadOnly}
           />
-          <div className="text-[11px] text-slate-500">All visitors who entered the plant during the period.</div>
+          <div className="text-[11px] text-slate-500">{`All visitors who entered the ${L("term.plant_lc", "plant")} during the period.`}</div>
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm">Total visitor hours</Label>

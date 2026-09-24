@@ -2,6 +2,8 @@
 
 import { Paperclip, FileText, AlertTriangle } from "lucide-react";
 import type { WizardSubmission } from "./wizard-types";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 const SUGGESTED_DOCS: { category: string; label: string; required: boolean }[] = [
   { category: "ATTENDANCE_REPORT", label: "HR attendance system export", required: true },
@@ -27,6 +29,7 @@ export function StepAttachments({
   submission: WizardSubmission;
   isReadOnly: boolean;
 }) {
+  const L = useLabels();
   const byCategory = new Map<string, typeof submission.attachments>();
   for (const a of submission.attachments) {
     const list = byCategory.get(a.category) ?? [];
@@ -39,8 +42,7 @@ export function StepAttachments({
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Step 7 — Supporting Documents</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Attach the source documents that back this submission. Required documents help the Plant
-          Head review faster and provide audit defensibility for statutory inspections.
+          {`Attach the source documents that back this submission. Required documents help the ${L(TERM.plantHead, "Plant Head")} review faster and provide audit defensibility for statutory inspections.`}
         </p>
       </div>
 

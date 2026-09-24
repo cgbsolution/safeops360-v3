@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 const INPUT =
   "flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-600";
@@ -63,6 +65,7 @@ export function SourceIntakeForm({
   plants: { id: string; code: string; name: string }[];
   users: { id: string; name: string; email: string; plantId: string | null }[];
 }) {
+  const L = useLabels();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +196,7 @@ export function SourceIntakeForm({
 
       <Section title="2 — Scope">
         <Grid>
-          <Field label="Plant" required>
+          <Field label={L(TERM.plant, "Plant")} required>
             <Select className={INPUT} value={plantId} onChange={(e) => setPlantId(e.target.value)}>
               {plants.map((p) => (
                 <SelectItem key={p.id} value={p.id}>

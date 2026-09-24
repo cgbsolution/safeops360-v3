@@ -11,7 +11,7 @@ import { formatDateTime, humanize, cn } from "@/lib/utils";
 import { MarkAllReadButton } from "./mark-all-read";
 import { formatPartyMeta, formatPartyName } from "@/lib/users/user-ref";
 
-import { stepDisplayName } from "@/lib/flra/terminology";
+import { StepName } from "@/components/workflow/step-name";
 export const dynamic = "force-dynamic";
 
 // ── Data source: the Python backend, NOT Prisma ────────────────────────────
@@ -377,7 +377,7 @@ function TaskList({
                   )}
                 </div>
                 <div className={cn("text-sm", unread ? "font-semibold text-slate-900" : "font-medium text-slate-700")}>
-                  {stepDisplayName(task.stepName)}
+                  <StepName name={task.stepName} />
                 </div>
                 {task.recordTitle && (
                   <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{task.recordTitle}</div>

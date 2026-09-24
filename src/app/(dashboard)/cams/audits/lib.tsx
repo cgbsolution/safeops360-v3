@@ -3,6 +3,7 @@
 // safeops_360_bakend/app/services/audit_compliance.py.
 
 import { cn } from "@/lib/utils";
+import type { LabelFn } from "@/lib/labels/core";
 
 export type AuditValue = "pass" | "partial" | "fail" | "na" | "yes" | "no" | null;
 
@@ -630,6 +631,13 @@ export const INTERACTION_LABEL: Record<string, string> = {
   REOPEN: "Reopened",
   ADHOC_ADDED: "Ad-hoc checkpoint added",
 };
+
+/** INTERACTION_LABEL with the plant-manager vocabulary routed through display labels. */
+export function interactionLabel(L: LabelFn, action: string): string {
+  if (action === "ESCALATE_PM") return L("cams.interaction.escalate_pm", "Escalated to plant manager");
+  if (action === "PM_DECISION") return L("cams.interaction.pm_decision", "Plant manager decision");
+  return INTERACTION_LABEL[action] ?? action;
+}
 
 export const VALUE_META: Record<string, { label: string; chip: string; dot: string }> = {
   pass: { label: "Pass", chip: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500" },

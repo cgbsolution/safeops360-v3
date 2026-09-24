@@ -28,6 +28,8 @@ import {
   type FactoryProfileListResponse,
 } from "./lib";
 import { IndiaMap } from "./india-map";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type View = "cards" | "table" | "map";
 
@@ -128,6 +130,7 @@ export function FacilitiesDashboard({
   data: FactoryProfileListResponse;
   activeState: string | null;
 }) {
+  const L = useLabels();
   const router = useRouter();
   const [view, setView] = useState<View>("cards");
 
@@ -160,7 +163,7 @@ export function FacilitiesDashboard({
     <div className="space-y-4">
       {/* Roll-up KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi icon={Factory} label="Factories" value={fmtNum(data.total)} />
+        <Kpi icon={Factory} label={L(TERM.factories, "Factories")} value={fmtNum(data.total)} />
         <Kpi icon={Building2} label="Buildings" value={fmtNum(data.totalBuildings)} />
         <Kpi icon={Users} label="Employees" value={fmtNum(data.totalEmployees)} />
         <Kpi
@@ -215,7 +218,7 @@ export function FacilitiesDashboard({
 
       {data.items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-400">
-          No factory profiles yet. Use “Add Factory” to create one.
+          {L("facilities.no_factory_profiles_yet", "No factory profiles yet. Use “Add Factory” to create one.")}
         </div>
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -229,7 +232,7 @@ export function FacilitiesDashboard({
             <TableHeader className="bg-slate-50/95">
               <TableRow className="text-left text-[11px] uppercase tracking-wider text-slate-500">
                 <TableHead className="px-3 py-2.5">Code</TableHead>
-                <TableHead className="px-3 py-2.5">Factory</TableHead>
+                <TableHead className="px-3 py-2.5">{L(TERM.factory, "Factory")}</TableHead>
                 <TableHead className="px-3 py-2.5">Location</TableHead>
                 <TableHead className="px-3 py-2.5">Status</TableHead>
                 <TableHead className="px-3 py-2.5 text-right">Buildings</TableHead>
@@ -285,6 +288,7 @@ export function FacilitiesDashboard({
 }
 
 function GroupInsights({ data }: { data: FactoryProfileListResponse }) {
+  const L = useLabels();
   if (data.items.length === 0) return null;
   const scored = data.items.filter((f) => f.metrics?.auditComplianceScorePct != null);
   const band = (b: "green" | "amber" | "red") => scored.filter((f) => complianceBand(f.metrics!.auditComplianceScorePct) === b).length;
@@ -319,14 +323,14 @@ function GroupInsights({ data }: { data: FactoryProfileListResponse }) {
               </span>
             </li>
           ))}
-          {laggards.length === 0 && <li className="text-slate-400">No scored factories yet.</li>}
+          {laggards.length === 0 && <li className="text-slate-400">{L("facilities.no_scored_factories", "No scored factories yet.")}</li>}
         </ul>
       </div>
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <h3 className="mb-2 text-sm font-semibold text-slate-700">Watch-list</h3>
         <div className="space-y-1 text-xs text-slate-600">
-          <div className="flex justify-between"><span>Certs expiring/expired</span><span className="font-semibold text-amber-700">{expiring.length} factory(ies)</span></div>
-          <div className="flex justify-between"><span>Overdue CAPAs / critical findings</span><span className="font-semibold text-rose-700">{overdueAudit.length} factory(ies)</span></div>
+          <div className="flex justify-between"><span>Certs expiring/expired</span><span className="font-semibold text-amber-700">{expiring.length}{` ${L("term.factory_ies_lc", "factory(ies)")}`}</span></div>
+          <div className="flex justify-between"><span>Overdue CAPAs / critical findings</span><span className="font-semibold text-rose-700">{overdueAudit.length}{` ${L("term.factory_ies_lc", "factory(ies)")}`}</span></div>
           <div className="flex justify-between"><span>Total employees</span><span className="font-semibold text-slate-700">{fmtNum(data.totalEmployees)}</span></div>
         </div>
       </div>

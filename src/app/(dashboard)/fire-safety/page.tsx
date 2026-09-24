@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { backendFetch } from "@/lib/backend/fetch";
 import { PageHeader } from "@/components/page-header";
+import { Alert } from "@/components/ui/alert";
+import { Card } from "@/components/ui/card";
+import { requirePermission } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +27,7 @@ function Kpi({ label, value, tone, sub }: { label: string; value: any; tone?: st
 }
 
 export default async function FireSafetyPage() {
+  await requirePermission("INCIDENT.READ");
   let d: Dash | null = null;
   let error: string | null = null;
   try {
@@ -38,7 +42,9 @@ export default async function FireSafetyPage() {
         breadcrumbs={[{ label: "Operational Safety" }, { label: "Fire Safety" }]}
         description="Equipment lifecycle, inspection rounds (via the CAMS engine), assembly points, emergency plans and evacuation drills — every regulatory question, one screen." />
       {error || !d ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">{error}. Run seed_fire_safety.py and ensure you have an HSE role.</div>
+        <Alert variant="destructive" size="lg" className="rounded-xl p-6">
+          {error}. Run seed_fire_safety.py and ensure you have an HSE role.
+        </Alert>
       ) : (
         <>
           <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
@@ -50,10 +56,41 @@ export default async function FireSafetyPage() {
             <Kpi label="Plans Review-Due" value={d.plansReviewDue} tone={d.plansReviewDue > 0 ? "warn" : "good"} />
           </div>
 
-          <div className="mb-4 flex flex-wrap gap-3">
-            <Link href="/fire-safety/equipment" className="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700">Equipment Register →</Link>
-            <Link href="/fire-safety/equipment?dueOnly=1" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-400">Due / Overdue</Link>
-          </div>
+          {/* ONE register link, not two.
+              "Equipment Register →" and "Due / Overdue" used to sit here, next to
+              a card that also opened a register — three entry points to two
+              screens that wrote to the same FireEquipment table. Both old screens
+              now redirect to /fire-safety/register, which carries the general
+              asset list and the controlled extinguisher sheet as tabs. The
+              overdue state is not a separate destination either: it is the badge
+              column on that register and the "act now" panel below. */}
+          <Card className="mb-4 rounded-xl border-[#D3DEEE] p-3 shadow-none">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#5A6273]">
+              Register &amp; controlled checklists — Page Industries EHS
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {[
+                { href: "/fire-safety/register", doc: "PIL/EHSD/CL/028-R1", label: "Fire Asset Register", hint: "Every asset · 16-column extinguisher sheet · due-date badges", primary: true },
+                { href: "/fire-safety/fe-inspection", doc: "PIL/EHSD/CL/027-R1", label: "FE Inspection Checklist", hint: "21 checks × Jan–Dec per cylinder" },
+                { href: "/fire-safety/fire-alarm", doc: "PIL/EHS/CL/025-R1", label: "Fire Alarm System", hint: "Daily · Monthly ×2 · Quarterly · Annual · Beam" },
+                { href: "/fire-safety/fire-hydrant", doc: "PIL/EHSD/CL/026", label: "Fire Hydrant & Sprinkler", hint: "Daily · Monthly · Quarterly · Yearly" },
+                { href: "/fire-safety/checklists", doc: "Configuration", label: "Checklist Library", hint: "Add, revise, publish or retire a controlled sheet" },
+              ].map((c) => (
+                <Link
+                  key={c.href}
+                  href={c.href}
+                  className={
+                    "group rounded-lg border p-2.5 transition-colors hover:border-[#C9A961] " +
+                    (c.primary ? "border-[#0B1F4D] bg-[#0B1F4D]" : "border-[#D3DEEE] bg-[#E8EEF7]")
+                  }
+                >
+                  <div className="text-[10px] font-semibold tracking-wide text-[#C9A961]">{c.doc}</div>
+                  <div className={"text-[12.5px] font-semibold " + (c.primary ? "text-white" : "text-[#0B1F4D]")}>{c.label}</div>
+                  <div className={"text-[10.5px] " + (c.primary ? "text-white/70" : "text-[#5A6273]")}>{c.hint}</div>
+                </Link>
+              ))}
+            </div>
+          </Card>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className={TILE}>
@@ -75,7 +112,7 @@ export default async function FireSafetyPage() {
               ) : (
                 <div className="space-y-1">
                   {d.overdueItems.map((e) => (
-                    <Link key={e.id} href={`/fire-safety/equipment?status=OVERDUE`} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-slate-50">
+                    <Link key={e.id} href={`/fire-safety/register`} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-slate-50">
                       <span className="font-medium text-primary-700">{e.equipmentCode}</span>
                       <span className="truncate text-xs text-slate-500">{e.type.replace(/_/g, " ")} · {e.location}</span>
                       <span className="ml-auto text-[11px] text-rose-600">due {e.nextInspectionDueDate ? new Date(e.nextInspectionDueDate).toLocaleDateString("en-IN") : "—"}</span>

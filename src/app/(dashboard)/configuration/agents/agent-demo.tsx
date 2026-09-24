@@ -26,6 +26,8 @@ import {
   Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 // ── High-fidelity, in-app walkthrough ─────────────────────────────────
 // Each step is a stylised replica of the real SafeOps360 screen for that
@@ -315,6 +317,7 @@ function AppFrame({
   pointAtNav?: boolean;
   children: React.ReactNode;
 }) {
+  const L = useLabels();
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md">
       {/* window chrome */}
@@ -335,7 +338,7 @@ function AppFrame({
             </div>
             <div className="leading-none">
               <div className="text-[8px] font-bold text-white">SafeOps360</div>
-              <div className="text-[6px] text-indigo-300">All Plants</div>
+              <div className="text-[6px] text-indigo-300">{L(TERM.allPlants, "All Plants")}</div>
             </div>
           </div>
           {SIDEBAR.map((sec) => (

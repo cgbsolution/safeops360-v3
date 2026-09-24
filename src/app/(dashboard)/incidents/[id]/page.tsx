@@ -38,6 +38,7 @@ import {
   DocumentsReviewedSection, EffectivenessReviewSection, CommentsSection
 } from "@/components/incidents/incident-detail-sections";
 import { humanize } from "@/lib/utils";
+import { getServerLabels } from "@/lib/labels/server";
 import { ArrowUpRight, Camera } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +60,7 @@ export default async function IncidentDetailPage(props: { params: Promise<{ id: 
   const params = await props.params;
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id ?? "";
+  const L = await getServerLabels();
 
   // Fetch the incident with everything the audit-grade view needs in
   // ONE Prisma findUnique. The 8 child collections are run in a single
@@ -420,7 +422,7 @@ export default async function IncidentDetailPage(props: { params: Promise<{ id: 
           <IncidentStatutoryPanel incidentId={i.id} canManage={canManageIntel} />
 
           {/* ─── 14. Lessons Learned ─── */}
-          <LessonsLearnedSection incident={i} />
+          <LessonsLearnedSection incident={i} L={L} />
 
           {/* ─── 15. 90-Day Effectiveness Review ─── */}
           <EffectivenessReviewSection incident={i} />
@@ -440,7 +442,7 @@ export default async function IncidentDetailPage(props: { params: Promise<{ id: 
         {/* Sidebar */}
         <div className="space-y-4">
           {/* ─── Sidebar metadata ─── */}
-          <IncidentMetadataSidebar incident={i} canSeeScore={canSeeScore} masters={masters} />
+          <IncidentMetadataSidebar incident={i} canSeeScore={canSeeScore} masters={masters} L={L} />
 
           {/* ─── 13. Investigation Team ─── */}
           <InvestigationTeamSection team={i.investigationTeam as any} />

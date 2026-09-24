@@ -14,6 +14,8 @@ import type {
   ValidationIssue,
   ValidationReport
 } from "@/lib/manhours/validation";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 export function StepValidate({
   submission,
@@ -26,6 +28,7 @@ export function StepValidate({
   onSubmitted: () => void;
   isReadOnly: boolean;
 }) {
+  const L = useLabels();
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -113,7 +116,7 @@ export function StepValidate({
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Explain any deviations the validator flagged (shutdown, ramp-up, festival impact, contractor mobilisation, etc.). Plant Head review goes faster with context."
+          placeholder={`Explain any deviations the validator flagged (shutdown, ramp-up, festival impact, contractor mobilisation, etc.). ${L(TERM.plantHead, "Plant Head")} review goes faster with context.`}
           rows={4}
           disabled={isReadOnly}
         />
@@ -133,8 +136,7 @@ export function StepValidate({
         <div className="text-sm text-slate-700">
           <div className="font-medium">Ready to submit?</div>
           <div className="text-xs text-slate-500 mt-1">
-            Submit moves this record from DRAFT to SUBMITTED. The Plant Head review queue picks it up;
-            you'll be locked out of edits until they return it (if needed).
+            {`Submit moves this record from DRAFT to SUBMITTED. The ${L(TERM.plantHead, "Plant Head")} review queue picks it up; you'll be locked out of edits until they return it (if needed).`}
           </div>
         </div>
         <Button

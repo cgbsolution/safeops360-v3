@@ -7,11 +7,15 @@ import { LicenceProvider, useLicence } from "@/components/licensing/licence-prov
 import { LicenceLockedScreen } from "@/components/licensing/licence-locked-screen";
 import { LicenceBanner } from "@/components/licensing/licence-banner";
 import { ModuleRouteGuard } from "@/components/licensing/module-route-guard";
+import { LabelProvider } from "@/components/labels/label-provider";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <LicenceProvider>
-      <AppShellInner>{children}</AppShellInner>
+      {/* Display-label overrides follow the licence layer's active plant. */}
+      <LabelProvider>
+        <AppShellInner>{children}</AppShellInner>
+      </LabelProvider>
     </LicenceProvider>
   );
 }

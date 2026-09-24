@@ -4,7 +4,7 @@ import { formatDateTime, cn } from "@/lib/utils";
 import { formatPartyMeta, formatPartyName } from "@/lib/users/user-ref";
 import type { Party } from "@/lib/workflow/party";
 
-import { stepDisplayName } from "@/lib/flra/terminology";
+import { StepName } from "@/components/workflow/step-name";
 // "What was actually done about this?" — the substantive record of the
 // workflow, as opposed to the Audit Trail's who-clicked-what log.
 //
@@ -159,7 +159,7 @@ export function ActionRecordPanel({
                 <div className={cn("flex items-center gap-2 text-sm font-semibold", p.label)}>
                   <Icon size={15} />
                   {heading}
-                  <span className="font-normal text-slate-500">· {stepDisplayName(e.stepName)}</span>
+                  <span className="font-normal text-slate-500">· <StepName name={e.stepName} /></span>
                 </div>
                 <div className="text-xs text-slate-500">{formatDateTime(e.performedAt)}</div>
               </div>

@@ -8,6 +8,8 @@
 // estimate); the engagement is what happened. Everything interesting — timing
 // drift, scope variance, non-execution — lives in the gap between them.
 
+import { DEFAULT_LABELS, type LabelFn } from "@/lib/labels/core";
+
 export type CycleStatus = "DRAFT" | "UNDER_REVIEW" | "APPROVED" | "ACTIVE" | "CLOSED";
 export type SlotStatus =
   | "PLANNED" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED"
@@ -366,7 +368,7 @@ export const BAND_META: Record<string, { label: string; chip: string }> = {
  */
 export function siteText(
   site: { siteId?: string | null; siteName?: string | null } | null | undefined,
-  opts: { short?: boolean } = {}
+  opts: { short?: boolean; L?: LabelFn } = {}
 ): string {
   const name = site?.siteName?.trim();
   if (name) return name;
@@ -374,7 +376,7 @@ export function siteText(
   if (!site?.siteId) return opts.short ? "estate-wide" : "Estate-wide";
   // An id with no name resolved: a deleted plant, or a payload that predates
   // the enrichment. Say so — the cuid itself tells the reader nothing.
-  return "Unknown site";
+  return (opts.L ?? DEFAULT_LABELS)("term.unknown_site", "Unknown site");
 }
 
 export function fmtDate(v?: string | null): string {

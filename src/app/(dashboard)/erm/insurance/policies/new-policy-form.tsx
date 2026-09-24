@@ -11,6 +11,8 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { POLICY_TYPES, POLICY_TYPE_LABEL } from "@/app/(dashboard)/erm/lib-t3";
 import { Label } from "@/components/ui/label";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type PlantOption = { id: string; name: string };
 type RiskOption = { id: string; riskCode: string; title: string };
@@ -39,6 +41,7 @@ export function NewPolicyButton() {
 }
 
 function NewPolicyModal({ onClose, onDone }: { onClose: () => void; onDone: (id: string) => void }) {
+  const L = useLabels();
   const [policyName, setPolicyName] = useState("");
   const [policyType, setPolicyType] = useState<string>("PROPERTY_FIRE");
   const [insurerName, setInsurerName] = useState("");
@@ -145,7 +148,7 @@ function NewPolicyModal({ onClose, onDone }: { onClose: () => void; onDone: (id:
             <Input
               value={policyName}
               onChange={(e) => setPolicyName(e.target.value)}
-              placeholder="e.g. Standard Fire & Special Perils — Plant A"
+              placeholder={`e.g. Standard Fire & Special Perils — ${L(TERM.plant, "Plant")} A`}
             />
           </div>
 
@@ -255,9 +258,9 @@ function NewPolicyModal({ onClose, onDone }: { onClose: () => void; onDone: (id:
           </div>
 
           <div>
-            <Label className="mb-1 block text-xs font-medium text-slate-600">Site scope</Label>
+            <Label className="mb-1 block text-xs font-medium text-slate-600">{L("term.site_scope", "Site scope")}</Label>
             {plants.length === 0 ? (
-              <p className="text-xs text-slate-400">No sites available.</p>
+              <p className="text-xs text-slate-400">{L("term.no_sites_available", "No sites available.")}</p>
             ) : (
               <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-slate-200 p-2">
                 {plants.map((p) => (

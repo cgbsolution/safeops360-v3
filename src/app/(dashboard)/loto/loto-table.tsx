@@ -5,7 +5,10 @@
 // one search box, one Customize Columns menu, one pagination footer.
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
+import { useLabels } from "@/components/labels/label-provider";
+import type { LabelFn } from "@/lib/labels/core";
 import { AlertTriangle, Eye, Lock, QrCode } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -24,7 +27,7 @@ function formatDue(iso: string) {
   });
 }
 
-const columns: ColumnDef<ProcedureListItem>[] = [
+const buildColumns = (L: LabelFn): ColumnDef<ProcedureListItem>[] => [
   {
     accessorKey: "procedureCode",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Code" />,
@@ -165,7 +168,7 @@ const columns: ColumnDef<ProcedureListItem>[] = [
     id: "site",
     // siteName is resolved server-side and is never a raw cuid.
     accessorFn: (p) => `${p.siteName ?? ""} ${p.area ?? ""}`,
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Site" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={L("term.site", "Site")} />,
     cell: ({ row }) => (
       <div className="text-muted-foreground text-xs">
         {row.original.siteName ?? "—"}
@@ -173,7 +176,7 @@ const columns: ColumnDef<ProcedureListItem>[] = [
       </div>
     ),
     size: 160,
-    meta: { label: "Site" }
+    meta: { label: L("term.site", "Site") }
   },
   {
     id: "actions",
@@ -199,6 +202,8 @@ export function LotoProceduresTable({
   data: ProcedureListItem[];
   emptyMessage?: string;
 }) {
+  const L = useLabels();
+  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}
@@ -227,7 +232,7 @@ export function LotoProceduresTable({
               r.review.nextReviewDueAt ? formatDue(r.review.nextReviewDueAt) : "Not scheduled"
           },
           { header: "Review overdue", value: (r) => (r.review.isOverdue ? "Yes" : "No") },
-          { header: "Site", value: (r) => r.siteName },
+          { header: L("term.site", "Site"), value: (r) => r.siteName },
           { header: "Area", value: (r) => r.area }
         ]
       }}

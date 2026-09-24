@@ -23,6 +23,8 @@ import { Loader2, Share2 } from "lucide-react";
 import { readApiError } from "@/lib/client-errors";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectItem } from "@/components/ui/select";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type PlantOption = { id: string; name: string };
 
@@ -35,6 +37,7 @@ export function ReplicateDialog({
   sourcePlantId: string;
   onClose: () => void;
 }) {
+  const L = useLabels();
   const router = useRouter();
   const { toast } = useToast();
   const [plants, setPlants] = useState<PlantOption[]>([]);
@@ -80,7 +83,7 @@ export function ReplicateDialog({
       const created = await res.json();
       toast({
         variant: "success",
-        title: "Raised at the other plant",
+        title: `Raised at the other ${L("term.plant_lc", "plant")}`,
         description: "It starts as a draft there and has to be submitted and screened locally.",
       });
       router.push(`/business-excellence/kaizen/${created.id}`);
@@ -94,7 +97,7 @@ export function ReplicateDialog({
   return (
     <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
       <h3 className="flex items-center gap-1.5 text-sm font-semibold text-violet-900">
-        <Share2 size={14} /> Replicate at another plant
+        <Share2 size={14} />{` Replicate at another ${L("term.plant_lc", "plant")}`}
       </h3>
       <p className="mt-0.5 text-xs text-violet-800">
         Creates a draft there with the problem and countermeasure copied across.
@@ -105,7 +108,7 @@ export function ReplicateDialog({
 
       <div className="mt-3 space-y-3">
         <div>
-          <Label className="mb-1 block text-xs font-medium text-violet-900">Plant</Label>
+          <Label className="mb-1 block text-xs font-medium text-violet-900">{L(TERM.plant, "Plant")}</Label>
           <Select
             value={plantId}
             onChange={(e) => setPlantId(e.target.value)}
@@ -113,7 +116,7 @@ export function ReplicateDialog({
             className="h-9 w-full rounded-md border border-violet-300 bg-white px-3 text-sm text-slate-900 focus:border-primary-400 focus:outline-none"
           >
             <SelectItem value="">
-              {loadingPlants ? "Loading plants…" : "Choose the plant"}
+              {loadingPlants ? `Loading ${L("term.plants_lc", "plants")}…` : `Choose the ${L("term.plant_lc", "plant")}`}
             </SelectItem>
             {plants.map((p) => (
               <SelectItem key={p.id} value={p.id}>
@@ -123,14 +126,14 @@ export function ReplicateDialog({
           </Select>
           {!loadingPlants && plants.length === 0 && (
             <p className="mt-1 text-[11px] text-violet-800">
-              There is no other plant you can raise records at.
+              {`There is no other ${L("term.plant_lc", "plant")} you can raise records at.`}
             </p>
           )}
         </div>
 
         <div>
           <Label className="mb-1 block text-xs font-medium text-violet-900">
-            Title at the new plant
+            {`Title at the new ${L("term.plant_lc", "plant")}`}
           </Label>
           <Input
             value={title}
@@ -142,7 +145,7 @@ export function ReplicateDialog({
 
         <div>
           <Label className="mb-1 block text-xs font-medium text-violet-900">
-            Note — why it suits that plant
+            {`Note — why it suits that ${L("term.plant_lc", "plant")}`}
           </Label>
           <Textarea
             rows={2}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DEFAULT_LABELS, TERM, type LabelFn } from "@/lib/labels/core";
 
 const MONTH_SHORT = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -34,13 +35,16 @@ export function SubmissionStatusMini({
   description,
   plants,
   monthsAxis,
-  cells
+  cells,
+  L = DEFAULT_LABELS
 }: {
   title: string;
   description?: string;
   plants: { id: string; code: string; name: string }[];
   monthsAxis: { year: number; month: number; label: string }[];
   cells: MiniCell[];
+  /** Display-label resolver (server callers pass theirs; defaults to the literals). */
+  L?: LabelFn;
 }) {
   const cellMap = new Map<string, MiniCell>();
   for (const c of cells) cellMap.set(`${c.plantId}::${c.year}-${c.month}`, c);
@@ -57,7 +61,7 @@ export function SubmissionStatusMini({
             <TableHeader className="bg-transparent">
               <TableRow className="border-0 hover:bg-transparent">
                 <TableHead className="sticky left-0 z-10 bg-white px-2 py-1 text-left text-[10px] uppercase tracking-wider text-slate-500 h-auto">
-                  Plant
+                  {L(TERM.plant, "Plant")}
                 </TableHead>
                 {monthsAxis.map((m) => (
                   <TableHead key={`${m.year}-${m.month}`} className="px-1 py-1 text-center text-[9px] uppercase tracking-wider text-slate-500 h-auto">

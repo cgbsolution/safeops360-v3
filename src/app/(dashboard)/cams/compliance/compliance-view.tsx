@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import { useLabels } from "@/components/labels/label-provider";
 
 type Ref = { id: string; code: string; title: string };
 
@@ -25,6 +26,7 @@ export function ComplianceView({
   findings: Ref[];
   canLink: boolean;
 }) {
+  const L = useLabels();
   const [linkFor, setLinkFor] = useState<ObligationCoverageRow | null>(null);
   const pct = tracker.verifiedPct;
   // Null pct is NOT 0 — it means "no denominator" (empty register) or "could
@@ -88,7 +90,7 @@ export function ComplianceView({
             <TableRow>
               <TableHead>Obligation</TableHead>
               <TableHead>Regulator</TableHead>
-              <TableHead>Site</TableHead>
+              <TableHead>{L("term.site", "Site")}</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Valid Until</TableHead>
               <TableHead>Verified by Audit</TableHead>

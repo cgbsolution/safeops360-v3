@@ -4,11 +4,13 @@ import { PageHeader } from "@/components/page-header";
 import { requirePermission } from "@/lib/auth/server";
 import { AddFactoryWizard, type SiteOption } from "./add-factory-wizard";
 import type { FactoryProfileListResponse } from "../lib";
+import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewFactoryPage() {
   await requirePermission("FACILITY.CREATE");
+  const L = await getServerLabels();
 
   let plants: { id: string; name: string; code: string; state: string; location: string }[] = [];
   let taken = new Set<string>();
@@ -41,9 +43,9 @@ export default async function NewFactoryPage() {
   return (
     <div>
       <PageHeader
-        title="Add Factory"
-        breadcrumbs={[{ label: "Facilities", href: "/facilities" }, { label: "Add Factory" }]}
-        description="Create a factory profile linked 1:1 to an existing Site. Workforce, processes and certifications can be added after the profile is created."
+        title={L("facilities.add_factory", "Add Factory")}
+        breadcrumbs={[{ label: "Facilities", href: "/facilities" }, { label: L("facilities.add_factory", "Add Factory") }]}
+        description={L("facilities.add_factory_description", "Create a factory profile linked 1:1 to an existing Site. Workforce, processes and certifications can be added after the profile is created.")}
       />
       {error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">{error}</div>

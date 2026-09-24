@@ -17,6 +17,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { UNGATED_MODULES } from "@/lib/licensing/route-map";
 
 export type LicenceModule = { code: string; name: string; group: string };
 
@@ -87,6 +88,8 @@ export function LicenceProvider({ children }: { children: React.ReactNode }) {
   const [view, setView] = useState<LicenceStatusView | null>(null);
   // effective module codes for the active factory; null until first load.
   const [effective, setEffective] = useState<Set<string> | null>(null);
+  // ungated module codes the active plant has explicitly switched off.
+  const [disabled, setDisabled] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -100,6 +103,7 @@ export function LicenceProvider({ children }: { children: React.ReactNode }) {
       if (modulesRes.ok) {
         const j = await modulesRes.json();
         setEffective(new Set<string>(j.enabledModules ?? []));
+        setDisabled(new Set<string>(j.disabledModules ?? []));
       } else {
         setEffective(null);
       }
@@ -133,11 +137,14 @@ export function LicenceProvider({ children }: { children: React.ReactNode }) {
       enabledModules: set,
       isLocked: known ? view!.isLocked : false,
       activePlantId,
-      hasModule: (code: string) =>
-        !known && !effective ? true : set.has(code),
+      hasModule: (code: string) => {
+        // Ungated modules carry no licence code: on unless this plant turned them off.
+        if (UNGATED_MODULES.has(code)) return !disabled.has(code);
+        return !known && !effective ? true : set.has(code);
+      },
       refresh,
     };
-  }, [view, effective, loading, activePlantId, refresh]);
+  }, [view, effective, disabled, loading, activePlantId, refresh]);
 
   return <LicenceContext.Provider value={value}>{children}</LicenceContext.Provider>;
 }

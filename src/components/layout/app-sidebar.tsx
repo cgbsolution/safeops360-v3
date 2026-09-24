@@ -29,6 +29,7 @@ import {
   BookOpen,
   FileBarChart,
   FileCheck,
+  Flame,
   FileText,
   TrendingUp,
   FlaskConical,
@@ -74,7 +75,9 @@ import {
 } from "lucide-react";
 import { usePermissions } from "@/components/auth/can";
 import { useLicence } from "@/components/licensing/licence-provider";
-import { moduleForPath } from "@/lib/licensing/route-map";
+import { modulesForPath } from "@/lib/licensing/route-map";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, navKey, navSectionKey } from "@/lib/labels/core";
 import { shortPlantName } from "@/lib/utils";
 import {
   Sidebar,
@@ -197,6 +200,9 @@ const SECTIONS: NavSection[] = [
       // labelled in plain language everywhere user-facing (@/lib/flra/terminology).
       // Route, permission key and schema keep the original term.
       { href: "/flra", label: "Site Safety Check", icon: Hammer, permission: "FLRA.READ" },
+      // Fire & Life Safety — asset registers, routine checklists, QR stickers
+      // (ported from the Page Industries build). Gated on FIRE.READ.
+      { href: "/fire-safety", label: "Fire & Life Safety", icon: Flame, permission: "FIRE.READ" },
       { href: "/incidents", label: "Incident Investigation", icon: ShieldAlert, permission: "INCIDENT.READ" },
       // Guided Field Capture — the technician wizard is a full-screen, offline,
       // no-chrome PWA (route group (field)); technicians also land there via
@@ -464,6 +470,9 @@ export function AppSidebar() {
   const user = session?.user as any;
   const permissions = usePermissions();
   const { hasModule } = useLicence();
+  // Display-label overrides (nav.<href>, nav.section.<key>, term.*); every
+  // lookup falls back to the literal below, so plants without a profile render as before.
+  const L = useLabels();
   const [inboxCount, setInboxCount] = React.useState<number | null>(null);
   // Hydration guard. `permissions` and `hasModule()` come from client-only state
   // (async permission fetch + per-factory licence fetch) whose value at the first
@@ -534,7 +543,7 @@ export function AppSidebar() {
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-bold">SafeOps360</span>
                     <span className="truncate text-xs text-sidebar-foreground/70">
-                      {shortPlantName(user?.plantName) ?? "All Plants"}
+                      {shortPlantName(user?.plantName) ?? L(TERM.allPlants, "All Plants")}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto size-4 opacity-70" />
@@ -547,12 +556,12 @@ export function AppSidebar() {
                 sideOffset={4}
               >
                 <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  Plant
+                  {L(TERM.plant, "Plant")}
                 </DropdownMenuLabel>
                 <DropdownMenuItem className="gap-2 p-2" disabled>
                   <Building2 className="size-4 shrink-0 text-primary-700" />
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="font-medium">{shortPlantName(user?.plantName) ?? "All Plants"}</span>
+                    <span className="font-medium">{shortPlantName(user?.plantName) ?? L(TERM.allPlants, "All Plants")}</span>
                     <span className="text-xs text-muted-foreground">Active scope</span>
                   </div>
                 </DropdownMenuItem>
@@ -586,8 +595,7 @@ export function AppSidebar() {
             // Module entitlement gate (licence) — hide items whose module the
             // licence doesn't include. Core/unmatched routes (module === null)
             // always pass. This is UX; the API enforces independently.
-            const mod = moduleForPath(item.href);
-            if (mod && !hasModule(mod)) return false;
+            if (!modulesForPath(item.href).every(hasModule)) return false;
             if (!item.permission) return true;
             return !!permissions[item.permission];
           });
@@ -607,12 +615,13 @@ export function AppSidebar() {
                 const active = item.exact
                   ? pathname === item.href
                   : pathname === item.href || pathname.startsWith(item.href + "/");
+                const label = L(navKey(item.href), item.label);
                 return (
                   <SidebarMenuItem key={`${section.key}-${item.href}-${item.label}`}>
-                    <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                    <SidebarMenuButton asChild isActive={active} tooltip={label}>
                       <Link href={item.href}>
                         <Icon />
-                        <span>{item.label}</span>
+                        <span>{label}</span>
                       </Link>
                     </SidebarMenuButton>
                     {item.showBadge && inboxCount !== null && inboxCount > 0 && (
@@ -647,7 +656,7 @@ export function AppSidebar() {
               <SidebarGroup>
                 <SidebarGroupLabel asChild>
                   <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors">
-                    <span className="flex-1 text-left">{section.label}</span>
+                    <span className="flex-1 text-left">{L(navSectionKey(section.key), section.label)}</span>
                     <ChevronRight className="size-3.5 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                   </CollapsibleTrigger>
                 </SidebarGroupLabel>

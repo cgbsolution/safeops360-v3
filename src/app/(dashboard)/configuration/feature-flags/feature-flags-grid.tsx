@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 export type PlantFlags = {
   plantId: string;
@@ -31,6 +33,7 @@ export function FeatureFlagsGrid({
   rows: PlantFlags[];
   highlightPlantId: string | null;
 }) {
+  const L = useLabels();
   const router = useRouter();
   const [state, setState] = useState<PlantFlags[]>(rows);
   const [pending, startTransition] = useTransition();
@@ -80,7 +83,7 @@ export function FeatureFlagsGrid({
         <Table className="w-full text-sm">
           <TableHeader className="bg-slate-50 text-xs uppercase tracking-wider text-slate-700">
             <TableRow>
-              <TableHead className="text-left px-4 py-3">Plant</TableHead>
+              <TableHead className="text-left px-4 py-3">{L(TERM.plant, "Plant")}</TableHead>
               {FLAGS.map((f) => (
                 <TableHead key={f.key} className="text-center px-4 py-3" title={f.hint}>
                   {f.label}
@@ -119,8 +122,7 @@ export function FeatureFlagsGrid({
       </div>
 
       <p className="text-xs text-slate-400">
-        Flags apply per plant and take effect immediately. Enabling a module
-        also unlocks its sidebar entry and routes for that plant.
+        {L("feature_flags.per_plant_note", "Flags apply per plant and take effect immediately. Enabling a module also unlocks its sidebar entry and routes for that plant.")}
       </p>
     </div>
   );

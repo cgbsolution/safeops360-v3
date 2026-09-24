@@ -8,6 +8,7 @@ import {
   type FindingListResponse,
 } from "../lib-cams";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function FindingsRegisterPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requirePermission("CAMS.READ");
+  const L = await getServerLabels();
   const sp = await props.searchParams;
   const get = (k: string) => {
     const v = sp[k];
@@ -112,7 +114,7 @@ export default async function FindingsRegisterPage(props: {
                   <TableHead className="px-3 py-2.5">Engagement</TableHead>
                   <TableHead className="px-3 py-2.5">Severity</TableHead>
                   <TableHead className="px-3 py-2.5">Clause</TableHead>
-                  <TableHead className="px-3 py-2.5">Site</TableHead>
+                  <TableHead className="px-3 py-2.5">{L("term.site", "Site")}</TableHead>
                   <TableHead className="px-3 py-2.5">Status</TableHead>
                   <TableHead className="px-3 py-2.5">CAPA</TableHead>
                   <TableHead className="px-3 py-2.5">Due</TableHead>

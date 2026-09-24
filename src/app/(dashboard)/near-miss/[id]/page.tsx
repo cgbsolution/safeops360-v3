@@ -19,6 +19,8 @@ import { CommentsThread } from "@/components/near-miss/comments-thread";
 import PrintButtonClient from "./print-button";
 import { formatDate, formatDateTime, statusColor, severityColor, humanize } from "@/lib/utils";
 import { resolveMasterLabels, masterLabel } from "@/lib/masters/resolve-labels";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 import {
   CalendarDays,
   MapPin,
@@ -56,6 +58,7 @@ export default async function NearMissDetail(
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
+  const L = await getServerLabels();
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id ?? "";
   const role = (session?.user as any)?.role ?? "";
@@ -744,7 +747,7 @@ export default async function NearMissDetail(
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <Meta icon={CalendarDays} label="Reported" value={formatDateTime(n.date)} />
-              <Meta icon={MapPin} label="Plant" value={n.plant.name} />
+              <Meta icon={MapPin} label={L(TERM.plant, "Plant")} value={n.plant.name} />
               {n.department && <Meta icon={Building2} label="Department" value={n.department.name} />}
               <Meta icon={MapPin} label="Area" value={n.area?.name ?? "—"} />
               <Meta icon={MapPin} label="Specific location" value={n.specificLocation ?? n.location ?? "—"} />

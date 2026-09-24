@@ -8,6 +8,8 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { readApiError } from "@/lib/client-errors";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 const REVOKER_ROLES = [
   "HSE_MANAGER",
@@ -35,6 +37,7 @@ export function CertificateRevokeButton({
   certificateNumber: string;
   currentRole: string;
 }) {
+  const L = useLabels();
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [reason, setReason] = useState(REASONS[0].value);
@@ -45,7 +48,7 @@ export function CertificateRevokeButton({
   if (!REVOKER_ROLES.includes(currentRole)) {
     return (
       <p className="text-xs text-slate-500">
-        Only HSE Manager / LD Manager / Plant Head / Admin can revoke certificates.
+        {`Only HSE Manager / LD Manager / ${L(TERM.plantHead, "Plant Head")} / Admin can revoke certificates.`}
       </p>
     );
   }

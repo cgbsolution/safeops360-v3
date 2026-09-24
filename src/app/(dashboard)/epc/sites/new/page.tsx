@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectItem } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Building2 } from "lucide-react";
+import { useLabels } from "@/components/labels/label-provider";
 
 const PROJECT_TYPES = [
   "Power Plant",
@@ -67,6 +68,7 @@ const initial: FormData = {
 };
 
 export default function NewSitePage() {
+  const L = useLabels();
   const router = useRouter();
   const [form, setForm] = useState<FormData>(initial);
   const [submitting, setSubmitting] = useState(false);
@@ -97,7 +99,7 @@ export default function NewSitePage() {
       }
       router.push("/epc/sites");
     } catch (e: any) {
-      setError(e.message ?? "Failed to create site");
+      setError(e.message ?? L("epc.failed_create_site", "Failed to create site"));
     } finally {
       setSubmitting(false);
     }
@@ -109,16 +111,16 @@ export default function NewSitePage() {
         <div className="flex items-center text-xs text-slate-500 mb-2 gap-1">
           <Link href="/epc" className="hover:text-cyan-700">EPC</Link>
           <span>/</span>
-          <Link href="/epc/sites" className="hover:text-cyan-700">Sites</Link>
+          <Link href="/epc/sites" className="hover:text-cyan-700">{L("term.sites", "Sites")}</Link>
           <span>/</span>
-          <span className="text-slate-700 font-medium">New Site</span>
+          <span className="text-slate-700 font-medium">{`New ${L("term.site", "Site")}`}</span>
         </div>
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Building2 size={22} className="text-cyan-700" /> Register New Site
+            <Building2 size={22} className="text-cyan-700" />{` Register New ${L("term.site", "Site")}`}
           </h1>
           <Link href="/epc/sites" className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
-            <ArrowLeft size={14} /> Back to Sites
+            <ArrowLeft size={14} />{` Back to ${L("term.sites", "Sites")}`}
           </Link>
         </div>
       </div>
@@ -132,10 +134,10 @@ export default function NewSitePage() {
 
         {/* Section: Site Identity */}
         <div className="rounded-xl border bg-white shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-slate-700 mb-4">Site Identity</h2>
+          <h2 className="text-sm font-semibold text-slate-700 mb-4">{`${L("term.site", "Site")} Identity`}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <Label htmlFor="siteName">Site Name *</Label>
+              <Label htmlFor="siteName">{`${L("term.site", "Site")} Name *`}</Label>
               <Input
                 id="siteName"
                 value={form.siteName}
@@ -217,7 +219,7 @@ export default function NewSitePage() {
                 id="address"
                 value={form.address}
                 onChange={(e) => set("address", e.target.value)}
-                placeholder="Full address of the construction site"
+                placeholder={L("epc.site_address_placeholder", "Full address of the construction site")}
                 required
                 className="mt-1"
               />
@@ -320,7 +322,7 @@ export default function NewSitePage() {
 
         <div className="flex gap-3">
           <Button type="submit" disabled={submitting} className="min-w-32">
-            {submitting ? <><Loader2 size={14} className="animate-spin mr-2" /> Registering...</> : "Register Site"}
+            {submitting ? <><Loader2 size={14} className="animate-spin mr-2" /> Registering...</> : `Register ${L("term.site", "Site")}`}
           </Button>
           <Button type="button" variant="outline" asChild>
             <Link href="/epc/sites">Cancel</Link>

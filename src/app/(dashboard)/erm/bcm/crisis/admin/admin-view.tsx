@@ -12,12 +12,14 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { fmtDate } from "@/app/(dashboard)/erm/lib";
 import type { TeamRole, CallTree } from "@/app/(dashboard)/erm/lib-p3";
+import { useLabels } from "@/components/labels/label-provider";
 
 type Plant = { id: string; code: string; name: string };
 
 const CORPORATE = "__corporate__";
 
 export function AdminView({ roster, callTrees, plants }: { roster: TeamRole[]; callTrees: CallTree[]; plants: Plant[] }) {
+  const L = useLabels();
   const router = useRouter();
   const [addRole, setAddRole] = useState(false);
   const [newTree, setNewTree] = useState(false);
@@ -26,7 +28,7 @@ export function AdminView({ roster, callTrees, plants }: { roster: TeamRole[]; c
   const groups = new Map<string, { siteName: string; roles: TeamRole[] }>();
   for (const r of roster) {
     const key = r.siteId ?? CORPORATE;
-    const siteName = r.siteId ? plants.find((p) => p.id === r.siteId)?.name ?? "Site" : "Corporate";
+    const siteName = r.siteId ? plants.find((p) => p.id === r.siteId)?.name ?? L("term.site", "Site") : "Corporate";
     if (!groups.has(key)) groups.set(key, { siteName, roles: [] });
     groups.get(key)!.roles.push(r);
   }
@@ -122,10 +124,11 @@ export function AdminView({ roster, callTrees, plants }: { roster: TeamRole[]; c
 }
 
 function CallTreeCard({ tree, plants }: { tree: CallTree; plants: Plant[] }) {
+  const L = useLabels();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const siteName = tree.siteId ? plants.find((p) => p.id === tree.siteId)?.name ?? "Site" : "Corporate";
+  const siteName = tree.siteId ? plants.find((p) => p.id === tree.siteId)?.name ?? L("term.site", "Site") : "Corporate";
 
   async function publish() {
     setBusy(true);
@@ -191,9 +194,10 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 function SiteSelect({ value, onChange, plants }: { value: string; onChange: (v: string) => void; plants: Plant[] }) {
+  const L = useLabels();
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
-      <SelectItem value="">Corporate (no single site)</SelectItem>
+      <SelectItem value="">{L("bcm.corporate_no_single_site", "Corporate (no single site)")}</SelectItem>
       {plants.map((p) => (
         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
       ))}
@@ -202,6 +206,7 @@ function SiteSelect({ value, onChange, plants }: { value: string; onChange: (v: 
 }
 
 function AddRoleModal({ plants, onClose, onDone }: { plants: Plant[]; onClose: () => void; onDone: () => void }) {
+  const L = useLabels();
   const [roleName, setRoleName] = useState("");
   const [siteId, setSiteId] = useState("");
   const [primaryUserId, setPrimaryUserId] = useState<string | null>(null);
@@ -248,7 +253,7 @@ function AddRoleModal({ plants, onClose, onDone }: { plants: Plant[]; onClose: (
           <Input value={roleName} onChange={(e) => setRoleName(e.target.value)} placeholder="e.g. Site Incident Controller" />
         </div>
         <div>
-          <Label className="mb-1 block text-xs font-medium text-slate-600">Site</Label>
+          <Label className="mb-1 block text-xs font-medium text-slate-600">{L("term.site", "Site")}</Label>
           <SiteSelect value={siteId} onChange={setSiteId} plants={plants} />
         </div>
         <div>
@@ -286,6 +291,7 @@ function newNode(): TreeNode {
 }
 
 function NewTreeModal({ plants, onClose, onDone }: { plants: Plant[]; onClose: () => void; onDone: () => void }) {
+  const L = useLabels();
   const [name, setName] = useState("");
   const [siteId, setSiteId] = useState("");
   const [nodes, setNodes] = useState<TreeNode[]>([]);
@@ -335,7 +341,7 @@ function NewTreeModal({ plants, onClose, onDone }: { plants: Plant[]; onClose: (
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. North Works Tier-1 cascade" />
         </div>
         <div>
-          <Label className="mb-1 block text-xs font-medium text-slate-600">Site</Label>
+          <Label className="mb-1 block text-xs font-medium text-slate-600">{L("term.site", "Site")}</Label>
           <SiteSelect value={siteId} onChange={setSiteId} plants={plants} />
         </div>
 

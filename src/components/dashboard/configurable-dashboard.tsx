@@ -10,7 +10,7 @@ import {
   type WidgetSpan,
   type WidgetMeta,
 } from "@/lib/dashboard/widget-catalog";
-import { DASHBOARD_PRESETS, PRESET_KEYS, presetLayout } from "@/lib/dashboard/presets";
+import { PRESET_KEYS, presetDisplayLabel, presetLayout } from "@/lib/dashboard/presets";
 import { DashboardWidget } from "./widgets/dashboard-widget";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 // ─────────────────────────────────────────────────────────────────────
 // ConfigurableDashboard (UI Depth sprint, Deliverable 3).
@@ -82,6 +84,7 @@ function resolveRange(preset: DatePreset, cFrom: string, cTo: string): { from: s
 }
 
 export function ConfigurableDashboard(props: ConfigurableDashboardProps) {
+  const L = useLabels();
   const [items, setItems] = React.useState<LayoutItem[]>(props.initialItems);
   const [saved, setSaved] = React.useState<LayoutItem[]>(props.initialItems);
   const [basedOnPreset, setBasedOnPreset] = React.useState<string | null>(props.basedOnPreset);
@@ -191,7 +194,7 @@ export function ConfigurableDashboard(props: ConfigurableDashboardProps) {
   }
   async function applyPreset(key: string) {
     setPresetsOpen(false);
-    if (!(await confirmDialog(`Apply the "${DASHBOARD_PRESETS[key]?.label}" preset? This replaces your current layout (you can still customise and save).`))) return;
+    if (!(await confirmDialog(`Apply the "${presetDisplayLabel(L, key)}" preset? This replaces your current layout (you can still customise and save).`))) return;
     markEdited(presetLayout(key) as LayoutItem[]);
     setBasedOnPreset(key);
     setEditing(true);
@@ -216,7 +219,7 @@ export function ConfigurableDashboard(props: ConfigurableDashboardProps) {
     return () => clearTimeout(t);
   }, [status]);
 
-  const presetLabel = basedOnPreset ? DASHBOARD_PRESETS[basedOnPreset]?.label : null;
+  const presetLabel = basedOnPreset ? presetDisplayLabel(L, basedOnPreset) : null;
 
   return (
     <div className="space-y-5">
@@ -225,7 +228,7 @@ export function ConfigurableDashboard(props: ConfigurableDashboardProps) {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">EHS Dashboard</h1>
           <p className="text-sm text-slate-500">
-            {props.today} · Real-time safety performance across all plants
+            {props.today}{` · ${L("dashboard.realtime_across_all_plants", "Real-time safety performance across all plants")}`}
             {presetLabel && modified && (
               <>
                 {" · "}
@@ -246,8 +249,8 @@ export function ConfigurableDashboard(props: ConfigurableDashboardProps) {
           </span>
 
           {props.canPickPlant && props.plants.length > 0 && (
-            <Select value={plant} onChange={(e) => setPlant(e.target.value)} className="form-select h-9 w-auto py-0 text-sm" aria-label="Plant filter">
-              <SelectItem value="">All Plants</SelectItem>
+            <Select value={plant} onChange={(e) => setPlant(e.target.value)} className="form-select h-9 w-auto py-0 text-sm" aria-label={`${L(TERM.plant, "Plant")} filter`}>
+              <SelectItem value="">{L(TERM.allPlants, "All Plants")}</SelectItem>
               {props.plants.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name}
@@ -270,7 +273,7 @@ export function ConfigurableDashboard(props: ConfigurableDashboardProps) {
                     <div className="px-2 py-1 text-overline text-slate-400">Apply preset</div>
                     {PRESET_KEYS.map((k) => (
                       <Button variant="bare" key={k} type="button" onClick={() => applyPreset(k)} className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50">
-                        {DASHBOARD_PRESETS[k].label}
+                        {presetDisplayLabel(L, k)}
                         {basedOnPreset === k && <Check size={14} className="text-primary-600" />}
                       </Button>
                     ))}

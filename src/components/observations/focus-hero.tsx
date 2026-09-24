@@ -28,6 +28,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Insight, InsightKind, InsightSeverity } from "@/lib/insights";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type Lens = "plant" | "ehs";
 
@@ -91,6 +93,7 @@ export function ObservationFocusHero({
   /** The viewer's role lens, resolved server-side from their role. */
   lens?: Lens;
 }) {
+  const L = useLabels();
   const pathname = usePathname();
 
   // Empty state: show nothing rather than an "all clear" hero (same rule as the
@@ -138,7 +141,7 @@ export function ObservationFocusHero({
               {/* static role badge — this is the viewer's role, not a control */}
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/80">
                 <meta.Icon size={13} />
-                <span className="hidden sm:inline">{meta.label} view</span>
+                <span className="hidden sm:inline">{lens === "plant" ? L(TERM.plantHead, meta.label) : meta.label} view</span>
               </span>
             </div>
 
@@ -203,7 +206,7 @@ export function ObservationFocusHero({
               </span>
             )}
             {featured.recordRefs.length === 0 && (
-              <span className="text-[12px] text-white/60">A plant-wide trend — open the list to explore it.</span>
+              <span className="text-[12px] text-white/60">{`A ${L("term.plant_lc", "plant")}-wide trend — open the list to explore it.`}</span>
             )}
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell, ReferenceLine } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useLabels } from "@/components/labels/label-provider";
 
 /**
  * Horizontal bar chart of plants ranked by a single KPI value.
@@ -22,6 +23,7 @@ export function PlantComparisonBar({
   higherIsBetter: boolean;
   target?: number | null;
 }) {
+  const L = useLabels();
   // Plants with no measurable value are NOT plotted. A null would render as a
   // zero-length bar, and on a lower-is-better KPI a zero-length bar sits at the
   // top of the ranking — the chart would show the plants that never submitted
@@ -46,8 +48,7 @@ export function PlantComparisonBar({
       <CardContent>
         {sorted.length === 0 ? (
           <p className="py-8 text-center text-xs text-slate-500">
-            No plant in scope has the exposure data this KPI needs, so there is nothing to
-            rank.
+            {L("manhours.no_plant_exposure_to_rank", "No plant in scope has the exposure data this KPI needs, so there is nothing to rank.")}
           </p>
         ) : (
         <ResponsiveContainer width="100%" height={Math.max(180, sorted.length * 40)}>

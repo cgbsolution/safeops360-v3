@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 import { Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
@@ -23,7 +26,7 @@ export interface PermitRow {
   workflowColor: string;
 }
 
-const columns: ColumnDef<PermitRow>[] = [
+const buildColumns = (L: LabelFn): ColumnDef<PermitRow>[] => [
   {
     accessorKey: "number",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Number" />,
@@ -45,7 +48,7 @@ const columns: ColumnDef<PermitRow>[] = [
   {
     id: "plant",
     accessorFn: (r) => `${r.plantName} ${r.areaName ?? ""}`,
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant / Area" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={`${L(TERM.plant, "Plant")} / Area`} />,
     cell: ({ row }) => (
       <div className="text-sm">
         <div className="text-foreground font-medium">{row.original.plantName}</div>
@@ -53,7 +56,7 @@ const columns: ColumnDef<PermitRow>[] = [
       </div>
     ),
     size: 180,
-    meta: { label: "Plant / Area" }
+    meta: { label: `${L(TERM.plant, "Plant")} / Area` }
   },
   {
     accessorKey: "scopeOfWork",
@@ -105,6 +108,8 @@ const columns: ColumnDef<PermitRow>[] = [
 ];
 
 export function PtwTable({ data }: { data: PermitRow[] }) {
+  const L = useLabels();
+  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}
@@ -116,7 +121,7 @@ export function PtwTable({ data }: { data: PermitRow[] }) {
         columns: [
           { header: "Number", value: (r) => r.number },
           { header: "Type", value: (r) => humanize(r.type) },
-          { header: "Plant", value: (r) => r.plantName },
+          { header: L(TERM.plant, "Plant"), value: (r) => r.plantName },
           { header: "Area", value: (r) => r.areaName },
           { header: "Scope of work", value: (r) => r.scopeOfWork },
           { header: "Valid from", value: (r) => formatDate(r.validFrom) },

@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import type { WidgetSpan } from "./widget-catalog";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 export interface LayoutItem {
   widgetId: string;
@@ -137,6 +138,12 @@ export const DASHBOARD_PRESETS: Record<string, DashboardPreset> = {
 };
 
 export const PRESET_KEYS = Object.keys(DASHBOARD_PRESETS);
+
+/** A preset's display label, with the plant-head vocabulary routed through display labels. */
+export function presetDisplayLabel(L: LabelFn, key: string): string | undefined {
+  if (key === "plant-head") return L(TERM.plantHead, "Plant Head");
+  return DASHBOARD_PRESETS[key]?.label;
+}
 
 export const DEFAULT_PRESET_KEY = "hse-manager";
 

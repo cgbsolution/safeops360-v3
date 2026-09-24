@@ -32,6 +32,8 @@ import {
 import { Camera, Upload, X, Image as ImageIcon, Film, FileText, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; name: string; areas: { id: string; name: string }[] };
 
@@ -61,6 +63,7 @@ type LocalPhoto = {
 };
 
 export function ObservationForm({ plants }: { plants: Plant[] }) {
+  const L = useLabels();
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState<"" | "creating" | "uploading">("");
@@ -374,7 +377,7 @@ export function ObservationForm({ plants }: { plants: Plant[] }) {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Plant" name="plantId" required>
+            <Field label={L(TERM.plant, "Plant")} name="plantId" required>
               <Select name="plantId" value={plantId} onChange={onPlantChange} required>
                 {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </Select>

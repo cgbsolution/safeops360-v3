@@ -38,6 +38,7 @@ import {
 } from "@/app/(dashboard)/loto/_meta";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLabels } from "@/components/labels/label-provider";
 
 type DraftEnergySource = {
   id?: string;
@@ -114,6 +115,7 @@ export function ProcedureBuilder({
   procedure?: Procedure;
   plantName?: string | null;
 }) {
+  const L = useLabels();
   const router = useRouter();
   const isEdit = !!procedure;
 
@@ -377,7 +379,7 @@ export function ProcedureBuilder({
           </Field>
         </div>
         {plantName && (
-          <p className="mt-3 text-xs text-slate-500">Site: {plantName}</p>
+          <p className="mt-3 text-xs text-slate-500">{`${L("term.site", "Site")}: `}{plantName}</p>
         )}
       </Section>
 

@@ -16,6 +16,8 @@ import { KpiEngine, percentDelta, type KpiPeriod, type KpiResult } from "@/lib/m
 import { KPI_REGISTRY, type KpiCode } from "@/lib/manhours/kpi-registry";
 import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 const PERIODS = [
   { key: "12", label: "12 months", months: 12 },
@@ -31,6 +33,7 @@ export async function ManhoursTrendsView(props: {
 }) {
   const sp = await props.searchParams;
   await requirePermission("MANHOURS.READ");
+  const L = await getServerLabels();
 
   const accessibleIds = await getAccessiblePlantIds("MANHOURS.READ");
   const plants = await prisma.plant.findMany({
@@ -42,7 +45,7 @@ export async function ManhoursTrendsView(props: {
   const range = PERIODS.find((p) => p.key === sp.range) ?? PERIODS[1];
   const plantId = sp.plantId && plants.some((p) => p.id === sp.plantId) ? sp.plantId : null;
   const scope = plantId ? { plantId } : {};
-  const scopeLabel = plantId ? plants.find((p) => p.id === plantId)!.name : "All plants";
+  const scopeLabel = plantId ? plants.find((p) => p.id === plantId)!.name : L(TERM.allPlants, "All plants");
 
   // Multi-period history for the focus KPIs.
   const trendData = await loadTrendHistory({
@@ -72,9 +75,9 @@ export async function ManhoursTrendsView(props: {
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="text-[11px] uppercase tracking-wider text-slate-500">Plant</div>
+        <div className="text-[11px] uppercase tracking-wider text-slate-500">{L(TERM.plant, "Plant")}</div>
         <Button asChild variant={!plantId ? "default" : "outline"} size="sm">
-          <Link href={`/manhours/performance?view=trends&range=${range.key}`}>All plants</Link>
+          <Link href={`/manhours/performance?view=trends&range=${range.key}`}>{L(TERM.allPlants, "All plants")}</Link>
         </Button>
         {plants.map((p) => (
           <Button key={p.id} asChild variant={plantId === p.id ? "default" : "outline"} size="sm">

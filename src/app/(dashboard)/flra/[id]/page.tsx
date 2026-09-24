@@ -12,6 +12,8 @@ import { RedoFlraPanel } from "@/components/flra/redo-flra-panel";
 import { formatDate, formatDateTime, humanize } from "@/lib/utils";
 import { CheckCircle2, ArrowUpRight, AlertTriangle, Heart, Printer, ShieldAlert, XCircle } from "lucide-react";
 import { PrintButton } from "@/components/ui/print-button";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 import { SITE_SAFETY_CHECK, FLRA_TOOLTIP } from "@/lib/flra/terminology";
 
@@ -60,6 +62,7 @@ export default async function FLRADetailPage(props: { params: Promise<{ id: stri
     }
   });
   if (!f) redirectMissingRecord("/flra", "Site Safety Check");
+  const L = await getServerLabels();
 
   const hazards: any[] = (() => {
     try {
@@ -361,7 +364,7 @@ export default async function FLRADetailPage(props: { params: Promise<{ id: stri
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <Row label="Date" value={formatDate(f.date)} />
-              <Row label="Plant" value={f.plant.name} />
+              <Row label={L(TERM.plant, "Plant")} value={f.plant.name} />
               <Row label="Location" value={f.location} />
               <Row label="Leader" value={f.leader.name} />
               <Row label="Toolbox Talk by" value={f.toolboxTalkBy?.name ?? "—"} />

@@ -19,6 +19,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLicence } from "@/components/licensing/licence-provider";
 import { LicenceUpload } from "@/components/licensing/licence-upload";
 import { FactoryModuleMatrix } from "@/components/licensing/factory-module-matrix";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 const STATUS_TONE: Record<string, string> = {
   ACTIVE: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -47,6 +49,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function LicencePage() {
+  const L = useLabels();
   const { view, loading, refresh } = useLicence();
 
   const grouped = useMemo(() => {
@@ -149,9 +152,9 @@ export default function LicencePage() {
             <CardTitle>Limits</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <LimitRow label="Sites" cap={limits.maxSites} current={usage?.sites} />
+            <LimitRow label={L("term.sites", "Sites")} cap={limits.maxSites} current={usage?.sites} />
             <LimitRow label="Users" cap={limits.maxUsers} current={usage?.users} />
-            <LimitRow label="Factories" cap={limits.maxFactories} current={usage?.factories} />
+            <LimitRow label={L(TERM.factories, "Factories")} cap={limits.maxFactories} current={usage?.factories} />
             {Object.keys(view.featureFlags ?? {}).length > 0 && (
               <div className="pt-2">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Feature flags</div>

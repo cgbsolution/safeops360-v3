@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { cn } from "@/lib/utils";
 import { Trophy } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DEFAULT_LABELS, TERM, type LabelFn } from "@/lib/labels/core";
 
 export interface ScorecardRow {
   plantId: string;
@@ -26,11 +27,14 @@ export interface ScorecardRow {
  */
 export function PerformanceScorecard({
   rows,
-  href
+  href,
+  L = DEFAULT_LABELS
 }: {
   rows: ScorecardRow[];
   /** Per-plant drill href. */
   href?: (row: ScorecardRow) => string;
+  /** Display-label resolver (server callers pass theirs; defaults to the literals). */
+  L?: LabelFn;
 }) {
   const sorted = [...rows].sort((a, b) => b.score - a.score);
   return (
@@ -38,7 +42,7 @@ export function PerformanceScorecard({
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <Trophy size={14} className="text-amber-600" />
-          Plant Performance Scorecard
+          {`${L(TERM.plant, "Plant")} Performance Scorecard`}
         </CardTitle>
         <CardDescription>
           Weighted composite (LTIFR 25% · TRIFR 15% · Severity 15% · Near Miss 10% · Training 10% ·
@@ -51,7 +55,7 @@ export function PerformanceScorecard({
             <TableHeader className="text-xs uppercase tracking-wider text-slate-500 border-b">
               <TableRow>
                 <TableHead className="px-2 py-2 text-left text-xs text-slate-500 h-auto">Rank</TableHead>
-                <TableHead className="px-2 py-2 text-left text-xs text-slate-500 h-auto">Plant</TableHead>
+                <TableHead className="px-2 py-2 text-left text-xs text-slate-500 h-auto">{L(TERM.plant, "Plant")}</TableHead>
                 <TableHead className="px-2 py-2 text-right text-xs text-slate-500 h-auto">Score</TableHead>
                 <TableHead className="px-2 py-2 text-left text-xs text-slate-500 h-auto">Band</TableHead>
                 <TableHead className="px-2 py-2 text-xs text-slate-500 h-auto"></TableHead>

@@ -6,6 +6,7 @@ import { ClipboardList, Plus, CheckCircle2, XCircle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,7 @@ export default async function MobilizationPage(
   }
 ) {
   const sp = await props.searchParams;
+  const L = await getServerLabels();
 
   const query: Record<string, string> = {};
   if (sp.siteId) query.siteId = sp.siteId;
@@ -114,13 +116,13 @@ export default async function MobilizationPage(
           <form method="get" action="/epc/mobilization">
             <div className="flex flex-wrap gap-2 items-end">
               <div>
-                <Label className="text-xs text-slate-500 block mb-1 font-medium">Site</Label>
+                <Label className="text-xs text-slate-500 block mb-1 font-medium">{L("term.site", "Site")}</Label>
                 <Select
                   name="siteId"
                   defaultValue={sp.siteId ?? ""}
                   className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600"
                 >
-                  <SelectItem value="">All Sites</SelectItem>
+                  <SelectItem value="">{L("term.all_sites", "All Sites")}</SelectItem>
                   {sites.map((s) => (
                     <SelectItem key={s.id} value={s.id}>{s.siteName}</SelectItem>
                   ))}
@@ -181,7 +183,7 @@ export default async function MobilizationPage(
           <p className="text-xs text-slate-400 mb-4">
             {sp.siteId || sp.status || sp.contractorCompanyId
               ? "Try adjusting the filters above."
-              : "Create a new mobilization to deploy workers to a site."}
+              : L("epc.mobilization.empty_create", "Create a new mobilization to deploy workers to a site.")}
           </p>
           <Button asChild size="sm">
             <Link href="/epc/mobilization/new"><Plus size={14} className="mr-1" /> New Mobilization</Link>
@@ -194,7 +196,7 @@ export default async function MobilizationPage(
               <TableRow className="border-b bg-slate-50 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
                 <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Mob. No.</TableHead>
                 <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Worker</TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Site</TableHead>
+                <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">{L("term.site", "Site")}</TableHead>
                 <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Trade</TableHead>
                 <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Contractor</TableHead>
                 <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Status</TableHead>

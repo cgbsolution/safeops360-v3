@@ -24,7 +24,7 @@ import {
   CERT_TYPE_LABEL,
   CERTIFICATION_TYPES,
   COMPLIANCE_FLAGS,
-  CONTACT_ROLE_LABEL,
+  contactRoleLabel,
   CONTACT_ROLES,
   EQUIPMENT_STATUSES,
   EQUIPMENT_STATUS_CHIP,
@@ -48,7 +48,7 @@ import {
   IMPACT_CHIP,
   LIFECYCLE_STAGES,
   LIFECYCLE_STAGE_LABEL,
-  LIFECYCLE_STAGE_OWNER,
+  lifecycleStageOwner,
   LIFECYCLE_STAGE_CHIP,
   LIFECYCLE_ACTION_LABEL,
   fmtDate,
@@ -80,6 +80,8 @@ import {
   type SocialComplianceProfile,
 } from "../lib";
 import { Label } from "@/components/ui/label";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 const TABS = [
   "Overview",
@@ -127,6 +129,7 @@ function Tile({ label, value }: { label: string; value: string }) {
 }
 
 export function ProfileDetail({ profile, initialTab }: { profile: FactoryProfileDetail; initialTab?: string }) {
+  const L = useLabels();
   // Deep-link support: ?tab=Workforce (case-insensitive) opens that tab — used by
   // the group Workforce & Social-Compliance register's row links (W-01 §3).
   const startTab = (TABS.find((t) => t.toLowerCase() === (initialTab ?? "").toLowerCase()) ?? "Overview") as Tab;
@@ -148,7 +151,7 @@ export function ProfileDetail({ profile, initialTab }: { profile: FactoryProfile
         <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary-700">{profile.primaryIndustry}</span>
         {/* Never the raw `siteId` — a cuid says nothing, and the 1:1 Plant link
             is exactly what would be broken if the name failed to resolve. */}
-        <span className="text-xs text-slate-400">Site: {profile.siteName ?? "Unknown site"}</span>
+        <span className="text-xs text-slate-400">{`${L("term.site", "Site")}: `}{profile.siteName ?? L("term.unknown_site", "Unknown site")}</span>
         <div className="ml-auto grid grid-cols-3 gap-2">
           <Tile label="Buildings" value={fmtNum(profile.buildingCount)} />
           <Tile label="Employees" value={fmtNum(profile.totalEmployees)} />
@@ -1382,6 +1385,7 @@ function CertificationsTab({ profile }: { profile: FactoryProfileDetail }) {
 
 // ── Contacts ─────────────────────────────────────────────────────────────────
 function ContactsTab({ profile }: { profile: FactoryProfileDetail }) {
+  const L = useLabels();
   const router = useRouter();
   const canEdit = usePermission("FACILITY.CONTACT_MANAGE");
   const [adding, setAdding] = useState(false);
@@ -1445,7 +1449,7 @@ function ContactsTab({ profile }: { profile: FactoryProfileDetail }) {
                     {c.name}
                     {c.isPrimary && <span className="rounded bg-primary-50 px-1.5 py-0.5 text-[9px] font-medium text-primary-700">PRIMARY</span>}
                   </div>
-                  <div className="text-[11px] text-slate-400">{CONTACT_ROLE_LABEL[c.role] ?? c.role}</div>
+                  <div className="text-[11px] text-slate-400">{contactRoleLabel(L, c.role) ?? c.role}</div>
                 </div>
                 {canEdit && (
                   <Button type="button" variant="ghost" size="icon" onClick={() => remove(c)} disabled={busy} className="h-auto w-auto text-slate-300 hover:text-rose-600">
@@ -1469,7 +1473,7 @@ function ContactsTab({ profile }: { profile: FactoryProfileDetail }) {
               <Label className="block text-xs font-medium text-slate-600 mb-1">Role</Label>
               <Select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as ContactRole })}>
                 {CONTACT_ROLES.map((r) => (
-                  <SelectItem key={r} value={r}>{CONTACT_ROLE_LABEL[r]}</SelectItem>
+                  <SelectItem key={r} value={r}>{contactRoleLabel(L, r)}</SelectItem>
                 ))}
               </Select>
             </div>
@@ -1623,6 +1627,7 @@ function RollupBlock({ block, periodRef }: { block?: FacilityMetricBlock | null;
 }
 
 function ComplianceAuditTab({ profile }: { profile: FactoryProfileDetail }) {
+  const L = useLabels();
   const [data, setData] = useState<ComplianceTabData | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1700,7 +1705,7 @@ function ComplianceAuditTab({ profile }: { profile: FactoryProfileDetail }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ComplianceList title="Audits & Inspections" empty="No audits at this site." items={data.audits} render={(a) => (
+        <ComplianceList title="Audits & Inspections" empty={L("facilities.no_audits_at_site", "No audits at this site.")} items={data.audits} render={(a) => (
           <Link href={`/cams/engagements/${a.id}`} className="flex items-center justify-between gap-2 hover:bg-slate-50">
             <span className="truncate"><span className="text-primary-700">{a.code}</span> — {a.title}</span>
             <span className="shrink-0 text-xs text-slate-500">{a.score != null ? `${a.score}%` : a.status}</span>
@@ -1766,11 +1771,12 @@ function ComplianceList({ title, items, empty, render }: { title: string; items:
 }
 
 function AuditTrailTab({ profile }: { profile: FactoryProfileDetail }) {
+  const L = useLabels();
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
       <dl className="space-y-2">
         <Row label="Profile ID">{profile.id}</Row>
-        <Row label="Factory code">{profile.factoryCode}</Row>
+        <Row label={`${L(TERM.factory, "Factory")} code`}>{profile.factoryCode}</Row>
         <Row label="Last reviewed">{fmtDate(profile.lastReviewedAt)}</Row>
         <Row label="Last updated">{fmtDate(profile.updatedAt)}</Row>
       </dl>
@@ -1793,6 +1799,7 @@ function Chip({ className, children }: { className?: string; children: React.Rea
 }
 
 function LifecycleStepper({ profile }: { profile: FactoryProfileDetail }) {
+  const L = useLabels();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -1826,7 +1833,7 @@ function LifecycleStepper({ profile }: { profile: FactoryProfileDetail }) {
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">Lifecycle workflow</h3>
         <span className="text-xs text-slate-400">
-          Owner: {LIFECYCLE_STAGE_OWNER[stage] ?? "—"}
+          Owner: {lifecycleStageOwner(L, stage) ?? "—"}
           {profile.lifecycleUpdatedAt ? ` · updated ${fmtDate(profile.lifecycleUpdatedAt)}` : ""}
         </span>
       </div>

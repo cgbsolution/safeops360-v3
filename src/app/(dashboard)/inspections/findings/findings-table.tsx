@@ -6,6 +6,9 @@ import { Eye, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { useMemo } from "react";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 const STATUS_BADGE: Record<string, string> = {
   OPEN: "bg-rose-100 text-rose-800 border-rose-200",
@@ -40,7 +43,7 @@ export interface FindingRow {
   status: string;
 }
 
-const columns: ColumnDef<FindingRow>[] = [
+const buildColumns = (L: LabelFn): ColumnDef<FindingRow>[] => [
   {
     accessorKey: "findingNumber",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Number" />,
@@ -75,7 +78,7 @@ const columns: ColumnDef<FindingRow>[] = [
   },
   {
     accessorKey: "plantCode",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={L(TERM.plant, "Plant")} />,
     cell: ({ row }) => <span className="text-xs">{row.original.plantCode}</span>,
     size: 90
   },
@@ -135,6 +138,8 @@ const columns: ColumnDef<FindingRow>[] = [
 ];
 
 export function FindingsTable({ data }: { data: FindingRow[] }) {
+  const L = useLabels();
+  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}

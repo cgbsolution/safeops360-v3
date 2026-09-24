@@ -49,6 +49,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; name: string; areas: { id: string; name: string }[] };
 type Department = { id: string; name: string };
@@ -160,6 +162,7 @@ export function PermitForm({
   defaultPlantId?: string | null;
   hiraPrefill?: HiraPrefill | null;
 }) {
+  const L = useLabels();
   const router = useRouter();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
@@ -367,7 +370,7 @@ export function PermitForm({
       }
     }
     if (n === 2) {
-      if (!plantId) return "Plant required.";
+      if (!plantId) return L("term.plant_required_short", "Plant required.");
       if (!areaId) return "Area required.";
       if (!specificLocation && !selectedPlant?.areas.find((a) => a.id === areaId)?.name) return "Specific location required.";
       if (!scopeOfWork || scopeOfWork.trim().length < 10) return "Scope of work must be at least 10 characters.";
@@ -750,7 +753,7 @@ export function PermitForm({
           <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
-                <Label>Plant <span className="text-rose-600">*</span></Label>
+                <Label>{`${L(TERM.plant, "Plant")} `}<span className="text-rose-600">*</span></Label>
                 <Select value={plantId} onChange={(e) => { setPlantId(e.target.value); setAreaId(""); setDepartmentId(""); }} required>
                   {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </Select>
@@ -815,7 +818,7 @@ export function PermitForm({
                 <UserPicker value={issuerId} onChange={(id) => setIssuerId(id)}
                   filter={{ plantId, role: "PERMIT_ISSUER", roleFallback: true }} placeholder="Search & select issuer…" required />
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Lists this plant's designated Permit Issuers. If none are configured, any plant user can be picked.
+                  {L("ptw.issuer_picker_help", "Lists this plant's designated Permit Issuers. If none are configured, any plant user can be picked.")}
                 </p>
               </div>
               <div>
@@ -1162,7 +1165,7 @@ export function PermitForm({
               value={hazardsInForce.map((h) => HAZARD_LABELS[h]).join(", ")}
             />
             <ReviewRow label="Validity" value={`${validFrom.replace("T", " ")} → ${validTo.replace("T", " ")} (${validityHours}h)`} />
-            <ReviewRow label="Plant" value={selectedPlant?.name ?? "—"} />
+            <ReviewRow label={L(TERM.plant, "Plant")} value={selectedPlant?.name ?? "—"} />
             <ReviewRow label="Area" value={selectedPlant?.areas.find((a) => a.id === areaId)?.name ?? "—"} />
             {specificLocation && <ReviewRow label="Specific Location" value={specificLocation} />}
             <ReviewRow label="Scope" value={scopeOfWork} />

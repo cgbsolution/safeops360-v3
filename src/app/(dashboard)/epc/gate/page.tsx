@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
+import { useLabels } from "@/components/labels/label-provider";
 import {
   Table,
   TableHeader,
@@ -132,6 +133,7 @@ function fmtDateTime(d: string): string {
 }
 
 export default function GateClearancePage() {
+  const L = useLabels();
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [query, setQuery] = useState("");
@@ -233,14 +235,14 @@ export default function GateClearancePage() {
 
       {/* Site selector */}
       <div className="mb-4">
-        <Label htmlFor="site-select" className="text-xs text-slate-600 font-medium">Select Site</Label>
+        <Label htmlFor="site-select" className="text-xs text-slate-600 font-medium">{L("term.select_site", "Select Site")}</Label>
         <Select
           id="site-select"
           value={selectedSiteId}
           onChange={(e) => { setSelectedSiteId(e.target.value); handleClear(); }}
           className="mt-1 font-medium"
         >
-          <SelectItem value="">— Select a site —</SelectItem>
+          <SelectItem value="">{L("term.select_a_site_option", "— Select a site —")}</SelectItem>
           {sites.map((s) => (
             <SelectItem key={s.id} value={s.id}>{s.siteName} ({s.siteCode})</SelectItem>
           ))}
@@ -271,7 +273,7 @@ export default function GateClearancePage() {
           </Button>
         </div>
         {!selectedSiteId && (
-          <p className="mt-2 text-xs text-amber-700">Please select a site before checking.</p>
+          <p className="mt-2 text-xs text-amber-700">{L("epc.gate.select_site_before_checking", "Please select a site before checking.")}</p>
         )}
       </form>
 
@@ -420,11 +422,11 @@ export default function GateClearancePage() {
         {!selectedSiteId ? (
           <div className="p-8 text-center text-sm text-slate-500">
             <Building2 size={28} className="mx-auto mb-2 text-slate-300" />
-            Select a site to view today&apos;s gate log.
+            {L("epc.gate.select_site_for_log", "Select a site to view today's gate log.")}
           </div>
         ) : gateLog.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500">
-            No gate activity today for this site.
+            {L("epc.gate.no_activity_for_site", "No gate activity today for this site.")}
           </div>
         ) : (
           <Table className="text-sm">

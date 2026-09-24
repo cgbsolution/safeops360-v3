@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import type { WizardSubmission } from "./wizard-types";
 import { patchSubmission } from "./wizard-api";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 const MONTHS = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -18,6 +20,7 @@ export function StepPeriod({
   onSaved: (s: WizardSubmission) => void;
   isReadOnly: boolean;
 }) {
+  const L = useLabels();
   const [permanent, setPermanent] = useState(submission.totalEmployeeStrength);
   const [contract, setContract] = useState(submission.totalContractorStrength);
   const [days, setDays] = useState(submission.totalDaysWorked);
@@ -62,7 +65,7 @@ export function StepPeriod({
 
       {/* Period — fixed at submission creation, displayed for context */}
       <div className="grid sm:grid-cols-3 gap-4 rounded-md bg-slate-50 border p-4">
-        <Field label="Plant">
+        <Field label={L(TERM.plant, "Plant")}>
           <div className="text-sm font-medium">{submission.plant.name}</div>
           <div className="text-xs text-slate-500">{submission.plant.code}</div>
         </Field>
@@ -98,7 +101,7 @@ export function StepPeriod({
         />
         <NumField
           label="Total working days"
-          hint="Calendar days the plant operated; reduce for shutdowns"
+          hint={`Calendar days the ${L("term.plant_lc", "plant")} operated; reduce for shutdowns`}
           value={days}
           onChange={setDays}
           disabled={isReadOnly}

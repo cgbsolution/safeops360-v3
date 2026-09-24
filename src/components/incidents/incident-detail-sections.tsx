@@ -21,6 +21,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DEFAULT_LABELS, TERM, type LabelFn } from "@/lib/labels/core";
 
 // ─── Type imports for the props (Prisma row shapes) ──────────────────
 
@@ -699,7 +700,7 @@ export function InvestigationTeamSection({ team }: {
 
 // ─── Section 14 — Lessons Learned ────────────────────────────────────
 
-export function LessonsLearnedSection({ incident }: { incident: any }) {
+export function LessonsLearnedSection({ incident, L = DEFAULT_LABELS }: { incident: any; L?: LabelFn }) {
   if (!incident.lessonsLearned) {
     return null;  // hide section entirely if empty
   }
@@ -714,7 +715,7 @@ export function LessonsLearnedSection({ incident }: { incident: any }) {
         <p className="text-sm text-violet-900 whitespace-pre-wrap">{incident.lessonsLearned}</p>
         {incident.lessonsDistributedTo && Array.isArray(incident.lessonsDistributedTo) && (
           <div className="text-xs text-violet-700 mt-2 print:hidden">
-            Distributed to {incident.lessonsDistributedTo.length} plant{incident.lessonsDistributedTo.length === 1 ? "" : "s"}.
+            {`Distributed to ${incident.lessonsDistributedTo.length} ${incident.lessonsDistributedTo.length === 1 ? L("term.plant_lc", "plant") : L("term.plants_lc", "plants")}.`}
           </div>
         )}
       </CardContent>
@@ -916,12 +917,14 @@ export function RelatedItemsSection({ incident }: { incident: any }) {
 export function IncidentMetadataSidebar({
   incident,
   canSeeScore = false,
-  masters = {}
+  masters = {},
+  L = DEFAULT_LABELS
 }: {
   incident: any;
   canSeeScore?: boolean;
   /** Resolved MasterItem labels — shiftId is stored as a cuid FK. */
   masters?: MasterLabelMap;
+  L?: LabelFn;
 }) {
   const occurred = incident.occurredAt ?? incident.date;
   const reported = incident.reportedAt;
@@ -946,7 +949,7 @@ export function IncidentMetadataSidebar({
             </span>
           } />
         )}
-        <MetaRow label="Plant" value={incident.plant.name} />
+        <MetaRow label={L(TERM.plant, "Plant")} value={incident.plant.name} />
         {incident.department?.name && <MetaRow label="Department" value={incident.department.name} />}
         <MetaRow label="Area" value={incident.area?.name ?? "—"} />
         <MetaRow label="Specific Location" value={incident.specificLocation ?? incident.location} />

@@ -5,8 +5,11 @@ import { Building2 } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { shortPlantName } from "@/lib/utils";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 export function Header() {
+  const L = useLabels();
   const { data: session } = useSession();
   const user = session?.user as any;
 
@@ -23,7 +26,7 @@ export function Header() {
           </div>
           <div className="flex items-center gap-1 text-xs text-[color:var(--me-ink-muted)]">
             <Building2 size={12} />
-            {shortPlantName(user?.plantName) ?? "All Plants"}
+            {shortPlantName(user?.plantName) ?? L(TERM.allPlants, "All Plants")}
           </div>
         </div>
       </div>

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useLabels } from "@/components/labels/label-provider";
+import { ComplianceSnapshot } from "@/components/compliance/compliance-snapshot";
 import {
   ENGAGEMENT_STATUS_CHIP, RESULT_CHIP, SEVERITY_CHIP, FINDING_STATUS_CHIP,
   fmtDate, labelize, engagementTypeLabel,
@@ -43,6 +45,14 @@ export function EngagementWorkspace({
   return (
     <div>
       <EngagementHeader engagement={engagement} perms={perms} />
+      {/* Fire Safety engagements carry a read-only Compliance Snapshot pulled
+          live from the fire register + routine checklist completion. Other
+          audit domains have no such source, so they render nothing here. */}
+      {engagement.sourceModule === "FIRE" && (
+        <div className="mt-4">
+          <ComplianceSnapshot engagementId={engagement.id} />
+        </div>
+      )}
       <div className="mt-4 flex gap-1 border-b border-slate-200">
         {tabs.map((t) => (
           <Button key={t.key} type="button" variant="ghost" onClick={() => setTab(t.key)}
@@ -67,6 +77,7 @@ export function EngagementWorkspace({
 
 // ── header + transitions ──────────────────────────────────────────────────
 function EngagementHeader({ engagement, perms }: { engagement: Engagement; perms: Perms }) {
+  const L = useLabels();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -112,7 +123,7 @@ function EngagementHeader({ engagement, perms }: { engagement: Engagement; perms
         </div>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-        <Meta label="Site" value={engagement.siteName} />
+        <Meta label={L("term.site", "Site")} value={engagement.siteName} />
         <Meta label="Lead auditor" value={engagement.leadAuditorName} />
         <Meta label="Auditee owner" value={engagement.auditeeOwnerName} />
         <Meta label="Planned" value={fmtDate(engagement.plannedDate)} />

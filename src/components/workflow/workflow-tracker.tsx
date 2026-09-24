@@ -5,7 +5,7 @@ import { CheckCircle2, Clock, AlertTriangle, ChevronDown, ChevronUp, User as Use
 import { cn, formatDateTime, humanize } from "@/lib/utils";
 import { formatPartyMeta, formatPartyMetaOrHint, formatPartyName } from "@/lib/users/user-ref";
 
-import { stepDisplayName } from "@/lib/flra/terminology";
+import { StepName } from "@/components/workflow/step-name";
 import { Button } from "@/components/ui/button";
 type Step = {
   id: string;
@@ -132,7 +132,7 @@ export function WorkflowTracker({
                     "text-xs font-medium leading-tight mt-0.5",
                     done || active ? "text-slate-900" : "text-slate-400"
                   )}>
-                    {stepDisplayName(step.name)}
+                    <StepName name={step.name} />
                   </div>
                 </div>
               </div>
@@ -173,7 +173,7 @@ export function WorkflowTracker({
                     <span className="block">
                       <span className="font-semibold">{formatPartyName(t.assignedTo)}</span>
                       <span className="text-amber-400"> · </span>
-                      <span className="text-amber-700">{stepDisplayName(t.stepName)}</span>
+                      <span className="text-amber-700"><StepName name={t.stepName} /></span>
                     </span>
                     <span className="block text-xs text-amber-700/90 mt-0.5">
                       {formatPartyMetaOrHint(t.assignedTo)}
@@ -222,7 +222,7 @@ export function WorkflowTracker({
                   <div className="text-slate-900">
                     <span className="font-medium">{formatPartyName(h.performedBy)}</span>
                     <span className="text-slate-500"> — {humanize(h.action)}</span>
-                    <span className="text-slate-500"> · {stepDisplayName(h.stepName)}</span>
+                    <span className="text-slate-500"> · <StepName name={h.stepName} /></span>
                   </div>
                   {h.comments && <div className="text-slate-600 mt-0.5 italic">"{h.comments}"</div>}
                   <div className="text-xs text-slate-400 mt-0.5">

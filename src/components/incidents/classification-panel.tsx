@@ -31,6 +31,8 @@ import { useToast } from "@/components/ui/toast";
 import { AlertCircle, CheckCircle2, Clock, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { readApiError } from "@/lib/client-errors";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 const TYPES = [
   { value: "FIRST_AID", label: "First Aid Case (FAC)" },
@@ -96,6 +98,7 @@ export function ClassificationPanel({
   taskId: string;
   initial: Initial;
 }) {
+  const L = useLabels();
   const router = useRouter();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -397,7 +400,7 @@ export function ClassificationPanel({
               )}
               {(severity === "HIGH" || severity === "CRITICAL") && (
                 <p className="text-xs text-amber-700 mt-1.5">
-                  ⓘ For LTI / Fatality, Plant Head and Corporate HSE will be added automatically as observers when classification is confirmed.
+                  {`ⓘ For LTI / Fatality, ${L(TERM.plantHead, "Plant Head")} and Corporate HSE will be added automatically as observers when classification is confirmed.`}
                 </p>
               )}
             </div>

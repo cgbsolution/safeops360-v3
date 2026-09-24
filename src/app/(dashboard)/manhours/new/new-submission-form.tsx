@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -18,6 +20,7 @@ export function NewSubmissionForm({
 }: {
   plants: { id: string; name: string; code: string }[];
 }) {
+  const L = useLabels();
   const router = useRouter();
   // Default to the most recently completed month — submissions are
   // filed AFTER the period closes.
@@ -60,7 +63,7 @@ export function NewSubmissionForm({
       <CardContent className="p-6">
         <form onSubmit={onSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label>Plant</Label>
+            <Label>{L(TERM.plant, "Plant")}</Label>
             <Select value={plantId} onChange={(e) => setPlantId(e.target.value)} required>
               {plants.map((p) => (
                 <SelectItem key={p.id} value={p.id}>

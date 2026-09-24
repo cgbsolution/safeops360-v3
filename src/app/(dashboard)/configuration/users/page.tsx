@@ -8,6 +8,8 @@ import { requirePermission } from "@/lib/auth/server";
 import { UsersTable, type UserRow } from "./users-table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectItem } from "@/components/ui/select";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,7 @@ export default async function UsersPage(props: {
 }) {
   await requirePermission("CONFIGURATION.USERS");
   const sp = await props.searchParams;
+  const L = await getServerLabels();
 
   const where: any = {};
   if (sp.q) {
@@ -78,7 +81,7 @@ export default async function UsersPage(props: {
     <div>
       <PageHeader
         title="Users"
-        description="View, create, edit, and deactivate user accounts. Assign roles, override plant / department, monitor permissions."
+        description={L("users.page_description", "View, create, edit, and deactivate user accounts. Assign roles, override plant / department, monitor permissions.")}
         breadcrumbs={[{ label: "Configuration", href: "/configuration" }, { label: "Users" }]}
         action={
           <Can permission="CONFIGURATION.USERS">
@@ -95,7 +98,7 @@ export default async function UsersPage(props: {
         <Stat label="Total users" value={users.length} />
         <Stat label="Admin-like" value={adminLikeCount} tone="rose" />
         <Stat label="Active roles" value={roles.length} />
-        <Stat label="Plants covered" value={new Set(users.map((u) => u.plantId)).size} />
+        <Stat label={L("users.plants_covered", "Plants covered")} value={new Set(users.map((u) => u.plantId)).size} />
       </div>
 
       <form className="mb-4 flex flex-wrap gap-2" action="/configuration/users">
@@ -114,7 +117,7 @@ export default async function UsersPage(props: {
           ))}
         </Select>
         <Select name="plant" defaultValue={sp.plant ?? ""} className="w-auto rounded-md border border-slate-200 px-2 py-2 text-sm">
-          <SelectItem value="">All plants</SelectItem>
+          <SelectItem value="">{L(TERM.allPlants, "All plants")}</SelectItem>
           {plants.map((p) => (
             <SelectItem key={p.id} value={p.id}>
               {p.name}

@@ -6,7 +6,7 @@ import { ArrowLeft, Printer, Loader2, ChevronDown, FileDown } from "lucide-react
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
-  AuditReport, ReportRegisterEntry, ReportRegisterPage, REPORT_RESULT_META, WORKFLOW_STATE_META, INTERACTION_LABEL, INDUSTRY_LABEL,
+  AuditReport, ReportRegisterEntry, ReportRegisterPage, REPORT_RESULT_META, WORKFLOW_STATE_META, interactionLabel, INDUSTRY_LABEL,
   CRITICALITY_CHIP, CRITICALITY_FALLBACK, ragBar, ragText, complianceColor, fmtDate, fmtDateTime, apiErrorMessage,
 } from "../../../lib";
 import { useToast } from "@/components/ui/toast";
@@ -15,6 +15,8 @@ import { EvidenceStrip } from "../../../evidence-strip";
 import { usePermission } from "@/components/auth/can";
 import type { Erratum } from "../../../../lib-assurance";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 export function ReportView({
   report, userMap, auditId, errata = [],
@@ -24,6 +26,7 @@ export function ReportView({
   auditId: string;
   errata?: Erratum[];
 }) {
+  const L = useLabels();
   const s = report.snapshot;
   const isFinal = report.reportType === "FINAL";
   const canGovern = usePermission("AUDIT_COMPLIANCE.CLOSE");
@@ -119,11 +122,11 @@ export function ReportView({
           <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-1 text-[12px] sm:grid-cols-3">
             {/* Mirrors report_pdf.py — the on-screen report and the PDF must
                 name the same site, and neither prints the cuid. */}
-            <Meta label="Factory / Site" value={s.plantName ?? "Unknown site"} />
+            <Meta label={`${L(TERM.factory, "Factory")} / ${L("term.site", "Site")}`} value={s.plantName ?? L("term.unknown_site", "Unknown site")} />
             <Meta label="Industry" value={INDUSTRY_LABEL[s.industryCode] ?? s.industryCode} />
             <Meta label="Audit type" value={s.auditType.replace(/_/g, " ")} />
             <Meta label="Lead auditor" value={name(s.leadAuditorId)} />
-            <Meta label="Plant manager" value={name(s.plantManagerId)} />
+            <Meta label={L(TERM.plantManager, "Plant manager")} value={name(s.plantManagerId)} />
             <Meta label="Planned date" value={fmtDate(s.plannedDate)} />
             <Meta label="Disciplines in scope" value={s.disciplinesInScopeLabel ?? `${s.disciplinesInScope.length}`} />
             <Meta label="Generated" value={fmtDateTime(s.generatedAt)} />
@@ -573,6 +576,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
 // in the immutable snapshot — load it on demand so the report stays light even
 // at 1500 checkpoints. Whatever has been loaded is included when printing.
 function FinalRegister({ reportId, userMap }: { reportId: string; userMap: Record<string, string> }) {
+  const L = useLabels();
   const { toast } = useToast();
   const name = (id: string | null | undefined) => (id ? userMap[id] ?? "—" : "—");
   const [entries, setEntries] = useState<ReportRegisterEntry[]>([]);
@@ -634,7 +638,7 @@ function FinalRegister({ reportId, userMap }: { reportId: string; userMap: Recor
                 <ol className="mt-1 space-y-0.5 border-l-2 border-slate-100 pl-2 text-[11px] text-slate-500">
                   {e.interactions.map((i) => (
                     <li key={i.id}>
-                      <span className="font-medium text-slate-600">{INTERACTION_LABEL[i.action] ?? i.action}</span>
+                      <span className="font-medium text-slate-600">{interactionLabel(L, i.action)}</span>
                       {" · "}{name(i.actorId)}{i.round > 0 ? ` · R${i.round}` : ""}{" · "}{fmtDateTime(i.timestamp)}
                       {i.comment && <span className="text-slate-400"> — {i.comment}</span>}
                     </li>

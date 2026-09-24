@@ -14,6 +14,8 @@ import { ApprovalPanel } from "@/components/workflow/approval-panel";
 import { formatDateTime, formatNumber, humanize } from "@/lib/utils";
 import { Lock, Unlock, Pencil } from "lucide-react";
 import { ltifr, trir, severityRate, NO_INJURIES, type InjuryCounts } from "@/lib/manhours/frequency-rates";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +59,7 @@ export default async function ManhoursDetailPage(
     }
     return notFound();
   }
+  const L = await getServerLabels();
 
   // When BOTH a legacy row and a new submission exist, we still
   // render the legacy detail (continuity) but surface the wizard
@@ -275,8 +278,8 @@ export default async function ManhoursDetailPage(
             <CardHeader><CardTitle className="text-sm">Submission</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <Row label="Period" value={`${MONTHS[month]} ${year}`} />
-              <Row label="Plant" value={record.plant.name} />
-              <Row label="Plant Code" value={record.plant.code} />
+              <Row label={L(TERM.plant, "Plant")} value={record.plant.name} />
+              <Row label={`${L(TERM.plant, "Plant")} Code`} value={record.plant.code} />
               <Row label="Submitted" value={formatDateTime(record.createdAt)} />
               <Row label="Updated" value={formatDateTime(record.updatedAt)} />
               <Row label="Status" value={record.locked ? "Locked" : "Open"} />

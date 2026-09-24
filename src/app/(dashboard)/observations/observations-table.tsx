@@ -12,6 +12,8 @@ import { EditRecordIconButton } from "@/components/common/edit-icon-button";
 import { SignalChipGroup } from "@/components/ai/SignalChipGroup";
 import type { Signal } from "@/lib/insights";
 import { formatDate, statusColor, severityColor, humanize } from "@/lib/utils";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 export interface ObservationRow {
   id: string;
@@ -30,7 +32,7 @@ export interface ObservationRow {
   signals?: Signal[];
 }
 
-const columns: ColumnDef<ObservationRow>[] = [
+const buildColumns = (L: LabelFn): ColumnDef<ObservationRow>[] => [
   {
     accessorKey: "number",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Number" />,
@@ -56,7 +58,7 @@ const columns: ColumnDef<ObservationRow>[] = [
   {
     id: "plant",
     accessorFn: (r) => `${r.plantName} ${r.areaName ?? ""}`,
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant / Area" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={`${L(TERM.plant, "Plant")} / Area`} />,
     cell: ({ row }) => (
       <div className="text-sm">
         <div className="text-foreground font-medium">{row.original.plantName}</div>
@@ -64,7 +66,7 @@ const columns: ColumnDef<ObservationRow>[] = [
       </div>
     ),
     size: 180,
-    meta: { label: "Plant / Area" }
+    meta: { label: `${L(TERM.plant, "Plant")} / Area` }
   },
   {
     accessorKey: "type",
@@ -153,6 +155,8 @@ const columns: ColumnDef<ObservationRow>[] = [
 ];
 
 export function ObservationsTable({ data }: { data: ObservationRow[] }) {
+  const L = useLabels();
+  const columns = React.useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}
@@ -164,7 +168,7 @@ export function ObservationsTable({ data }: { data: ObservationRow[] }) {
         columns: [
           { header: "Number", value: (r) => r.number },
           { header: "Date", value: (r) => formatDate(r.date) },
-          { header: "Plant", value: (r) => r.plantName },
+          { header: L(TERM.plant, "Plant"), value: (r) => r.plantName },
           { header: "Area", value: (r) => r.areaName },
           { header: "Type", value: (r) => humanize(r.type) },
           { header: "Category", value: (r) => humanize(r.category) },

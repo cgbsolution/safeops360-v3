@@ -18,6 +18,8 @@ import { ObservationAnalyticsPanels } from "@/components/observations/analytics-
 import { buildHeroFromRecords } from "@/lib/insight-hero-from-records";
 import { fetchInsights } from "@/lib/insights";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +68,7 @@ export default async function CombinedRiskRegisterPage(props: {
   }>;
 }) {
   const sp = await props.searchParams;
+  const L = await getServerLabels();
 
   // Tier-2 workspace tabs. Analytics and Signals are PANES on this
   // route, not screens of their own — see @/lib/registers.
@@ -90,8 +93,7 @@ export default async function CombinedRiskRegisterPage(props: {
           description="Unified HIRA + EAI register — safety and environmental risks side by side."
         />
         <div className="rounded-xl border bg-white p-8 text-sm text-slate-600">
-          No plants are accessible. Contact your Plant Head or System Admin to
-          ensure you have at least one plant assignment.
+          {`No ${L("term.plants_lc", "plants")} are accessible. Contact your ${L(TERM.plantHead, "Plant Head")} or System Admin to ensure you have at least one ${L("term.plant_lc", "plant")} assignment.`}
         </div>
       </div>
     );

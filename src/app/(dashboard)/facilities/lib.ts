@@ -1,6 +1,8 @@
 // Facilities module — shared types + chip maps.
 // Mirrors app/schemas/factory.py (the API contract). camelCase throughout.
 
+import { TERM, type LabelFn } from "@/lib/labels/core";
+
 export type FactoryStatus =
   | "OPERATIONAL"
   | "UNDER_CONSTRUCTION"
@@ -753,6 +755,13 @@ export const CONTACT_ROLE_LABEL: Record<string, string> = {
   OTHER: "Other",
 };
 
+/** Display-label-aware CONTACT_ROLE_LABEL lookup (fallback = the literal above). */
+export function contactRoleLabel(L: LabelFn, role: string): string | undefined {
+  return role === "FACTORY_MANAGER"
+    ? L("term.factory_manager", CONTACT_ROLE_LABEL.FACTORY_MANAGER)
+    : CONTACT_ROLE_LABEL[role];
+}
+
 // ── SA8000 social-compliance flags ──────────────────────────────────────────
 export const COMPLIANCE_FLAGS: ComplianceFlag[] = ["COMPLIANT", "ATTENTION", "NON_COMPLIANT", "NOT_ASSESSED"];
 
@@ -841,6 +850,12 @@ export const LIFECYCLE_STAGE_OWNER: Record<string, string> = {
   ACTIVE: "HSE Manager",
   ARCHIVED: "—",
 };
+
+/** Display-label-aware LIFECYCLE_STAGE_OWNER lookup (fallback = the literal above). */
+export function lifecycleStageOwner(L: LabelFn, stage: string): string | undefined {
+  const owner = LIFECYCLE_STAGE_OWNER[stage];
+  return owner === "Plant Head" ? L(TERM.plantHead, owner) : owner;
+}
 
 export const LIFECYCLE_STAGE_CHIP: Record<string, string> = {
   INITIATED: "bg-slate-100 text-slate-600 border-slate-200",

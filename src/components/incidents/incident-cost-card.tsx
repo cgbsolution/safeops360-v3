@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { IndianRupee, TrendingUp, AlertTriangle } from "lucide-react";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type Rollup = {
   totalCost: number;
@@ -34,6 +36,7 @@ export function IncidentCostCard({
   plantId: string;
   costImpact: { totalCost?: number; costConfidence?: string; currency?: string } | null;
 }) {
+  const L = useLabels();
   const [roll, setRoll] = useState<Rollup | null>(null);
 
   useEffect(() => {
@@ -56,12 +59,12 @@ export function IncidentCostCard({
         <CardTitle className="flex items-center gap-2 text-base">
           <IndianRupee size={16} className="text-emerald-600" /> Cost of Unsafety
         </CardTitle>
-        <CardDescription>Plant rollup (trailing 12 months) + this incident's contribution.</CardDescription>
+        <CardDescription>{`${L(TERM.plant, "Plant")} rollup (trailing 12 months) + this incident's contribution.`}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border border-slate-200 p-3">
-            <div className="text-[11px] uppercase tracking-wider text-slate-500">Plant · Trailing 12 mo</div>
+            <div className="text-[11px] uppercase tracking-wider text-slate-500">{`${L(TERM.plant, "Plant")} · Trailing 12 mo`}</div>
             <div className="text-2xl font-bold text-slate-900 mt-0.5">{fmt(roll.totalCost, ccy)}</div>
             <div className="text-xs text-slate-500">{roll.contributingCount} of {roll.incidentCount} incidents</div>
           </div>
@@ -91,7 +94,7 @@ export function IncidentCostCard({
         {!roll.hasPlantConfig && (
           <div className="flex items-start gap-1.5 text-[11px] text-amber-700">
             <AlertTriangle size={12} className="mt-0.5 flex-shrink-0" />
-            No plant cost config set — downtime/labor rates default to 0. Set rates via the plant cost config for a CFO-grade number.
+            {L("term.no_plant_cost_config", "No plant cost config set — downtime/labor rates default to 0. Set rates via the plant cost config for a CFO-grade number.")}
           </div>
         )}
 

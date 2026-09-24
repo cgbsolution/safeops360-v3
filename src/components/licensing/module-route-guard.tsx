@@ -13,18 +13,42 @@ import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { moduleForPath } from "@/lib/licensing/route-map";
+import { UNGATED_MODULES, modulesForPath } from "@/lib/licensing/route-map";
 import { useLicence } from "./licence-provider";
 
 export function ModuleRouteGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { hasModule, loading, view } = useLicence();
 
-  const moduleCode = moduleForPath(pathname);
+  const missing = modulesForPath(pathname).filter((c) => !hasModule(c));
   // Pass while loading / on fetch error (fail open — API still enforces), for
   // core routes, and for entitled modules.
-  if (!moduleCode || loading || !view || hasModule(moduleCode)) {
+  if (missing.length === 0 || loading || !view) {
     return <>{children}</>;
+  }
+
+  // Switched off for this site (an ungated module or the non-fire CAMS scope),
+  // not missing from the licence — say so rather than blaming the edition.
+  if (missing.every((c) => UNGATED_MODULES.has(c))) {
+    return (
+      <div>
+        <PageHeader title="Not enabled for this site" description="This module is switched off for the active site" />
+        <div className="rounded-xl border border-slate-200 bg-white px-6 py-8 max-w-2xl">
+          <div className="flex items-center gap-2 font-semibold text-slate-800 mb-2">
+            <Lock size={18} className="text-slate-500" />
+            This module isn’t enabled for this site
+          </div>
+          <p className="text-sm text-slate-600">
+            An administrator has not enabled it here. Other sites may still use it.
+          </p>
+          <div className="flex gap-2 mt-5">
+            <Button asChild variant="outline">
+              <Link href="/dashboard">← Back to dashboard</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

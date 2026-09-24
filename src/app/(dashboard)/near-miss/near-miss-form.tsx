@@ -37,6 +37,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; name: string; areas: { id: string; name: string }[] };
 
@@ -87,6 +89,7 @@ type ConsequenceSelection = {
 };
 
 export function NearMissForm({ plants }: { plants: Plant[] }) {
+  const L = useLabels();
   const { toast } = useToast();
   const router = useRouter();
   const [plantId, setPlantId] = useState(plants[0]?.id ?? "");
@@ -379,7 +382,7 @@ export function NearMissForm({ plants }: { plants: Plant[] }) {
               <div className="text-sm text-rose-900">
                 <strong>This near miss will be auto-promoted to Incident Investigation on submission.</strong>
                 <div className="mt-1">
-                  Plant HSE Manager and Plant Head will be notified immediately via SMS and email.
+                  {`${L(TERM.plant, "Plant")} HSE Manager and ${L(TERM.plantHead, "Plant Head")} will be notified immediately via SMS and email.`}
                 </div>
               </div>
             </div>
@@ -393,7 +396,7 @@ export function NearMissForm({ plants }: { plants: Plant[] }) {
                 <Input id="date" name="date" type="datetime-local" defaultValue={today} required />
               </div>
               <div>
-                <Label>Plant<Req /></Label>
+                <Label>{L(TERM.plant, "Plant")}<Req /></Label>
                 <Select value={plantId} onChange={(e) => { setPlantId(e.target.value); setAreaId(""); setDepartmentId(""); }} required>
                   {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </Select>
@@ -493,7 +496,7 @@ export function NearMissForm({ plants }: { plants: Plant[] }) {
                   ))}
                 </Select>
                 {plantId && equipmentList.length === 0 && (
-                  <p className="text-xs text-slate-500 mt-1">No equipment registered for this plant yet.</p>
+                  <p className="text-xs text-slate-500 mt-1">{L("term.no_equipment_for_plant", "No equipment registered for this plant yet.")}</p>
                 )}
               </div>
             </div>

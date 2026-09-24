@@ -9,8 +9,11 @@ import {
   STATUS_CHIP, STATUS_LABEL, CRITICALITY_CHIP, CRITICALITY_FALLBACK, VALUE_META, Chip,
 } from "../lib";
 import { Button } from "@/components/ui/button";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 export function MyCheckpointsView({ data }: { data: MyCheckpointsResponse }) {
+  const L = useLabels();
   const [needsOnly, setNeedsOnly] = useState(false);
 
   const audits = useMemo(() => {
@@ -25,7 +28,7 @@ export function MyCheckpointsView({ data }: { data: MyCheckpointsResponse }) {
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-white p-12 text-center">
         <Inbox size={28} className="text-slate-300" />
         <div className="text-sm font-medium text-slate-600">No checkpoints assigned to you</div>
-        <div className="text-xs text-slate-400">When a Plant Head allocates audit checkpoints to you, they appear here.</div>
+        <div className="text-xs text-slate-400">{`When a ${L(TERM.plantHead, "Plant Head")} allocates audit checkpoints to you, they appear here.`}</div>
       </div>
     );
   }

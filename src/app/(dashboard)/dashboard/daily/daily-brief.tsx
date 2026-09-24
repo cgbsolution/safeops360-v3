@@ -41,6 +41,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useLabels } from "@/components/labels/label-provider";
 
 const MX = { navy: "#0B1F4D", gold: "#C9A961", ice: "#E8EEF7", red: "#C0392B", green: "#2E7D5B" };
 const POLL_MS = 45_000;
@@ -90,6 +91,7 @@ function timeAgo(iso: string | null): string {
 }
 
 export function DailyBrief({ initial }: { initial: DailyBriefPayload }) {
+  const L = useLabels();
   const router = useRouter();
   const { toast } = useToast();
   const [data, setData] = useState<DailyBriefPayload>(initial);
@@ -193,7 +195,7 @@ export function DailyBrief({ initial }: { initial: DailyBriefPayload }) {
               Executive Sentinel · severity-ranked
             </p>
             <h1 className="mt-1 text-3xl font-semibold" style={GEORGIA}>
-              Daily Brief{site ? ` — ${site.name.split("—")[0].trim()}` : execView || multiSite ? " — All sites" : ""}
+              Daily Brief{site ? ` — ${site.name.split("—")[0].trim()}` : execView || multiSite ? ` — ${L("term.all_sites", "All sites")}` : ""}
             </h1>
             <p className="mt-1 text-sm text-white/70">
               {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
@@ -220,7 +222,11 @@ export function DailyBrief({ initial }: { initial: DailyBriefPayload }) {
             >
               {availableLenses.map((l) => (
                 <SelectItem key={l} value={l}>
-                  {LENS_LABEL[l]}
+                  {l === "executive"
+                    ? `Executive · ${L("term.all_sites_lc", "all sites")}`
+                    : l === "site_lead"
+                      ? L("term.site_lead", "Site Lead")
+                      : LENS_LABEL[l]}
                 </SelectItem>
               ))}
             </Select>
@@ -243,7 +249,7 @@ export function DailyBrief({ initial }: { initial: DailyBriefPayload }) {
                 onChange={(e) => navTo({ siteId: e.target.value || null })}
                 className="h-auto w-auto rounded-full border border-white/25 bg-transparent px-3 py-1.5 text-sm text-white [&>option]:text-black"
               >
-                <SelectItem value="">All sites</SelectItem>
+                <SelectItem value="">{L("term.all_sites", "All sites")}</SelectItem>
                 {data.sites.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.code} — {s.name.split("—")[0].trim()}
@@ -331,7 +337,7 @@ export function DailyBrief({ initial }: { initial: DailyBriefPayload }) {
                       className="rounded-md border px-3 py-1.5 text-sm font-medium"
                       style={{ borderColor: MX.ice, color: MX.navy }}
                     >
-                      All sites
+                      {L("term.all_sites", "All sites")}
                     </Button>
                   )}
                 </div>
@@ -477,7 +483,7 @@ export function DailyBrief({ initial }: { initial: DailyBriefPayload }) {
             <h2 className="text-sm font-semibold" style={{ ...GEORGIA, color: MX.navy }}>
               Today&apos;s numbers
               <span className="ml-2 font-sans text-[11px] font-normal text-[#5A6273]">
-                {site ? site.name.split("—")[0].trim() : execView || multiSite ? "all sites" : ""}
+                {site ? site.name.split("—")[0].trim() : execView || multiSite ? L("term.all_sites_lc", "all sites") : ""}
               </span>
             </h2>
             <div className="mt-3 grid grid-cols-2 gap-3">

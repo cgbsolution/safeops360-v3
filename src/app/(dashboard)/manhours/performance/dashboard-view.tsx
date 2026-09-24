@@ -16,7 +16,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   PERSONA_KEYS,
-  PERSONA_LABELS,
+  personaDescription,
+  personaLabel,
   PERSONA_LAYOUTS,
   personaForRole,
   type PersonaKey,
@@ -46,12 +47,15 @@ import { PerformanceScorecard } from "@/components/manhours/widgets/performance-
 import { OpenItemsCounter } from "@/components/manhours/widgets/open-items-counter";
 import { SubmissionStatusMini } from "@/components/manhours/widgets/submission-status-mini";
 import { HeinrichPyramid } from "@/components/dashboard/charts";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 export async function ManhoursDashboardView(props: {
   searchParams: Promise<{ persona?: string; view?: string }>;
 }) {
   const sp = await props.searchParams;
   await requirePermission("MANHOURS.READ");
+  const L = await getServerLabels();
 
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id as string;
@@ -110,9 +114,9 @@ export async function ManhoursDashboardView(props: {
     const mode = widget.options?.scopeMode ?? layout.defaultScope;
     if (mode === "user-plant" && userPlantId) {
       const p = allPlants.find((x) => x.id === userPlantId);
-      return p?.name ?? "Your plant";
+      return p?.name ?? L("term.your_plant", "Your plant");
     }
-    return "All plants";
+    return L(TERM.allPlants, "All plants");
   }
 
   // Load every widget's data. Sequential per-widget loops would
@@ -194,14 +198,14 @@ export async function ManhoursDashboardView(props: {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-600">{layout.description}</p>
-        <PersonaSwitcher current={persona} />
+        <p className="text-sm text-slate-600">{personaDescription(L, persona)}</p>
+        <PersonaSwitcher current={persona} L={L} />
       </div>
 
       <div className="grid grid-cols-12 gap-3">
         {widgetData.map((entry, i) => (
           <div key={i} className={colSpanClass(entry.widget.cols)}>
-            <Widget entry={entry} />
+            <Widget entry={entry} L={L} />
           </div>
         ))}
       </div>
@@ -209,7 +213,7 @@ export async function ManhoursDashboardView(props: {
       <div className="flex flex-wrap gap-2 text-xs text-slate-500">
         Want more? See the&nbsp;
         <Link className="text-primary-700 hover:underline" href="/manhours/compare">
-          plant-vs-plant comparison
+          {L("manhours.plant_vs_plant_comparison_lc", "plant-vs-plant comparison")}
         </Link>
         .
       </div>
@@ -221,7 +225,7 @@ export async function ManhoursDashboardView(props: {
 
 type WidgetEntry = { widget: WidgetConfig; data: any; error?: string };
 
-function Widget({ entry }: { entry: WidgetEntry }) {
+function Widget({ entry, L }: { entry: WidgetEntry; L: LabelFn }) {
   if (entry.error) {
     return (
       <Card>
@@ -263,7 +267,7 @@ function Widget({ entry }: { entry: WidgetEntry }) {
     case "PLANT_COMPARISON_BAR":
       return (
         <PlantComparisonBar
-          title={`${KPI_REGISTRY[d.code as KpiCode].name} — by plant`}
+          title={`${KPI_REGISTRY[d.code as KpiCode].name} — by ${L("term.plant_lc", "plant")}`}
           subtitle="Rolling 12-month"
           data={d.data}
           higherIsBetter={d.higherIsBetter}
@@ -271,17 +275,18 @@ function Widget({ entry }: { entry: WidgetEntry }) {
         />
       );
     case "PERFORMANCE_SCORECARD":
-      return <PerformanceScorecard rows={d.rows} href={(r) => `/manhours/compare?focusPlantId=${r.plantId}`} />;
+      return <PerformanceScorecard rows={d.rows} href={(r) => `/manhours/compare?focusPlantId=${r.plantId}`} L={L} />;
     case "OPEN_ITEMS_COUNTER":
       return <OpenItemsCounter items={d} />;
     case "SUBMISSION_STATUS_MINI":
       return (
         <SubmissionStatusMini
           title="Submission status"
-          description="Last 12 months · all plants in scope"
+          description={`Last 12 months · ${L("term.all_plants_lc", "all plants")} in scope`}
           plants={d.plants}
           monthsAxis={d.monthsAxis}
           cells={d.cells}
+          L={L}
         />
       );
     case "HEINRICH_PYRAMID":
@@ -320,13 +325,13 @@ function colSpanClass(cols: 3 | 4 | 6 | 8 | 12): string {
 
 // ── Persona switcher ─────────────────────────────────────────
 
-function PersonaSwitcher({ current }: { current: PersonaKey }) {
+function PersonaSwitcher({ current, L }: { current: PersonaKey; L: LabelFn }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-[11px] uppercase tracking-wider text-slate-500">View as</span>
       {PERSONA_KEYS.map((p) => (
         <Button key={p} asChild variant={p === current ? "default" : "outline"} size="sm">
-          <Link href={`/manhours/performance?persona=${p}`}>{PERSONA_LABELS[p]}</Link>
+          <Link href={`/manhours/performance?persona=${p}`}>{personaLabel(L, p)}</Link>
         </Button>
       ))}
     </div>

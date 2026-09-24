@@ -39,8 +39,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { UserPicker } from "@/components/ui/user-picker";
 import { usePermission } from "@/components/auth/can";
+import { useLabels } from "@/components/labels/label-provider";
 import {
-  OUTCOME_META, REGISTER_STATUS, SOURCE_LABEL, engagementHref,
+  OUTCOME_META, REGISTER_STATUS, engagementHref, sourceLabel,
   type IndependenceEventRow, type IndependenceEventsResponse,
   type RegisterResponse, type RegisterRow, type TwoHatRow,
 } from "../lib-assurance";
@@ -217,6 +218,7 @@ function RegisterTab({ data }: { data: RegisterResponse | null }) {
 }
 
 function RegisterCard({ row }: { row: RegisterRow }) {
+  const L = useLabels();
   const meta = REGISTER_STATUS[row.status] ?? REGISTER_STATUS.OWNER_OF_RECORD;
   return (
     <Card className="rounded-xl border border-slate-200 p-4">
@@ -238,7 +240,7 @@ function RegisterCard({ row }: { row: RegisterRow }) {
           {row.sources.map((s) => (
             <span key={s}
               className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600">
-              {SOURCE_LABEL[s] ?? s}
+              {sourceLabel(L, s)}
             </span>
           ))}
         </div>
@@ -269,7 +271,7 @@ function RegisterCard({ row }: { row: RegisterRow }) {
               <span key={`${o.source}-${i}`}
                 className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[11px] text-sky-900">
                 {o.label}
-                <span className="text-sky-500"> · {SOURCE_LABEL[o.source] ?? o.source}</span>
+                <span className="text-sky-500"> · {sourceLabel(L, o.source)}</span>
                 {o.detail?.estateWide ? <span className="text-sky-500"> · estate-wide</span> : null}
               </span>
             ))}
@@ -378,6 +380,7 @@ function EventsTab({ data }: { data: IndependenceEventsResponse | null }) {
 }
 
 function EventCard({ event }: { event: IndependenceEventRow }) {
+  const L = useLabels();
   const meta = OUTCOME_META[event.outcome] ?? OUTCOME_META.CLEARED;
   const href = engagementHref(event.engagementKind, event.engagementId);
   return (
@@ -389,7 +392,7 @@ function EventCard({ event }: { event: IndependenceEventRow }) {
         </span>
         {event.source && (
           <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600">
-            {SOURCE_LABEL[event.source] ?? event.source}
+            {sourceLabel(L, event.source)}
           </span>
         )}
         {event.rule && (

@@ -9,6 +9,8 @@ import { FindingActions } from "../finding-actions";
 import { FindingCapaList } from "../finding-capa-list";
 import { RegisterCapaPanel } from "../register-capa-panel";
 import { requirePermission } from "@/lib/auth/server";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +62,7 @@ export default async function FindingDetailPage(props: { params: Promise<{ id: s
     }
   });
   if (!f) return notFound();
+  const L = await getServerLabels();
 
   const overdue = f.dueDate && f.dueDate < new Date() && !["CLOSED", "VERIFIED", "DUPLICATE"].includes(f.status);
 
@@ -129,7 +132,7 @@ export default async function FindingDetailPage(props: { params: Promise<{ id: s
             <CardTitle>Profile</CardTitle>
           </CardHeader>
           <CardContent className="text-sm space-y-2">
-            <Field label="Plant" value={`${f.inspection.plant.name} (${f.inspection.plant.code})`} />
+            <Field label={L(TERM.plant, "Plant")} value={`${f.inspection.plant.name} (${f.inspection.plant.code})`} />
             <Field
               label="Equipment"
               value={<span className="text-slate-900">{f.inspection.equipment.name}</span>}

@@ -45,6 +45,7 @@ import {
   type ScorecardPayload,
 } from "@/lib/scorecard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getServerLabels } from "@/lib/labels/server";
 
 export const DEFAULT_MONTHS = 12;
 export const ALLOWED_MONTHS = [3, 6, 12, 24, 36];
@@ -183,6 +184,7 @@ export async function ScorecardView({
   grain: Grain;
   months: number;
 }) {
+  const L = await getServerLabels();
   const periods = periodsForWindow(months, grain);
 
   let p: ScorecardPayload | null = null;
@@ -199,7 +201,7 @@ export async function ScorecardView({
       breadcrumbs={[{ label: "Performance" }, { label: "EHS Scorecard" }]}
       description={
         p && !p.empty
-          ? `${p.siteName ?? "All sites"} · ${p.periods.length} ${
+          ? `${p.siteName ?? L("term.all_sites", "All sites")} · ${p.periods.length} ${
               grain === "month" ? "months" : "quarters"
             } to ${p.periods[p.periods.length - 1]} · computed from frozen monthly rollups, not recomputed on load.`
           : "Periodic leading and lagging indicators across Observation, Near Miss, PTW, Training, Incident and Safety Culture."
@@ -381,15 +383,15 @@ export async function ScorecardView({
 
       {p.bySite.length > 1 && (
         <Panel
-          title={`By site · ${periodLabel}`}
-          subtitle="Which sites are carrying the portfolio figure."
+          title={`${L("scorecard.by_site", "By site")} · ${periodLabel}`}
+          subtitle={L("scorecard.by_site_subtitle", "Which sites are carrying the portfolio figure.")}
           className="mb-5"
         >
           <div className="overflow-x-auto">
             <Table className="w-full text-[12px]">
               <TableHeader>
                 <TableRow style={{ color: INK.muted }}>
-                  <TableHead className="py-1.5 pr-3 text-left font-semibold">Site</TableHead>
+                  <TableHead className="py-1.5 pr-3 text-left font-semibold">{L("term.site", "Site")}</TableHead>
                   {["Observations", "Near misses", "Incidents", "LTI", "LTIFR", "PTW %"].map((h) => (
                     <TableHead key={h} className="py-1.5 pl-3 text-right font-semibold">
                       {h}

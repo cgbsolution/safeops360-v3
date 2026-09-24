@@ -10,6 +10,8 @@ import { Can } from "@/components/auth/can";
 import { requirePermission } from "@/lib/auth/server";
 import { UserRoleManager } from "../user-role-manager";
 import { UserActions } from "../user-actions";
+import { getServerLabels } from "@/lib/labels/server";
+import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,7 @@ export default async function UserDetailPage(props: { params: Promise<{ id: stri
     }
   });
   if (!u) return notFound();
+  const L = await getServerLabels();
 
   const allRoles = await prisma.role.findMany({
     where: { isActive: true },
@@ -91,7 +94,7 @@ export default async function UserDetailPage(props: { params: Promise<{ id: stri
           <CardContent className="text-sm space-y-2">
             <Field icon={<Mail size={12} />} label="Email" value={u.email} />
             <Field icon={<Briefcase size={12} />} label="Designation" value={u.designation ?? "—"} />
-            <Field icon={<Building2 size={12} />} label="Plant" value={u.plant ? `${u.plant.name} (${u.plant.code})` : "—"} />
+            <Field icon={<Building2 size={12} />} label={L(TERM.plant, "Plant")} value={u.plant ? `${u.plant.name} (${u.plant.code})` : "—"} />
             <Field icon={<Building2 size={12} />} label="Department" value={u.department ?? "—"} />
             <Field icon={null} label="Joined" value={new Date(u.createdAt).toLocaleDateString()} />
             <div className="pt-2 border-t mt-2">

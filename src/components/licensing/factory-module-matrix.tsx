@@ -14,6 +14,8 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type MatrixModule = { code: string; name: string; group: string };
 type Override = { enabled: boolean; validFrom: string | null; validUntil: string | null };
@@ -30,6 +32,7 @@ type Row = { enabled: boolean; from: string; until: string };
 const toDateInput = (iso: string | null): string => (iso ? iso.slice(0, 10) : "");
 
 export function FactoryModuleMatrix({ onSaved }: { onSaved?: () => void | Promise<void> }) {
+  const L = useLabels();
   const [modules, setModules] = useState<MatrixModule[]>([]);
   const [factories, setFactories] = useState<MatrixFactory[]>([]);
   const [selected, setSelected] = useState<string>("");
@@ -102,7 +105,7 @@ export function FactoryModuleMatrix({ onSaved }: { onSaved?: () => void | Promis
         body: JSON.stringify({ plantId: selected, modules: payload }),
       });
       if (res.ok) {
-        setMsg({ ok: true, text: "Saved. Access for this factory updated." });
+        setMsg({ ok: true, text: `Saved. Access for this ${L("term.factory_lc", "factory")} updated.` });
         await load();
         await onSaved?.();
       } else {
@@ -120,7 +123,7 @@ export function FactoryModuleMatrix({ onSaved }: { onSaved?: () => void | Promis
     <Card>
       <CardHeader className="flex flex-row items-center gap-2">
         <Factory className="text-primary-700" size={18} />
-        <CardTitle>Per-factory module access</CardTitle>
+        <CardTitle>{`Per-${L("term.factory_lc", "factory")} module access`}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-slate-600">
@@ -132,11 +135,11 @@ export function FactoryModuleMatrix({ onSaved }: { onSaved?: () => void | Promis
         {loading ? (
           <div className="text-sm text-slate-500">Loading…</div>
         ) : factories.length === 0 ? (
-          <div className="text-sm text-slate-500">No factories found.</div>
+          <div className="text-sm text-slate-500">{`No ${L("term.factories_lc", "factories")} found.`}</div>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-3">
-              <Label className="text-sm font-normal text-slate-600">Factory</Label>
+              <Label className="text-sm font-normal text-slate-600">{L(TERM.factory, "Factory")}</Label>
               <Select
                 value={selected}
                 onChange={(e) => setSelected(e.target.value)}
@@ -215,7 +218,7 @@ export function FactoryModuleMatrix({ onSaved }: { onSaved?: () => void | Promis
 
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <Button onClick={save} disabled={saving}>
-                <Save size={16} className="mr-1" /> {saving ? "Saving…" : "Save factory access"}
+                <Save size={16} className="mr-1" /> {saving ? "Saving…" : `Save ${L("term.factory_lc", "factory")} access`}
               </Button>
               <Button variant="bare"
                 type="button"

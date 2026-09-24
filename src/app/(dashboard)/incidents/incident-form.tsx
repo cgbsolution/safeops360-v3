@@ -46,6 +46,8 @@ import { cn } from "@/lib/utils";
 import { RcaEditor, useRcaMethodSwitcher } from "@/components/incidents/rca-editor";
 import { type RcaMethod, RCA_METHODS_LIST, emptyDataFor, isEmptyRcaData } from "@/lib/rca/types";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; name: string; areas: { id: string; name: string }[] };
 type Department = { id: string; plantId: string; name: string };
@@ -109,6 +111,7 @@ function tempId() {
 }
 
 export function IncidentForm({ plants }: { plants: Plant[] }) {
+  const L = useLabels();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -312,7 +315,7 @@ export function IncidentForm({ plants }: { plants: Plant[] }) {
     e.preventDefault();
     setError("");
 
-    if (!plantId) { setError("Plant is required"); return; }
+    if (!plantId) { setError(L("term.plant_required", "Plant is required")); return; }
     if (!areaId) { setError("Area is required"); return; }
     if (!description || description.trim().length < 10) {
       setError("Description must be at least 10 characters."); return;
@@ -412,7 +415,7 @@ export function IncidentForm({ plants }: { plants: Plant[] }) {
       await Promise.all(validPhotos.map((p) => uploadOnePhoto(createdId, p)));
     }
 
-    toast({ variant: "success", title: "Incident reported", description: "Plant HSE Manager has been notified." });
+    toast({ variant: "success", title: "Incident reported", description: `${L(TERM.plant, "Plant")} HSE Manager has been notified.` });
     router.push(`/incidents/${createdId}?just-created=1`);
     router.refresh();
   }
@@ -463,7 +466,7 @@ export function IncidentForm({ plants }: { plants: Plant[] }) {
                 {TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </Select>
               <p className="text-xs text-slate-500 mt-1">
-                Plant HSE Manager confirms or reclassifies during Phase 2.
+                {`${L(TERM.plant, "Plant")} HSE Manager confirms or reclassifies during Phase 2.`}
               </p>
             </div>
           </div>
@@ -478,7 +481,7 @@ export function IncidentForm({ plants }: { plants: Plant[] }) {
         <CardContent className="space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <Label>Plant <span className="text-rose-600">*</span></Label>
+              <Label>{`${L(TERM.plant, "Plant")} `}<span className="text-rose-600">*</span></Label>
               <Select value={plantId} onChange={(e) => { setPlantId(e.target.value); setAreaId(""); setDepartmentId(""); }} required>
                 {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </Select>

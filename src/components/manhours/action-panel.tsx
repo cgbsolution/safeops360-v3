@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, XCircle, Lock, Unlock, RotateCw, AlertTriangle } from "lucide-react";
 import { fetchSubmission } from "./wizard-api";
 import type { WizardSubmission } from "./wizard-types";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 interface CapabilityFlags {
   /** User holds MANHOURS.APPROVE for this plant — drives Plant Head panel. */
@@ -36,14 +38,15 @@ export function ManhoursActionPanel({
   flags: CapabilityFlags;
   onUpdated: (s: WizardSubmission) => void;
 }) {
+  const L = useLabels();
   switch (submission.status) {
     case "UNDER_REVIEW":
       return flags.canReview ? (
         <PlantHeadReviewPanel submission={submission} onUpdated={onUpdated} />
       ) : (
         <WaitingBanner
-          title="With Plant Head for review"
-          message="The HSE Manager's edits are locked while Plant Head reviews this submission."
+          title={`With ${L(TERM.plantHead, "Plant Head")} for review`}
+          message={`The HSE Manager's edits are locked while ${L(TERM.plantHead, "Plant Head")} reviews this submission.`}
         />
       );
     case "APPROVED":
@@ -52,7 +55,7 @@ export function ManhoursActionPanel({
       ) : (
         <WaitingBanner
           title="With Corporate HSE for lock"
-          message="Plant Head has approved. Corporate HSE will lock the submission and freeze KPIs."
+          message={`${L(TERM.plantHead, "Plant Head")} has approved. Corporate HSE will lock the submission and freeze KPIs.`}
         />
       );
     case "LOCKED":
@@ -83,6 +86,7 @@ function PlantHeadReviewPanel({
   submission: WizardSubmission;
   onUpdated: (s: WizardSubmission) => void;
 }) {
+  const L = useLabels();
   const [mode, setMode] = useState<"idle" | "approve" | "reject" | "return">("idle");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -117,7 +121,7 @@ function PlantHeadReviewPanel({
       <CardContent className="p-4 space-y-3">
         <Header
           icon={<AlertTriangle size={16} className="text-blue-700" />}
-          title="Plant Head Review"
+          title={`${L(TERM.plantHead, "Plant Head")} Review`}
           subtitle="Approve to advance to Corporate HSE lock, or return for HSE Manager edits."
         />
 

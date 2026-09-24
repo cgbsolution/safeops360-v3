@@ -9,6 +9,8 @@ import {
 import { cn } from "@/lib/utils";
 import type { EditorStep, StepType } from "./types";
 import { Button } from "@/components/ui/button";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 type StepNodeData = {
   step: EditorStep;
@@ -76,14 +78,20 @@ const FIELD_LABEL: Record<string, string> = {
   AREA_OWNER: "Area Owner"
 };
 
-function humanAssignee(step: EditorStep): string {
+/** ROLE_LABEL with the plant-head vocabulary routed through display labels. */
+function roleLabel(L: LabelFn, role: string): string {
+  if (role === "PLANT_HEAD") return L(TERM.plantHead, "Plant Head");
+  return ROLE_LABEL[role] ?? role;
+}
+
+function humanAssignee(step: EditorStep, L: LabelFn): string {
   if (step.approverUserId) return step.approverUserName ? `👤 ${step.approverUserName}` : "Specific user";
   if (step.approverGroupRoles && step.approverGroupRoles.length > 0) {
-    const labels = step.approverGroupRoles.map((r) => ROLE_LABEL[r] ?? r);
+    const labels = step.approverGroupRoles.map((r) => roleLabel(L, r));
     return `Group: ${labels.join(" / ")}`;
   }
   if (step.approverField) return `${FIELD_LABEL[step.approverField] ?? step.approverField} (from record)`;
-  if (step.approverRole) return ROLE_LABEL[step.approverRole] ?? step.approverRole;
+  if (step.approverRole) return roleLabel(L, step.approverRole);
   return "Unassigned";
 }
 
@@ -122,12 +130,13 @@ function parseConditionForDisplay(expr: string | null): string | null {
 }
 
 function StepNodeImpl({ data }: NodeProps) {
+  const L = useLabels();
   const d = data as unknown as StepNodeData;
   const { step, selected, isFirst, isLast, highlight, onSelect, onDelete, onDuplicate, onMoveUp, onMoveDown } = d;
   const meta = STEP_META[step.stepType];
   const Icon = meta.icon;
   const sla = humanSla(step.slaHours);
-  const assigneeText = humanAssignee(step);
+  const assigneeText = humanAssignee(step, L);
   const condition = parseConditionForDisplay(step.conditionExpr);
 
   return (

@@ -25,6 +25,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 type Likelihood = { id: string; score: number; label: string; description: string };
 type Severity = { id: string; score: number; label: string; description: string };
@@ -439,6 +441,7 @@ export function EntryEditor({
   trainingPrograms?: { id: string; name: string }[];
   inspectionTemplates?: { id: string; name: string }[];
 }) {
+  const L = useLabels();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -1768,7 +1771,7 @@ export function EntryEditor({
                 ) : canOverride ? (
                   <div className="mt-2 space-y-2">
                     <div className="text-xs font-medium text-rose-900">
-                      Elevated override (Plant Head / Corporate HSE)
+                      {`Elevated override (${L(TERM.plantHead, "Plant Head")} / Corporate HSE)`}
                     </div>
                     <Textarea
                       className={TEXTAREA}
@@ -1798,7 +1801,7 @@ export function EntryEditor({
                 ) : (
                   <div className="mt-2 text-xs text-rose-800">
                     You cannot authorise acceptance of an Unacceptable risk. Reduce the residual, or escalate to a{" "}
-                    <strong>Plant Head</strong> or <strong>Corporate HSE</strong> for an override.
+                    <strong>{L(TERM.plantHead, "Plant Head")}</strong> or <strong>Corporate HSE</strong> for an override.
                   </div>
                 )}
               </div>

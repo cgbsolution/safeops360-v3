@@ -18,6 +18,8 @@ import {
   type OwnershipType,
 } from "../lib";
 import { Label } from "@/components/ui/label";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM } from "@/lib/labels/core";
 
 export type SiteOption = {
   id: string;
@@ -53,6 +55,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function AddFactoryWizard({ sites }: { sites: SiteOption[] }) {
+  const L = useLabels();
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -183,7 +186,7 @@ export function AddFactoryWizard({ sites }: { sites: SiteOption[] }) {
       router.push(`/facilities/${created.id}`);
       router.refresh();
     } catch (e: any) {
-      setError(e?.message ?? "Failed to create factory profile");
+      setError(e?.message ?? `Failed to create ${L("term.factory_lc", "factory")} profile`);
       setSubmitting(false);
     }
   }
@@ -215,9 +218,9 @@ export function AddFactoryWizard({ sites }: { sites: SiteOption[] }) {
         {step === 0 && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <Field label="Site (1:1 link — required)">
+              <Field label={`${L("term.site", "Site")} (1:1 link — required)`}>
                 <Select value={siteId} onChange={(e) => onPickSite(e.target.value)}>
-                  <SelectItem value="">Select a site…</SelectItem>
+                  <SelectItem value="">{L("term.select_a_site", "Select a site…")}</SelectItem>
                   {sites.map((s) => (
                     <SelectItem key={s.id} value={s.id} disabled={s.linked}>
                       {s.code} — {s.name}
@@ -227,10 +230,10 @@ export function AddFactoryWizard({ sites }: { sites: SiteOption[] }) {
                 </Select>
               </Field>
             </div>
-            <Field label="Factory name *">
+            <Field label={`${L(TERM.factory, "Factory")} name *`}>
               <Input value={factoryName} onChange={(e) => setFactoryName(e.target.value)} placeholder="Meridian Apparel — Tirupur 1" />
             </Field>
-            <Field label="Factory code (auto if blank)">
+            <Field label={`${L(TERM.factory, "Factory")} code (auto if blank)`}>
               <Input value={factoryCode} onChange={(e) => setFactoryCode(e.target.value)} placeholder="MAG-TN-01" />
             </Field>
             <Field label="Status">
@@ -497,8 +500,8 @@ export function AddFactoryWizard({ sites }: { sites: SiteOption[] }) {
         {step === 5 && (
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-3">
-              <Review label="Site">{selectedSite ? `${selectedSite.code} — ${selectedSite.name}` : "—"}</Review>
-              <Review label="Factory">{factoryName || "—"}</Review>
+              <Review label={L("term.site", "Site")}>{selectedSite ? `${selectedSite.code} — ${selectedSite.name}` : "—"}</Review>
+              <Review label={L(TERM.factory, "Factory")}>{factoryName || "—"}</Review>
               <Review label="Code">{factoryCode || "auto"}</Review>
               <Review label="Status">{titleCase(status)}</Review>
               <Review label="Ownership">{OWNERSHIP_LABEL[ownershipType]}</Review>
@@ -542,7 +545,7 @@ export function AddFactoryWizard({ sites }: { sites: SiteOption[] }) {
             disabled={submitting || !canNext0}
             onClick={submit}
           >
-            {submitting ? "Creating…" : "Create factory profile"}
+            {submitting ? "Creating…" : `Create ${L("term.factory_lc", "factory")} profile`}
           </Button>
         )}
       </div>

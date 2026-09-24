@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelL
 import { SEVERITY_CHIP, labelize, engagementTypeLabel, type Analytics } from "../lib-cams";
 import { INK, NAVY, STATUS } from "@/lib/design/midnight";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { useLabels } from "@/components/labels/label-provider";
 
 // Midnight Executive. Audit severity is an ordered STATUS scale, not five
 // identities, so it takes the reserved three-step scale (crimson / gold / navy)
@@ -36,6 +37,7 @@ function Panel({ title, children, hint }: { title: string; children: React.React
 }
 
 export function AnalyticsView({ a }: { a: Analytics }) {
+  const L = useLabels();
   const p = a.programme;
   const sevData = ["CRITICAL_NC", "MAJOR_NC", "MINOR_NC", "OBSERVATION", "OPPORTUNITY_FOR_IMPROVEMENT"]
     .map((k) => ({ key: k, label: labelize(k), count: a.findingsBySeverity[k] ?? 0 }))
@@ -55,7 +57,7 @@ export function AnalyticsView({ a }: { a: Analytics }) {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Benchmarking */}
-        <Panel title="Benchmarking — average score by site" hint="Normalised: avg conformance score across conducted audits. The North vs South gap.">
+        <Panel title={L("cams.benchmarking_by_site", "Benchmarking — average score by site")} hint="Normalised: avg conformance score across conducted audits. The North vs South gap.">
           {benchData.length ? (
             <div style={{ width: "100%", height: 220 }}>
               <ResponsiveContainer>
@@ -74,7 +76,7 @@ export function AnalyticsView({ a }: { a: Analytics }) {
           <div className="mt-3 overflow-x-auto">
             <Table className="w-full text-xs">
               <TableHeader><TableRow className="text-left text-[10px] uppercase tracking-wider text-[color:var(--me-ink-faint)]">
-                <TableHead className="py-1 pr-2">Site</TableHead><TableHead className="py-1 pr-2 text-center">Conducted</TableHead><TableHead className="py-1 pr-2 text-center">Avg %</TableHead>
+                <TableHead className="py-1 pr-2">{L("term.site", "Site")}</TableHead><TableHead className="py-1 pr-2 text-center">Conducted</TableHead><TableHead className="py-1 pr-2 text-center">Avg %</TableHead>
                 <TableHead className="py-1 pr-2 text-center">Findings</TableHead><TableHead className="py-1 pr-2 text-center">Density</TableHead><TableHead className="py-1 pr-2 text-center">Maj/Crit</TableHead><TableHead className="py-1 text-center">Repeat</TableHead>
               </TableRow></TableHeader>
               <TableBody>

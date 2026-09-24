@@ -11,6 +11,7 @@ import {
 } from "../lib-cams";
 import { ScheduleEngagementButton } from "./schedule-engagement";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function EngagementsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requirePermission("CAMS.READ");
+  const L = await getServerLabels();
   const sp = await props.searchParams;
   const get = (k: string) => {
     const v = sp[k];
@@ -98,7 +100,7 @@ export default async function EngagementsPage(props: {
                   <TableHead className="px-3 py-2.5">Code</TableHead>
                   <TableHead className="px-3 py-2.5">Title</TableHead>
                   <TableHead className="px-3 py-2.5">Type</TableHead>
-                  <TableHead className="px-3 py-2.5">Site</TableHead>
+                  <TableHead className="px-3 py-2.5">{L("term.site", "Site")}</TableHead>
                   <TableHead className="px-3 py-2.5">Lead</TableHead>
                   <TableHead className="px-3 py-2.5">Planned</TableHead>
                   <TableHead className="px-3 py-2.5">Status</TableHead>

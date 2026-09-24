@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLabels } from "@/components/labels/label-provider";
+import { TERM, type LabelFn } from "@/lib/labels/core";
 
 type Plant = {
   id: string;
@@ -56,8 +58,8 @@ const TEAM_ROLES = [
   { code: "EXTERNAL_CONSULTANT", label: "External Consultant" }
 ];
 
-const SCOPE_TYPES = [
-  { code: "PLANT", label: "Entire Plant" },
+const buildScopeTypes = (L: LabelFn) => [
+  { code: "PLANT", label: `Entire ${L(TERM.plant, "Plant")}` },
   { code: "DEPARTMENT", label: "Department" },
   { code: "AREA", label: "Area" },
   { code: "PROCESS", label: "Process" },
@@ -85,6 +87,8 @@ export function EaiStudyCreateForm({
   users: UserOption[];
   regulations: Regulation[];
 }) {
+  const L = useLabels();
+  const scopeTypes = useMemo(() => buildScopeTypes(L), [L]);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +150,7 @@ export function EaiStudyCreateForm({
   function submit() {
     setError(null);
     if (!plantId) {
-      setError("Plant is required");
+      setError(L("term.plant_required", "Plant is required"));
       return;
     }
     if (!title.trim()) {
@@ -211,7 +215,7 @@ export function EaiStudyCreateForm({
   return (
     <div className="space-y-6">
       <Section title="Scope">
-        <Field label="Plant" required>
+        <Field label={L(TERM.plant, "Plant")} required>
           <Select
             value={plantId}
             onChange={(e) => {
@@ -221,7 +225,7 @@ export function EaiStudyCreateForm({
             }}
             className="form-input"
           >
-            <SelectItem value="">Select plant...</SelectItem>
+            <SelectItem value="">{`Select ${L("term.plant_lc", "plant")}...`}</SelectItem>
             {safePlants.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.code} — {p.name}
@@ -236,7 +240,7 @@ export function EaiStudyCreateForm({
             onChange={(e) => setScopeType(e.target.value)}
             className="form-input"
           >
-            {SCOPE_TYPES.map((s) => (
+            {scopeTypes.map((s) => (
               <SelectItem key={s.code} value={s.code}>
                 {s.label}
               </SelectItem>

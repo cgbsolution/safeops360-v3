@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectItem } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { SEVERITY_LABEL } from "@/app/(dashboard)/erm/lib-p3";
+import { useLabels } from "@/components/labels/label-provider";
 
 export type ActivatablePlan = {
   id: string;
@@ -29,6 +30,7 @@ const SEVERITY_DESC: Record<number, string> = {
 };
 
 export function ActivateFlow({ plans, sites }: { plans: ActivatablePlan[]; sites: ActivatableSite[] }) {
+  const L = useLabels();
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [title, setTitle] = useState("");
@@ -78,7 +80,7 @@ export function ActivateFlow({ plans, sites }: { plans: ActivatablePlan[]; sites
     }
   }
 
-  const siteName = siteId ? sites.find((s) => s.id === siteId)?.name ?? "Site" : "Corporate (no single site)";
+  const siteName = siteId ? sites.find((s) => s.id === siteId)?.name ?? L("term.site", "Site") : L("bcm.corporate_no_single_site", "Corporate (no single site)");
   const selectedPlans = plans.filter((p) => planIds.includes(p.id));
 
   return (
@@ -120,13 +122,13 @@ export function ActivateFlow({ plans, sites }: { plans: ActivatablePlan[]; sites
           </div>
 
           <div>
-            <Label className="mb-1.5 block text-sm font-medium text-slate-700">Affected site</Label>
+            <Label className="mb-1.5 block text-sm font-medium text-slate-700">{L("bcm.affected_site", "Affected site")}</Label>
             <Select
               value={siteId}
               onChange={(e) => { setSiteId(e.target.value); setPlanIds([]); }}
               className="min-h-12 rounded-xl px-3 text-base"
             >
-              <SelectItem value="">Corporate (no single site)</SelectItem>
+              <SelectItem value="">{L("bcm.corporate_no_single_site", "Corporate (no single site)")}</SelectItem>
               {sites.map((s) => (
                 <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
               ))}
@@ -236,7 +238,7 @@ export function ActivateFlow({ plans, sites }: { plans: ActivatablePlan[]; sites
 
           <div className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
             <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-            <span>Plant HSE Heads can activate Severity 1 only. Higher severities require corporate crisis authority — the system will block it.</span>
+            <span>{L("bcm.crisis.plant_hse_heads_sev1_note", "Plant HSE Heads can activate Severity 1 only. Higher severities require corporate crisis authority — the system will block it.")}</span>
           </div>
 
           <StickyBar>
@@ -266,7 +268,7 @@ export function ActivateFlow({ plans, sites }: { plans: ActivatablePlan[]; sites
 
           <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
             <SummaryRow label="Crisis" value={title} />
-            <SummaryRow label="Site" value={siteName} />
+            <SummaryRow label={L("term.site", "Site")} value={siteName} />
             <SummaryRow label="Severity" value={severity ? SEVERITY_LABEL[severity] : "—"} />
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Plans</div>
