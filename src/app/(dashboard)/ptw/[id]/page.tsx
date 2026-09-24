@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
@@ -103,6 +104,9 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
   // Soft-deleted permits (governed-entity delete) are treated as gone — a
   // deep-link/bookmark to one 404s rather than rendering a removed record.
   if (!p || p.isDeleted) redirectMissingRecord("/ptw", "Permit");
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((p as any).plantId ?? (p as any).plant?.id))) redirectMissingRecord("/ptw", "Permit");
 
   // Opening the record clears its Inbox unread state, however the viewer got
   // here. No-op unless they're the action owner.

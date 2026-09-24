@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +24,9 @@ export default async function TrainingDetailPage(props: { params: Promise<{ id: 
     }
   });
   if (!r) return notFound();
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((r as any).plantId ?? (r as any).plant?.id))) return notFound();
 
   const now = new Date();
   const expired = r.validUntil <= now;

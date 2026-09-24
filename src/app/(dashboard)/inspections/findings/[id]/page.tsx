@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -62,6 +63,9 @@ export default async function FindingDetailPage(props: { params: Promise<{ id: s
     }
   });
   if (!f) return notFound();
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((f as any).plantId ?? (f as any).plant?.id))) return notFound();
   const L = await getServerLabels();
 
   const overdue = f.dueDate && f.dueDate < new Date() && !["CLOSED", "VERIFIED", "DUPLICATE"].includes(f.status);

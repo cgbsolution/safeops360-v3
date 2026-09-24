@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
@@ -86,6 +87,9 @@ export default async function TrainingScheduleDetailPage(props: {
     },
   });
   if (!schedule) return notFound();
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((schedule as any).plantId ?? (schedule as any).plant?.id))) return notFound();
   const L = await getServerLabels();
 
   // Opening the record clears its Inbox unread state, however the viewer got

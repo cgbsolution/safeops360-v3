@@ -46,6 +46,9 @@ const ROUTE_MODULE: Entry[] = [
   ["/manhours", "MANHOURS"],
   ["/anomalies", "ANOMALIES"],
   ["/epc", "EPC"],
+  // AI agent configuration belongs to the AI assist module (licensed; switched
+  // off per site where a tenant does not use it).
+  ["/configuration/agents", "AI_ASSIST"],
   // Ungated modules (no licence code): always on, unless the active plant has
   // an explicit OFF row — see UNGATED_MODULES and app/licensing/plant_modules.py.
   ["/dashboard/daily", "ALERTS"],

@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -212,6 +213,9 @@ export default async function ObservationDetailPage(
     })
   ]);
   if (!o) redirectMissingRecord("/observations", "Observation");
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((o as any).plantId ?? (o as any).plant?.id))) redirectMissingRecord("/observations", "Observation");
 
   // Opening the record clears its Inbox unread state — however the viewer got
   // here (Inbox row, deep link, notification, modal). No-op unless they're the

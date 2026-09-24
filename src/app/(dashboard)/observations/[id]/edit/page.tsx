@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import { redirect } from "next/navigation";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
 import { getServerSession } from "next-auth";
@@ -19,6 +20,9 @@ export default async function EditObservationPage(props: { params: Promise<{ id:
     include: { plant: { include: { areas: { orderBy: { name: "asc" } } } } }
   });
   if (!o) redirectMissingRecord("/observations", "Observation");
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((o as any).plantId ?? (o as any).plant?.id))) redirectMissingRecord("/observations", "Observation");
 
   // Gate: must hold OBSERVATION.UPDATE for this record. Pass plantId so the
   // OWN_PLANT scope can resolve (canUpdate() omits it). Backend re-checks.

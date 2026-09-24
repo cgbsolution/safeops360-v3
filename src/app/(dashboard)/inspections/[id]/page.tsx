@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -65,6 +66,9 @@ export default async function InspectionDetailPage(props: { params: Promise<{ id
     }
   });
   if (!i) return notFound();
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((i as any).plantId ?? (i as any).plant?.id))) return notFound();
   const L = await getServerLabels();
 
   // Opening the record clears its Inbox unread state, however the viewer got

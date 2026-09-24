@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
 import { getServerSession } from "next-auth";
@@ -84,6 +85,9 @@ export default async function NearMissDetail(
     }
   });
   if (!n) redirectMissingRecord("/near-miss", "Near-miss record");
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((n as any).plantId ?? (n as any).plant?.id))) redirectMissingRecord("/near-miss", "Near-miss record");
 
   // Opening the record clears its Inbox unread state, however the viewer got
   // here. No-op unless they're the action owner.

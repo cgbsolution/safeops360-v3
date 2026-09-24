@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -60,6 +61,9 @@ export default async function CertificateDetailPage(props: {
     },
   });
   if (!cert) return notFound();
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((cert as any).plantId ?? (cert as any).plant?.id))) return notFound();
 
   const isRevoked = cert.status === "REVOKED";
   const isStatutory = cert.program.isStatutory;

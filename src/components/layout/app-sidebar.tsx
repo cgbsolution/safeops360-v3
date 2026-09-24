@@ -123,6 +123,8 @@ type NavSection = {
   label: string | null;
   items: NavItem[];
   permissionPrefix?: string;
+  /** Shown only for tenants whose display labels name the section. */
+  optIn?: boolean;
 };
 
 const SECTIONS: NavSection[] = [
@@ -360,19 +362,24 @@ const SECTIONS: NavSection[] = [
       { href: "/configuration/agents", label: "AI Agents", icon: Sparkles },
     ],
   },
-  // EPC / Sites hidden — to restore, uncomment this block
-  // {
-  //   key: "epc",
-  //   label: "EPC / Sites",
-  //   items: [
-  //     { href: "/epc", label: "Multi-Site Dashboard", icon: LayoutDashboard, permission: "EPC.READ" },
-  //     { href: "/epc/sites", label: "Sites", icon: MapPin, permission: "EPC.READ" },
-  //     { href: "/epc/contractors", label: "Contractor Companies", icon: Building2, permission: "EPC.READ" },
-  //     { href: "/epc/workers", label: "Workers", icon: UserCheck, permission: "EPC.READ" },
-  //     { href: "/epc/mobilization", label: "Mobilization", icon: Truck, permission: "EPC.READ" },
-  //     { href: "/epc/gate", label: "Gate Clearance", icon: QrCode, permission: "EPC.READ" },
-  //   ],
-  // },
+  // EPC / contractor safety. Opt-in per tenant: hidden unless the viewer's
+  // tenant names the section in its display labels (nav.section.epc) — Meridian
+  // Retail shows it as "Contractor Safety Management"; every other tenant keeps
+  // the section hidden exactly as before.
+  {
+    key: "epc",
+    label: "EPC / Sites",
+    optIn: true,
+    items: [
+      { href: "/epc", label: "Multi-Site Dashboard", icon: LayoutDashboard, permission: "EPC.READ", exact: true },
+      { href: "/epc/sites", label: "Sites", icon: MapPin, permission: "EPC.READ" },
+      { href: "/epc/contractors", label: "Contractor Companies", icon: Building2, permission: "EPC.READ" },
+      { href: "/epc/workers", label: "Workers", icon: UserCheck, permission: "EPC.READ" },
+      { href: "/epc/mobilization", label: "Mobilization", icon: Truck, permission: "EPC.READ" },
+      { href: "/epc/inductions/new", label: "Record Site Induction", icon: ClipboardCheck, permission: "EPC.READ" },
+      { href: "/epc/gate", label: "Gate Clearance", icon: QrCode, permission: "EPC.READ" },
+    ],
+  },
   {
     key: "people",
     label: "People & Competency",
@@ -585,6 +592,7 @@ export function AppSidebar() {
       {/* ─── Nav body ─── */}
       <SidebarContent>
         {SECTIONS.map((section) => {
+          if (section.optIn && !L(navSectionKey(section.key), "")) return null;
           const visibleItems = section.items.filter((item) => {
             // Before hydration, do NOT consult client-only permission/licence
             // state — render the same deterministic baseline the server rendered

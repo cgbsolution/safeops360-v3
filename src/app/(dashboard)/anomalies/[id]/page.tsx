@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -78,6 +79,9 @@ export default async function AnomalyDetailPage(props: {
     }
   });
   if (!anomaly) notFound();
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((anomaly as any).plantId ?? (anomaly as any).plant?.id))) notFound();
 
   const SeverityIcon =
     anomaly.severity === "CRITICAL"

@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
@@ -62,6 +63,9 @@ export default async function FLRADetailPage(props: { params: Promise<{ id: stri
     }
   });
   if (!f) redirectMissingRecord("/flra", "Site Safety Check");
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((f as any).plantId ?? (f as any).plant?.id))) redirectMissingRecord("/flra", "Site Safety Check");
   const L = await getServerLabels();
 
   const hazards: any[] = (() => {

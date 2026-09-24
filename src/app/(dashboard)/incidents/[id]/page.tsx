@@ -1,3 +1,4 @@
+import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
@@ -92,6 +93,9 @@ export default async function IncidentDetailPage(props: { params: Promise<{ id: 
     }
   });
   if (!i) redirectMissingRecord("/incidents", "Incident");
+  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
+  // is treated as missing.
+  if (!(await inViewerTenant((i as any).plantId ?? (i as any).plant?.id))) redirectMissingRecord("/incidents", "Incident");
 
   // Opening the record clears its Inbox unread state, however the viewer got
   // here. No-op unless they're the action owner.
