@@ -105,12 +105,12 @@ type GateEntry = {
   gatePassNumber: string | null;
 };
 
-function humanizeStatus(s: string): string {
-  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+function humanizeStatus(s: string | null | undefined): string {
+  return (s ?? "—").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function statusBadgeClass(status: string): string {
-  const s = status.toLowerCase();
+function statusBadgeClass(status: string | null | undefined): string {
+  const s = (status ?? "").toLowerCase();
   if (s === "active") return "bg-emerald-100 text-emerald-800 border-emerald-200";
   if (s === "suspended") return "bg-amber-100 text-amber-800 border-amber-200";
   if (s === "blacklisted") return "bg-rose-100 text-rose-800 border-rose-200";
@@ -156,12 +156,34 @@ export default async function WorkerDetailPage({ params }: { params: Promise<{ i
     backendFetch<{ entries: GateEntry[] }>(`/api/epc/gate/log?workerId=${id}`).catch(() => null),
   ]);
 
-  const worker = workerData
+  const rawWorker = workerData
     ? ("worker" in workerData ? workerData.worker : workerData)
     : null;
+  // The API names the employment state `overallStatus`; this page reads `status`.
+  const worker = rawWorker
+    ? { ...rawWorker, status: rawWorker.status ?? (rawWorker as any).overallStatus ?? "active" }
+    : null;
   const mobilizations = mobData?.mobilizations ?? [];
-  const inductions = inductionData?.inductions ?? [];
-  const gateHistory = gateData?.entries ?? [];
+  // The induction API returns conductedAt / validUntil and no status; derive
+  // the row shape this table renders.
+  const inductions: InductionRecord[] = ((inductionData?.inductions ?? []) as any[]).map((ind) => {
+    const validUpto = ind.validUpto ?? ind.validUntil ?? null;
+    const expired = ind.isExpired || (validUpto && new Date(validUpto).getTime() < Date.now());
+    return {
+      ...ind,
+      siteName: ind.siteName ?? mobilizations.find((m: any) => m.siteId === ind.siteId)?.siteName ?? "—",
+      inductionDate: ind.inductionDate ?? ind.conductedAt,
+      validUpto,
+      status: ind.status ?? (ind.assessmentPassed === false ? "failed" : expired ? "expired" : "valid"),
+    };
+  });
+  // The log endpoint returns check rows (overallResult / checkCompletedAt);
+  // normalise to the entry shape this page renders.
+  const gateHistory: GateEntry[] = ((gateData?.entries ?? []) as any[]).map((e) => ({
+    ...e,
+    result: e.result ?? e.overallResult ?? "",
+    checkedAt: e.checkedAt ?? e.checkCompletedAt ?? e.createdAt,
+  }));
 
   if (!worker) {
     return (

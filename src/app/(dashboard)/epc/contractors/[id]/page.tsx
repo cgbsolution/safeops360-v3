@@ -105,7 +105,8 @@ export default async function ContractorDetailPage({ params }: { params: Promise
   const contractor = contractorData
     ? ("contractor" in contractorData ? contractorData.contractor : contractorData)
     : null;
-  const workers = workersData?.workers ?? [];
+  // The API names a worker's employment state `overallStatus`; this page reads `status`.
+  const workers = (workersData?.workers ?? []).map((w: any) => ({ ...w, status: w.status ?? w.overallStatus ?? "active" }));
 
   if (!contractor) {
     return (
