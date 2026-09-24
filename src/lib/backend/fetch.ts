@@ -208,7 +208,21 @@ export async function backendFetch<T = unknown>(
     init.body = JSON.stringify(opts.body);
   }
 
-  const res = await fetch(url, init);
+  // Follow the backend's trailing-slash redirects (FastAPI answers
+  // `/api/epc/dashboard` with a 307 to `/api/epc/dashboard/`) ourselves: a
+  // redirect followed by fetch can land on another origin and drop the
+  // Authorization header, turning the call into a silent 401.
+  let res = await fetch(url, { ...init, redirect: "manual" });
+  if ([307, 308].includes(res.status)) {
+    const loc = res.headers.get("location");
+    if (loc) {
+      const target = new URL(loc, url);
+      const origin = new URL(url);
+      target.protocol = origin.protocol;
+      target.host = origin.host;
+      res = await fetch(target.toString(), { ...init, redirect: "manual" });
+    }
+  }
 
   if (!res.ok) {
     let detail: unknown = undefined;
