@@ -76,7 +76,7 @@ const ACCESS_COPY: Record<string, { title: string; body: string }> = {
 
 function AccessDenied({ kind, reset }: { kind: NonNullable<AccessKind>; reset: () => void }) {
   const copy =
-    (kind.code && ACCESS_COPY[kind.code]) ??
+    (kind.code ? ACCESS_COPY[kind.code] : undefined) ??
     (kind.status === 404
       ? {
           title: "We couldn't find that",

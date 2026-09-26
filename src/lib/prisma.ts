@@ -50,7 +50,18 @@ function buildUrl() {
   // statement_timeout is NOT a libpq / Prisma connection-string parameter
   // (it's a server-side GUC). Including it has caused URL-parse failures
   // against the Supabase pooler in production. Leave it off.
-  const [baseNoQuery, baseQuery] = base.split("?");
+  //
+  // Supabase pooler PORT decides the mode, not `pgbouncer=true`:
+  //   :5432 = SESSION mode — every client holds a server connection for its
+  //           whole life; the project-wide cap is pool_size (15). Vercel
+  //           Lambdas + the Railway backend + local dev exhaust it, and every
+  //           Prisma-backed page then fails with EMAXCONNSESSION.
+  //   :6543 = TRANSACTION mode — connections are lent per transaction, built
+  //           for serverless. Prisma supports it with pgbouncer=true.
+  // So runtime queries always go to :6543. Migrations/DDL keep using
+  // DATABASE_URL_SYNC (directUrl), which is untouched.
+  const [rawNoQuery, baseQuery] = base.split("?");
+  const baseNoQuery = rawNoQuery.replace(".pooler.supabase.com:5432/", ".pooler.supabase.com:6543/");
   const params = new URLSearchParams(baseQuery || "");
   params.set("connection_limit", "1");
   params.set("pool_timeout", "20");
