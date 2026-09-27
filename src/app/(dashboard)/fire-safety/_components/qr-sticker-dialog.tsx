@@ -47,6 +47,14 @@ export function QrStickerDialog({
     setFailed(false);
   }, [target?.id]);
 
+  // Escape closes, like every other dialog on the platform.
+  React.useEffect(() => {
+    if (!target) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [target, onClose]);
+
   if (!target) return null;
 
   const png = `/api/fire/assets/${target.id}/qr.png?scale=10`;

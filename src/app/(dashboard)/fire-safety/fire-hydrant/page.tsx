@@ -16,6 +16,7 @@ import { ChecklistWorkbench } from "../_components/checklist-workbench";
 import { ChecklistAsset, MX, TemplateSummary } from "../lib";
 
 import { requirePermission } from "@/lib/auth/server";
+import { getServerLabels } from "@/lib/labels/server";
 export const dynamic = "force-dynamic";
 
 const ASSET_TYPE = "FIRE_HYDRANT_SYSTEM";
@@ -28,6 +29,7 @@ export default async function FireHydrantPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   await requirePermission("INCIDENT.READ");
+  const L = await getServerLabels();
   const sp = (await searchParams) ?? {};
   let templates: TemplateSummary[] = [];
   let assets: ChecklistAsset[] = [];
@@ -54,7 +56,7 @@ export default async function FireHydrantPage({
           { label: "Fire Safety", href: "/fire-safety" },
           { label: "Fire Hydrant" },
         ]}
-        description="PIL/EHSD/CL/026 — daily pressure and pump rounds, the monthly valve / hydrant box / pump room inspection, quarterly main pressure test and the yearly motor insulation check."
+        description={`${L("fire.doc.fire_hydrant", "PIL/EHSD/CL/026")} — daily pressure and pump rounds, the monthly valve / hydrant box / pump room inspection, quarterly main pressure test and the yearly motor insulation check.`}
       />
 
       {!error && templates.length === 0 ? (

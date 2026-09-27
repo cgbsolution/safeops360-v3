@@ -15,6 +15,7 @@ import { ChecklistWorkbench } from "../_components/checklist-workbench";
 import { ChecklistAsset, MX, TemplateSummary } from "../lib";
 
 import { requirePermission } from "@/lib/auth/server";
+import { getServerLabels } from "@/lib/labels/server";
 export const dynamic = "force-dynamic";
 
 async function load(assetType: string) {
@@ -39,6 +40,7 @@ export default async function FireAlarmPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   await requirePermission("INCIDENT.READ");
+  const L = await getServerLabels();
   const sp = (await searchParams) ?? {};
   let panels: Awaited<ReturnType<typeof load>> = { templates: [], assets: [] };
   let beams: Awaited<ReturnType<typeof load>> = { templates: [], assets: [] };
@@ -60,7 +62,7 @@ export default async function FireAlarmPage({
           { label: "Fire Safety", href: "/fire-safety" },
           { label: "Fire Alarm" },
         ]}
-        description="PIL/EHS/CL/025-R1 — daily panel rounds, the monthly zone/loop test sheet, quarterly battery endurance, the annual 20% detector sample, and the beam detector daily check."
+        description={`${L("fire.doc.fire_alarm", "PIL/EHS/CL/025-R1")} — daily panel rounds, the monthly zone/loop test sheet, quarterly battery endurance, the annual 20% detector sample, and the beam detector daily check.`}
       />
 
       {noTemplates ? (
@@ -87,7 +89,7 @@ export default async function FireAlarmPage({
           {beams.templates.length > 0 && (
             <div>
               <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wider" style={{ color: MX.muted }}>
-                Beam Detectors — PIL/EHS/CL/025-R1 (E)
+                Beam Detectors — {L("fire.doc.fire_alarm", "PIL/EHS/CL/025-R1")} (E)
               </h2>
               <ChecklistWorkbench
                 title="Beam Detectors"

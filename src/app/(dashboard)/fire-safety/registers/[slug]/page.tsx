@@ -29,6 +29,7 @@ import {
 } from "../../_components/config-register-table";
 import { CompletionPanel, CompliancePayload } from "@/components/compliance/completion-panel";
 import { MX } from "../../lib";
+import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export default async function BrandedRegisterPage({
 }) {
   const { slug } = await params;
   const sp = (await searchParams) ?? {};
+  const L = await getServerLabels();
 
   let payload: RegisterPayload | null = null;
   let error: string | null = null;
@@ -158,6 +160,7 @@ export default async function BrandedRegisterPage({
         <>
           <div className="mb-4">
             <DocumentHeader
+              org={L("fire.org_name", "Page Industries Limited")}
               doc={{
                 documentNo: doc.documentNo ?? undefined,
                 supersedesNo: doc.supersedesNo ?? undefined,

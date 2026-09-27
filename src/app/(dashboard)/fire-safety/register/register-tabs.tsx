@@ -19,6 +19,7 @@ import * as React from "react";
 import { DISPLAY_FONT, MX, RegisterPayload } from "../lib";
 import { RegisterTable } from "../extinguisher-register/register-table";
 import { AssetTable, FireAsset } from "./asset-table";
+import { useLabels } from "@/components/labels/label-provider";
 
 type Plant = { id: string; code: string; name: string };
 type Zone = { id: string; zoneCode: string; name: string; plantId: string };
@@ -45,13 +46,14 @@ export function RegisterTabs({
   registerError: string | null;
   assetsError: string | null;
 }) {
+  const L = useLabels();
   const [tab, setTab] = React.useState<Tab>("extinguishers");
 
   const tabs: { key: Tab; label: string; doc?: string; count: number }[] = [
     {
       key: "extinguishers",
       label: "Fire Extinguishers",
-      doc: "PIL/EHSD/CL/028-R1",
+      doc: L("fire.doc.fe_register", "PIL/EHSD/CL/028-R1"),
       count: register?.summary.total ?? 0,
     },
     { key: "assets", label: "All other fire assets", count: assets.length },

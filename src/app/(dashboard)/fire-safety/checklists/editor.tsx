@@ -62,7 +62,10 @@ function blankDefinition(): ChecklistDefinition {
 }
 
 function blankItem(n: number): ChecklistItemDef {
-  return { key: "", text: "", type: "YES_NO_NA", guidance: null, mandatory: true, triggersFinding: false };
+  // Raises a finding by default, as every seeded sheet does. Repeat "No"s on the
+  // same item dedupe into one open CAPA, so a daily grid does not flood the
+  // register; switching it off requires a reason (backend-enforced).
+  return { key: "", text: "", type: "YES_NO_NA", guidance: null, mandatory: true, triggersFinding: true, ncSeverity: "MINOR_NC" };
 }
 
 export function ChecklistEditor({
@@ -539,13 +542,37 @@ export function ChecklistEditor({
                                 <CheckboxField
                                   className="items-center gap-1 text-[10.5px]"
                                   style={{ color: MX.muted }}
-                                  title="A 'No' on this item raises a CAMS finding. Off by default — a daily grid would otherwise flood the findings register."
+                                  title="A 'No' on this item raises a CAMS finding and CAPA. Repeat 'No's on the same item roll into the one open CAPA."
                                   disabled={disabled}
                                   checked={it.triggersFinding}
                                   onChange={(e) => patchItem(sIdx, iIdx, { triggersFinding: e.target.checked })}
                                   label={<>&ldquo;No&rdquo; raises a finding</>}
                                 />
+                                {it.type === "YES_NO_NA" && it.triggersFinding && (
+                                  <SelectField
+                                    disabled={disabled}
+                                    value={it.ncSeverity || "MINOR_NC"}
+                                    onChange={(v) => patchItem(sIdx, iIdx, { ncSeverity: v })}
+                                    ariaLabel="Finding severity"
+                                    className="h-auto px-1.5 py-0.5 text-[10.5px]"
+                                    options={[
+                                      { value: "MINOR_NC", label: "Minor NC" },
+                                      { value: "MAJOR_NC", label: "Major NC (CAPA required)" },
+                                      { value: "CRITICAL_NC", label: "Critical NC (asset non-compliant)" },
+                                    ]}
+                                  />
+                                )}
                               </div>
+                              {it.type === "YES_NO_NA" && !it.triggersFinding && (
+                                <input
+                                  disabled={disabled}
+                                  value={it.noFindingReason ?? ""}
+                                  onChange={(e) => patchItem(sIdx, iIdx, { noFindingReason: e.target.value })}
+                                  placeholder="Why does a 'No' here raise no finding? (required) — e.g. question is inverted"
+                                  className="mt-1 w-full rounded border px-2 py-1 text-[11px] outline-none disabled:bg-slate-50"
+                                  style={{ borderColor: MX.amber, color: MX.ink }}
+                                />
+                              )}
                             </div>
 
                             {!disabled && (

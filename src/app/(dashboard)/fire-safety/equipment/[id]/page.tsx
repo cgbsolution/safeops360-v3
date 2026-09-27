@@ -30,6 +30,7 @@ type Inspection = {
 };
 
 type Equipment = {
+  qrTokenValue?: string | null;
   id: string;
   equipmentCode: string;
   type: string;
@@ -301,6 +302,7 @@ export default async function FireEquipmentDetailPage(props: { params: Promise<{
                   allottedSerialNo: eq.allottedSerialNo ?? null,
                   location: eq.location,
                   type: eq.type,
+                  qrTokenValue: eq.qrTokenValue ?? null,
                 }}
               />
             }

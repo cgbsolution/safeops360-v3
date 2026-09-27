@@ -61,6 +61,12 @@ type Zone = { id: string; zoneCode: string; name: string; plantId: string };
 
 const ASSET_TYPES = [
   "FIRE_EXTINGUISHER",
+  // The three types the routine checklists run against (Fire Alarm and Hydrant
+  // screens filter assets by exactly these) — without them an alarm panel or
+  // hydrant system could only exist through seed data.
+  "FIRE_ALARM_PANEL",
+  "BEAM_DETECTOR",
+  "FIRE_HYDRANT_SYSTEM",
   "HYDRANT",
   "HOSE_REEL",
   "SPRINKLER_HEAD",

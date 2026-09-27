@@ -25,11 +25,14 @@ function Field({ label, value }: { label: string; value?: string | null }) {
 
 export function DocumentHeader({
   doc,
+  org = "Page Industries Limited",
   title,
   subtitle,
   right,
 }: {
   doc: DocumentMeta;
+  /** Company band. Callers pass L("fire.org_name", …) so a tenant's own name prints. */
+  org?: string;
   title: string;
   subtitle?: React.ReactNode;
   right?: React.ReactNode;
@@ -42,7 +45,7 @@ export function DocumentHeader({
       >
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: MX.gold }}>
-            Page Industries Limited · {doc.department ?? "EHS"}
+            {org} · {doc.department ?? "EHS"}
           </div>
           <h2 className="truncate text-[15px] font-semibold text-white" style={{ fontFamily: DISPLAY_FONT }}>
             {title}

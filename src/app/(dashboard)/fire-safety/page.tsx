@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/server";
+import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ function Kpi({ label, value, tone, sub }: { label: string; value: any; tone?: st
 
 export default async function FireSafetyPage() {
   await requirePermission("INCIDENT.READ");
+  const L = await getServerLabels();
   let d: Dash | null = null;
   let error: string | null = null;
   try {
@@ -66,14 +68,14 @@ export default async function FireSafetyPage() {
               column on that register and the "act now" panel below. */}
           <Card className="mb-4 rounded-xl border-[#D3DEEE] p-3 shadow-none">
             <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#5A6273]">
-              Register &amp; controlled checklists — Page Industries EHS
+              Register &amp; controlled checklists — {L("fire.org_short", "Page Industries EHS")}
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {[
-                { href: "/fire-safety/register", doc: "PIL/EHSD/CL/028-R1", label: "Fire Asset Register", hint: "Every asset · 16-column extinguisher sheet · due-date badges", primary: true },
-                { href: "/fire-safety/fe-inspection", doc: "PIL/EHSD/CL/027-R1", label: "FE Inspection Checklist", hint: "21 checks × Jan–Dec per cylinder" },
-                { href: "/fire-safety/fire-alarm", doc: "PIL/EHS/CL/025-R1", label: "Fire Alarm System", hint: "Daily · Monthly ×2 · Quarterly · Annual · Beam" },
-                { href: "/fire-safety/fire-hydrant", doc: "PIL/EHSD/CL/026", label: "Fire Hydrant & Sprinkler", hint: "Daily · Monthly · Quarterly · Yearly" },
+                { href: "/fire-safety/register", doc: L("fire.doc.fe_register", "PIL/EHSD/CL/028-R1"), label: "Fire Asset Register", hint: "Every asset · 16-column extinguisher sheet · due-date badges", primary: true },
+                { href: "/fire-safety/fe-inspection", doc: L("fire.doc.fe_inspection", "PIL/EHSD/CL/027-R1"), label: "FE Inspection Checklist", hint: "21 checks × Jan–Dec per cylinder" },
+                { href: "/fire-safety/fire-alarm", doc: L("fire.doc.fire_alarm", "PIL/EHS/CL/025-R1"), label: "Fire Alarm System", hint: "Daily · Monthly ×2 · Quarterly · Annual · Beam" },
+                { href: "/fire-safety/fire-hydrant", doc: L("fire.doc.fire_hydrant", "PIL/EHSD/CL/026"), label: "Fire Hydrant & Sprinkler", hint: "Daily · Monthly · Quarterly · Yearly" },
                 { href: "/fire-safety/checklists", doc: "Configuration", label: "Checklist Library", hint: "Add, revise, publish or retire a controlled sheet" },
               ].map((c) => (
                 <Link

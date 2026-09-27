@@ -194,6 +194,18 @@ export function ChecklistGridRunner({
     setNotice(null);
   }
 
+  /** Typed value for a NUMERIC / TEXT item. */
+  function setValue(period: string, row: ChecklistGrid["rows"][number], value: string | null) {
+    const col = colByPeriod.get(period);
+    if (!canWrite || col?.locked) return;
+    setDirty((prev) => {
+      const m = new Map(prev);
+      m.set(key(period, row.itemKey ?? row.questionId), value);
+      return m;
+    });
+    setNotice(null);
+  }
+
   /** Re-read a page. No confirm — the caller decides whether anything is at risk.
    *
    *  Split out of `load` because `save` used to call `load` to refresh the stage
@@ -492,43 +504,65 @@ export function ChecklistGridRunner({
                           className="border-b border-r p-0 text-center"
                           style={{ borderColor: MX.iceLine, background: c.nonWorkingDay && !v ? MX.goldSoft : undefined }}
                         >
-                          <button
-                            type="button"
-                            onClick={() => toggle(c.periodLabel, row)}
-                            disabled={!canWrite || c.locked}
-                            title={
-                              // The remark leads when there is one — a cell
-                              // showing NO is a question, and the answer is the
-                              // note somebody typed about it.
-                              note
-                                ? `${c.periodLabel} · ${row.text}\nRemark: ${note}`
-                                : c.locked
-                                  ? `${c.periodLabel} is ${c.stage} — locked`
-                                  : `${c.periodLabel} · ${row.text}`
-                            }
-                            className="relative h-7 w-full text-[10.5px] font-bold transition-colors disabled:cursor-not-allowed"
-                            style={{
-                              background: style?.bg ?? "transparent",
-                              color: style?.fg ?? MX.muted,
-                              outline: isDirty ? `2px solid ${MX.gold}` : undefined,
-                              outlineOffset: "-2px",
-                            }}
-                          >
-                            {v ?? (c.nonWorkingDay ? "" : "·")}
-                            {/* A corner fold, the way a spreadsheet flags a
-                                comment: the grid keeps its one-glance shape and
-                                a cell that carries a remark still says so. */}
-                            {note && (
-                              <span
-                                aria-hidden
-                                className="absolute right-0 top-0"
-                                style={{
-                                  borderTop: `5px solid ${MX.navy}`,
-                                  borderLeft: "5px solid transparent",
-                                }}
-                              />
-                            )}
-                          </button>
+                          {row.type === "NUMERIC" || row.type === "TEXT" ? (
+                            // A reading (battery volts, dB, "Inspected By") is typed,
+                            // not tapped — cycling YES/NO/NA into it was rejected by
+                            // the server as "'YES' is not a number".
+                            <input
+                              type={row.type === "NUMERIC" ? "number" : "text"}
+                              step="any"
+                              value={v ?? ""}
+                              onChange={(e) => setValue(c.periodLabel, row, e.target.value || null)}
+                              disabled={!canWrite || c.locked}
+                              title={`${c.periodLabel} · ${row.text}`}
+                              aria-label={`${c.periodLabel} · ${row.text}`}
+                              placeholder={row.type === "NUMERIC" ? "0.0" : "—"}
+                              className="h-7 w-full bg-transparent px-1 text-center text-[10.5px] outline-none disabled:cursor-not-allowed"
+                              style={{
+                                color: MX.ink,
+                                outline: isDirty ? `2px solid ${MX.gold}` : undefined,
+                                outlineOffset: "-2px",
+                              }}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggle(c.periodLabel, row)}
+                              disabled={!canWrite || c.locked}
+                              title={
+                                // The remark leads when there is one — a cell
+                                // showing NO is a question, and the answer is the
+                                // note somebody typed about it.
+                                note
+                                  ? `${c.periodLabel} · ${row.text}\nRemark: ${note}`
+                                  : c.locked
+                                    ? `${c.periodLabel} is ${c.stage} — locked`
+                                    : `${c.periodLabel} · ${row.text}`
+                              }
+                              className="relative h-7 w-full text-[10.5px] font-bold transition-colors disabled:cursor-not-allowed"
+                              style={{
+                                background: style?.bg ?? "transparent",
+                                color: style?.fg ?? MX.muted,
+                                outline: isDirty ? `2px solid ${MX.gold}` : undefined,
+                                outlineOffset: "-2px",
+                              }}
+                            >
+                              {v ?? (c.nonWorkingDay ? "" : "·")}
+                              {/* A corner fold, the way a spreadsheet flags a
+                                  comment: the grid keeps its one-glance shape and
+                                  a cell that carries a remark still says so. */}
+                              {note && (
+                                <span
+                                  aria-hidden
+                                  className="absolute right-0 top-0"
+                                  style={{
+                                    borderTop: `5px solid ${MX.navy}`,
+                                    borderLeft: "5px solid transparent",
+                                  }}
+                                />
+                              )}
+                            </button>
+                          )}
                         </TableCell>
                       );
                     })}

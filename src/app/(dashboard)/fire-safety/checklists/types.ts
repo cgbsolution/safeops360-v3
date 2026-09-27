@@ -26,6 +26,10 @@ export type ChecklistItemDef = {
   guidance: string | null;
   mandatory: boolean;
   triggersFinding: boolean;
+  /** Severity of the finding a "No" raises (default MINOR_NC). MAJOR/CRITICAL require a CAPA. */
+  ncSeverity?: string | null;
+  /** Required by the backend when a YES/NO/NA item raises no finding. */
+  noFindingReason?: string | null;
 };
 
 export type ChecklistSectionDef = {

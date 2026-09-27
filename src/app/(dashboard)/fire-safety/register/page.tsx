@@ -22,6 +22,7 @@ import { FireAsset } from "./asset-table";
 import { RegisterTabs } from "./register-tabs";
 
 import { requirePermission } from "@/lib/auth/server";
+import { getServerLabels } from "@/lib/labels/server";
 export const dynamic = "force-dynamic";
 
 type Plant = { id: string; code: string; name: string };
@@ -36,6 +37,7 @@ type Caps = {
 
 export default async function FireRegisterPage() {
   await requirePermission("INCIDENT.READ");
+  const L = await getServerLabels();
   let register: RegisterPayload | null = null;
   let registerError: string | null = null;
   let assets: FireAsset[] = [];
@@ -125,6 +127,7 @@ export default async function FireRegisterPage() {
       {register && (
         <div className="mb-4">
           <DocumentHeader
+            org={L("fire.org_name", "Page Industries Limited")}
             doc={register.document}
             title={register.document.title ?? "REGISTER OF FIRE EXTINGUISHERS"}
             subtitle={`${register.summary.total} cylinder(s) · ${register.summary.overdue} overdue · ${register.summary.dueSoon} due within 30 days · ${register.summary.notRecorded} with no date on file`}

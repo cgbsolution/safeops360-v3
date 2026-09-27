@@ -46,6 +46,8 @@ export type FireAsset = {
   model?: string | null;
   serialNo?: string | null;
   maintenanceContractor?: string | null;
+  /** Opaque sticker value; without it the QR dialog reports "no token". */
+  qrTokenValue?: string | null;
 };
 
 // Same three inks the register badges and the PDF use, so "amber" means one
@@ -248,6 +250,7 @@ export function AssetTable({
                               equipmentCode: a.equipmentCode,
                               location: a.location,
                               type: a.type,
+                              qrTokenValue: a.qrTokenValue ?? null,
                             })
                           }
                           className="rounded p-1 hover:bg-slate-100"

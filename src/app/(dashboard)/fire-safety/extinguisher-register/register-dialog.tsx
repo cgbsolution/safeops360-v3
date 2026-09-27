@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SelectField } from "@/components/ui/select-field";
+import { useLabels } from "@/components/labels/label-provider";
 import { Card } from "@/components/ui/card";
 
 type Plant = { id: string; code: string; name: string };
@@ -49,6 +50,20 @@ function toIso(v: string): string | null {
   return v ? new Date(`${v}T00:00:00.000Z`).toISOString() : null;
 }
 
+// Module scope, not inside RegisterDialog: a component declared in the render
+// body is a new type every render, so React remounts its inputs on each
+// keystroke and the field loses focus after one character.
+function F({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <Label variant="eyebrow" style={{ color: MX.muted }}>
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
 export function RegisterDialog({
   open,
   onOpenChange,
@@ -61,6 +76,7 @@ export function RegisterDialog({
   plants: Plant[];
 }) {
   const router = useRouter();
+  const L = useLabels();
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -157,15 +173,6 @@ export function RegisterDialog({
     }
   }
 
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <Label variant="eyebrow" style={{ color: MX.muted }}>
-        {label}
-      </Label>
-      {children}
-    </div>
-  );
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-3xl">
@@ -174,7 +181,7 @@ export function RegisterDialog({
             {row ? `Edit ${row.allottedSerialNo ?? row.equipmentCode}` : "Add to the Register of Fire Extinguishers"}
           </DialogTitle>
           <DialogDescription className="text-[12px]">
-            PIL/EHSD/CL/028-R1. HP-test and refill dates are stored as asset certificates, so each re-test keeps
+            {L("fire.doc.fe_register", "PIL/EHSD/CL/028-R1")}. HP-test and refill dates are stored as asset certificates, so each re-test keeps
             the cylinder&rsquo;s previous certificate rather than overwriting it.
           </DialogDescription>
         </DialogHeader>

@@ -43,6 +43,12 @@ type Zone = { id: string; zoneCode: string; name: string; plantId: string };
 // more correct one.
 const ASSET_TYPES = [
   "FIRE_EXTINGUISHER",
+  // The three types the routine checklists run against (Fire Alarm and Hydrant
+  // screens filter assets by exactly these) — without them an alarm panel or
+  // hydrant system could only exist through seed data.
+  "FIRE_ALARM_PANEL",
+  "BEAM_DETECTOR",
+  "FIRE_HYDRANT_SYSTEM",
   "HYDRANT",
   "HOSE_REEL",
   "SPRINKLER_HEAD",
@@ -62,6 +68,9 @@ const ASSET_TYPES = [
 // the same reason the column is free text rather than an enum.
 const SUBTYPE_HINTS: Record<string, string> = {
   FIRE_EXTINGUISHER: "CO2 / DCP / FOAM / WATER",
+  // Picks the monthly sheet: ZONE → zone-panel variant, LOOP → loop-panel variant.
+  FIRE_ALARM_PANEL: "ZONE / LOOP",
+  FIRE_HYDRANT_SYSTEM: "HYDRANT_SPRINKLER",
   DETECTOR: "SMOKE / HEAT / BEAM / MULTI",
   PANEL: "ADDRESSABLE / CONVENTIONAL",
 };

@@ -19,6 +19,7 @@ import { ChecklistWorkbench } from "../_components/checklist-workbench";
 import { ChecklistAsset, MX, TemplateSummary } from "../lib";
 
 import { requirePermission } from "@/lib/auth/server";
+import { getServerLabels } from "@/lib/labels/server";
 export const dynamic = "force-dynamic";
 
 const ASSET_TYPE = "FIRE_EXTINGUISHER";
@@ -31,6 +32,7 @@ export default async function FeInspectionPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   await requirePermission("INCIDENT.READ");
+  const L = await getServerLabels();
   const sp = (await searchParams) ?? {};
   let templates: TemplateSummary[] = [];
   let assets: ChecklistAsset[] = [];
@@ -58,7 +60,7 @@ export default async function FeInspectionPage({
           { label: "FE Inspection" },
         ]}
         description={
-          'PIL/EHSD/CL/027-R1 — 21 monthly checks per cylinder. Write "Yes" if satisfactory, "No" if unsatisfactory, "NA" if not applicable.'
+          `${L("fire.doc.fe_inspection", "PIL/EHSD/CL/027-R1")} — 21 monthly checks per cylinder. Write "Yes" if satisfactory, "No" if unsatisfactory, "NA" if not applicable.`
         }
         action={
           <Link

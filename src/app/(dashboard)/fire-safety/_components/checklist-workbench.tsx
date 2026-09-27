@@ -28,6 +28,7 @@ import {
 import { ChecklistFormRunner } from "./checklist-form";
 import { ChecklistGridRunner } from "./checklist-grid";
 import { DocumentHeader } from "./document-header";
+import { useLabels } from "@/components/labels/label-provider";
 import { Card } from "@/components/ui/card";
 
 const FREQ_LABEL: Record<string, string> = {
@@ -54,8 +55,10 @@ function preferredFor(asset: ChecklistAsset | null, candidates: TemplateSummary[
   const match = candidates.find((t) => {
     const v = (t.document.siteVariant ?? "").toUpperCase();
     if (!v) return false;
-    if (sub === "ZONE") return v.endsWith("_A");
-    if (sub === "LOOP") return v.endsWith("_B");
+    // Page names the variant by unit (UNIT_21_A = zone, UNIT_21_B = loop);
+    // Retail names it by addressing (ZONE_PANEL / LOOP_PANEL). Accept both.
+    if (sub === "ZONE") return v.includes("ZONE") || v.endsWith("_A");
+    if (sub === "LOOP") return v.includes("LOOP") || v.endsWith("_B");
     return false;
   });
   return match ?? candidates[0];
@@ -86,6 +89,7 @@ export function ChecklistWorkbench({
   initialAssetId?: string | null;
   initialTemplateCode?: string | null;
 }) {
+  const L = useLabels();
   const [query, setQuery] = React.useState("");
   // Fall back to the first asset only when nothing was requested. A requested id
   // that is not in the list means the sticker points at an asset outside this
@@ -100,7 +104,12 @@ export function ChecklistWorkbench({
   // Templates this asset can actually run — an asset picker showing a beam
   // detector next to a "Monthly Hydrant" tab would be offering a 409.
   const applicable = React.useMemo(
-    () => templates.filter((t) => !asset || t.document.assetType === asset.type),
+    // APPROVED only: a DRAFT or IN_REVIEW sheet in the library cannot be run
+    // (the backend refuses an unapproved controlled document with a 409).
+    () =>
+      templates.filter(
+        (t) => (!t.status || t.status === "APPROVED") && (!asset || t.document.assetType === asset.type),
+      ),
     [templates, asset],
   );
 
@@ -161,6 +170,12 @@ export function ChecklistWorkbench({
       .then((d) => {
         if (cancelled) return;
         if (isGrid) setGrid(d as ChecklistGrid);
+        // `{run: null}`: nothing recorded for this period and the caller cannot
+        // create it (reviewer / approver / auditor — no FIRE.EXECUTE).
+        else if (d && d.run === null && !d.runId)
+          setError(
+            `Nothing has been recorded on this sheet for ${d.periodLabel} yet. The inspector (Person In-charge) opens and fills it first; review and approval follow.`,
+          );
         else setRun(d as ChecklistRun);
       })
       .catch((e) => !cancelled && setError(e?.message ?? "Could not open this checklist."))
@@ -278,6 +293,7 @@ export function ChecklistWorkbench({
             {template && (
               <DocumentHeader
                 doc={template.document}
+                org={L("fire.org_name", "Page Industries Limited")}
                 title={template.name}
                 subtitle={`${asset.equipmentCode} · ${asset.location}${
                   asset.assetSubtype ? ` · ${asset.assetSubtype}` : ""
