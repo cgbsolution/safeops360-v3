@@ -1,4 +1,5 @@
 import { inViewerTenant } from "@/lib/tenancy/server";
+import { withStockEquivalents } from "@/lib/auth/tenant-roles";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
@@ -154,21 +155,24 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
   const isClosureApproval =
     !!myTask && myTask.taskType === "APPROVAL" && myTask.stepName === "Closure";
 
-  const canSuspendResume = role === "HSE_MANAGER" || role === "ADMIN";
+  // Tenant role clones count as the stock role they stand in for
+  // (RETAIL_STORE_MANAGER → PLANT_HEAD, RETAIL_OPS_ADMIN → HSE_MANAGER / SAFETY_OFFICER).
+  const roles = withStockEquivalents(role);
+  const canSuspendResume = roles.has("HSE_MANAGER") || roles.has("ADMIN");
   // Mirrors the role set enforced by `decide_extension` on the API. This used
   // to reuse `canSuspendResume` (HSE Manager / Admin only), which is narrower
   // than what the backend accepts — so a Plant Head saw no Approve/Reject on a
   // pending extension the API would have let them decide.
   const canDecideExtension =
-    role === "PERMIT_ISSUER" || role === "SAFETY_OFFICER" || role === "PLANT_HEAD" ||
-    role === "HSE_MANAGER" || role === "ADMIN" || role === "SYSTEM_ADMIN";
+    roles.has("PERMIT_ISSUER") || roles.has("SAFETY_OFFICER") || roles.has("PLANT_HEAD") ||
+    roles.has("HSE_MANAGER") || roles.has("ADMIN") || roles.has("SYSTEM_ADMIN");
   // Mirrors _PRIV_ROLES on the API — the only roles allowed to declare Work
   // Completed for the receiver. Issuer/Safety Officer are deliberately absent.
   const isPrivRole =
-    role === "HSE_MANAGER" || role === "ADMIN" || role === "SYSTEM_ADMIN";
+    roles.has("HSE_MANAGER") || roles.has("ADMIN") || roles.has("SYSTEM_ADMIN");
   const canVerifyRoles =
-    role === "PERMIT_ISSUER" || role === "SAFETY_OFFICER" || role === "PLANT_HEAD" ||
-    role === "HSE_MANAGER" || role === "ADMIN" || role === "SYSTEM_ADMIN";
+    roles.has("PERMIT_ISSUER") || roles.has("SAFETY_OFFICER") || roles.has("PLANT_HEAD") ||
+    roles.has("HSE_MANAGER") || roles.has("ADMIN") || roles.has("SYSTEM_ADMIN");
   const canCancel =
     canVerifyRoles || userId === p.originatorId || userId === p.issuerId;
 
