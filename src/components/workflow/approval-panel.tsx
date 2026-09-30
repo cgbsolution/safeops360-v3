@@ -33,7 +33,8 @@ export function ApprovalPanel({
   needsResponsiblePerson,
   plantId,
   eligibleRoles,
-  ptwEvidence
+  ptwEvidence,
+  closingRemarkRequired
 }: {
   task: Task;
   recordData?: Record<string, any>;
@@ -50,6 +51,8 @@ export function ApprovalPanel({
   /** PTW closed-loop: when set, approvals must carry field evidence
       (GPS + signature + photo per policy) — validated server-side too. */
   ptwEvidence?: { permitId: string; requirePhoto: boolean };
+  /** PTW closure step: the backend refuses an empty closing remark. */
+  closingRemarkRequired?: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"idle" | "approve" | "reject" | "reassign">("idle");
@@ -71,6 +74,10 @@ export function ApprovalPanel({
   async function submit(action: "approve" | "reject") {
     if (action === "reject" && !reason.trim()) {
       setError("Rejection reason is required");
+      return;
+    }
+    if (action === "approve" && closingRemarkRequired && !comments.trim()) {
+      setError("A closing remark is required.");
       return;
     }
     if (action === "approve" && needsResponsiblePerson && !responsiblePersonId) {
@@ -156,7 +163,7 @@ export function ApprovalPanel({
           <Label>Comments {mode === "reject" && <span className="text-rose-600">*</span>}</Label>
           <Textarea
             rows={3}
-            placeholder={mode === "reject" ? "Mandatory rejection reason..." : "Optional comments..."}
+            placeholder={mode === "reject" ? "Mandatory rejection reason..." : closingRemarkRequired ? "Closing remark (required) — what was checked at handback, anything outstanding" : "Optional comments..."}
             value={mode === "reject" ? reason : comments}
             onChange={(e) => mode === "reject" ? setReason(e.target.value) : setComments(e.target.value)}
           />

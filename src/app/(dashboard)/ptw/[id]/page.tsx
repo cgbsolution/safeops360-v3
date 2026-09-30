@@ -152,8 +152,13 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
   // generic execution panel.
   const isAcceptStep =
     isReceiverStep && myTask!.stepName === "Receiver Accepts Permit";
+  // The live chains name the closure step "Safety Officer Closes" / "Issuer
+  // Closes Permit" (the closed-loop seed calls it "Closure"); matching only the
+  // latter demanded a photo at closure and hid that the remark is mandatory.
   const isClosureApproval =
-    !!myTask && myTask.taskType === "APPROVAL" && myTask.stepName === "Closure";
+    !!myTask &&
+    myTask.taskType === "APPROVAL" &&
+    ["Closure", "Safety Officer Closes", "Issuer Closes Permit"].includes(myTask.stepName);
 
   // Tenant role clones count as the stock role they stand in for
   // (RETAIL_STORE_MANAGER → PLANT_HEAD, RETAIL_OPS_ADMIN → HSE_MANAGER / SAFETY_OFFICER).
@@ -599,6 +604,7 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
                 flraRequired: Boolean((p as any).flraRequired)
               }}
               ptwEvidence={{ permitId: p.id, requirePhoto: !isClosureApproval }}
+              closingRemarkRequired={isClosureApproval}
             />
           )}
           {myTask && myTask.taskType === "EXECUTION" && isAcceptStep && (

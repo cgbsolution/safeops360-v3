@@ -42,7 +42,7 @@ type DefInput = {
 //   - Section Head reviews → SUPERVISOR (with HSE_MANAGER escalation fallback)
 //   - Verification (separation of duties from approver) → SAFETY_OFFICER
 //   - Closure → HSE_MANAGER (operational) / PLANT_HEAD (regulated incidents)
-//   - PTW Issuer → PERMIT_ISSUER, Safety review → SAFETY_OFFICER
+//   - PTW Issuer → the Issuer named on the permit (approverField ISSUER), Safety review → SAFETY_OFFICER
 //   - Plant-head approvals (high-risk PTW, incident final close) → PLANT_HEAD
 //   - Corporate Manhours lock → CORPORATE_HSE
 // If no user with the target role exists at the record's plant, the engine
@@ -152,9 +152,9 @@ const DEFINITIONS: DefInput[] = [
       "Low-risk cold work — 4 steps: Originator submits → Issuer reviews → Receiver acknowledges (+ site safety check) → Issuer closes the permit.",
     steps: [
       { sequence: 1, stepType: "MAKER", name: "Originator Submits" },
-      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverRole: "PERMIT_ISSUER", slaHours: 4, escalationRole: "HSE_MANAGER" },
+      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverField: "ISSUER", slaHours: 4, escalationRole: "HSE_MANAGER" },
       { sequence: 3, stepType: "ASSIGNEE_TASK", name: "Receiver Acknowledges + FLRA", approverField: "RECEIVER", slaHours: 8, escalationRole: "HSE_MANAGER" },
-      { sequence: 4, stepType: "CLOSURE", name: "Issuer Closes Permit", approverRole: "PERMIT_ISSUER", escalationRole: "HSE_MANAGER" }
+      { sequence: 4, stepType: "CLOSURE", name: "Issuer Closes Permit", approverField: "ISSUER", escalationRole: "HSE_MANAGER" }
     ]
   },
 
@@ -166,7 +166,7 @@ const DEFINITIONS: DefInput[] = [
     description: "Issuer → Safety Officer → Plant Head → Site Safety Check → Active → Close",
     steps: [
       { sequence: 1, stepType: "MAKER", name: "Originator Submits" },
-      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverRole: "PERMIT_ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
+      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverField: "ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 3, stepType: "CHECKER", name: "Safety Officer Review", approverRole: "SAFETY_OFFICER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 4, stepType: "CHECKER", name: "Plant Head Approval", approverRole: "PLANT_HEAD", slaHours: 4 },
       { sequence: 5, stepType: "ASSIGNEE_TASK", name: "Receiver Acknowledges + FLRA", approverField: "RECEIVER", slaHours: 4, escalationRole: "HSE_MANAGER" },
@@ -180,7 +180,7 @@ const DEFINITIONS: DefInput[] = [
     description: "Strict approval: Issuer → Safety Officer → Plant Head; gas test refresh enforced",
     steps: [
       { sequence: 1, stepType: "MAKER", name: "Originator Submits" },
-      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverRole: "PERMIT_ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
+      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverField: "ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 3, stepType: "CHECKER", name: "Safety Officer Review", approverRole: "SAFETY_OFFICER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 4, stepType: "CHECKER", name: "Plant Head Approval", approverRole: "PLANT_HEAD", slaHours: 4 },
       { sequence: 5, stepType: "ASSIGNEE_TASK", name: "Receiver Acknowledges + FLRA + Gas Test", approverField: "RECEIVER", slaHours: 4, escalationRole: "HSE_MANAGER" },
@@ -196,7 +196,7 @@ const DEFINITIONS: DefInput[] = [
     description: "Issuer → Safety Officer → Plant Head → Receiver + Site Safety Check → Close",
     steps: [
       { sequence: 1, stepType: "MAKER", name: "Originator Submits" },
-      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverRole: "PERMIT_ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
+      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverField: "ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 3, stepType: "CHECKER", name: "Safety Officer Review", approverRole: "SAFETY_OFFICER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 4, stepType: "CHECKER", name: "Plant Head Approval", approverRole: "PLANT_HEAD", slaHours: 4 },
       { sequence: 5, stepType: "ASSIGNEE_TASK", name: "Receiver Acknowledges + FLRA", approverField: "RECEIVER", slaHours: 4, escalationRole: "HSE_MANAGER" },
@@ -212,7 +212,7 @@ const DEFINITIONS: DefInput[] = [
     description: "Issuer → Safety Officer → Plant Head → Receiver + Site Safety Check → Close",
     steps: [
       { sequence: 1, stepType: "MAKER", name: "Originator Submits" },
-      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverRole: "PERMIT_ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
+      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverField: "ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 3, stepType: "CHECKER", name: "Safety Officer Review", approverRole: "SAFETY_OFFICER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 4, stepType: "CHECKER", name: "Plant Head Approval", approverRole: "PLANT_HEAD", slaHours: 4 },
       { sequence: 5, stepType: "ASSIGNEE_TASK", name: "Receiver Acknowledges + FLRA", approverField: "RECEIVER", slaHours: 4, escalationRole: "HSE_MANAGER" },
@@ -228,7 +228,7 @@ const DEFINITIONS: DefInput[] = [
     description: "Issuer → Safety Officer → Plant Head → Receiver + Site Safety Check → Close",
     steps: [
       { sequence: 1, stepType: "MAKER", name: "Originator Submits" },
-      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverRole: "PERMIT_ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
+      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverField: "ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 3, stepType: "CHECKER", name: "Safety Officer Review", approverRole: "SAFETY_OFFICER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 4, stepType: "CHECKER", name: "Plant Head Approval", approverRole: "PLANT_HEAD", slaHours: 4 },
       { sequence: 5, stepType: "ASSIGNEE_TASK", name: "Receiver Acknowledges + FLRA + LOTO", approverField: "RECEIVER", slaHours: 4, escalationRole: "HSE_MANAGER" },
@@ -244,7 +244,7 @@ const DEFINITIONS: DefInput[] = [
     description: "Issuer → Safety Officer → Plant Head → Receiver + Site Safety Check → Close",
     steps: [
       { sequence: 1, stepType: "MAKER", name: "Originator Submits" },
-      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverRole: "PERMIT_ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
+      { sequence: 2, stepType: "CHECKER", name: "Issuer Review", approverField: "ISSUER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 3, stepType: "CHECKER", name: "Safety Officer Review", approverRole: "SAFETY_OFFICER", slaHours: 2, escalationRole: "HSE_MANAGER" },
       { sequence: 4, stepType: "CHECKER", name: "Plant Head Approval", approverRole: "PLANT_HEAD", slaHours: 4 },
       { sequence: 5, stepType: "ASSIGNEE_TASK", name: "Receiver Acknowledges + FLRA", approverField: "RECEIVER", slaHours: 4, escalationRole: "HSE_MANAGER" },

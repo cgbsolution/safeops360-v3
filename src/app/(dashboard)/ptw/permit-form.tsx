@@ -1252,7 +1252,10 @@ export function PermitForm({
           <ChevronLeft size={14} /> Back
         </Button>
         <div className="text-xs text-slate-500">
-          Step {step} of {visibleSteps.length} ({typeMeta.label})
+          {/* `step` is the absolute step id (skipped steps keep their number),
+              so count the position among the visible ones — "Step 9 of 7"
+              appeared on Cold Work, where steps 4 and 6 are skipped. */}
+          Step {Math.max(1, visibleSteps.findIndex((s) => s.id === step) + 1)} of {visibleSteps.length} ({typeMeta.label})
         </div>
         {step < LAST_STEP ? (
           <Button type="button" onClick={next} disabled={submitting}>
