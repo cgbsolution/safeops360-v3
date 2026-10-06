@@ -11,6 +11,7 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLabels } from "@/components/labels/label-provider";
+import { readApiError } from "@/lib/client-errors";
 
 type Site = { id: string; siteName: string; siteCode: string };
 type Worker = { id: string; fullName: string; workerCode: string; primaryTrade: string };
@@ -159,8 +160,7 @@ export default function NewInductionPage() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.detail ?? `Error ${res.status}`);
+        throw new Error(await readApiError(res));
       }
       router.push("/epc/mobilization");
     } catch (e: any) {

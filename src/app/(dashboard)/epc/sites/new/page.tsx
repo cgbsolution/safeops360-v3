@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectItem } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Building2 } from "lucide-react";
 import { useLabels } from "@/components/labels/label-provider";
+import { readApiError } from "@/lib/client-errors";
 
 const PROJECT_TYPES = [
   "Power Plant",
@@ -94,8 +95,10 @@ export default function NewSitePage() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail ?? data.error ?? `Error ${res.status}`);
+        // readApiError flattens every error shape (422 detail arrays, dict
+        // details) to text; `new Error(data.detail)` with an array rendered
+        // "[object Object]" in the banner.
+        throw new Error(await readApiError(res, L("epc.failed_create_site", "Failed to create site")));
       }
       router.push("/epc/sites");
     } catch (e: any) {

@@ -22,6 +22,7 @@ import { formatDate, formatDateTime, statusColor, severityColor, humanize } from
 import { resolveMasterLabels, masterLabel } from "@/lib/masters/resolve-labels";
 import { getServerLabels } from "@/lib/labels/server";
 import { TERM } from "@/lib/labels/core";
+import { withStockEquivalents } from "@/lib/auth/tenant-roles";
 import {
   CalendarDays,
   MapPin,
@@ -131,8 +132,11 @@ export default async function NearMissDetail(
 
   const currentStep = instance?.definition.steps.find((s: any) => s.id === instance.currentStepId);
 
-  // Permission gates
-  const isHseManagerLike = role === "HSE_MANAGER" || role === "ADMIN" || role === "SYSTEM_ADMIN" || role === "CORPORATE_HSE";
+  // Permission gates. Tenant role clones count as the stock role they stand in
+  // for (RETAIL_OPS_ADMIN → HSE_MANAGER); a literal match hid the per-CAPA
+  // Verify button from the Retail HSE lead holding the verifier task.
+  const roles = withStockEquivalents(role);
+  const isHseManagerLike = roles.has("HSE_MANAGER") || roles.has("ADMIN") || roles.has("SYSTEM_ADMIN") || roles.has("CORPORATE_HSE");
   // Only the actor who currently holds the "Review Meeting & CAPA Definition"
   // task may define CAPAs — not every HSE Manager, and not the reporter. This
   // mirrors the backend gate in near_miss.create_capa (_is_capa_definition_actor).
@@ -142,10 +146,13 @@ export default async function NearMissDetail(
     currentStep?.name === "Review Meeting & CAPA Definition" &&
     !!myTask &&
     myTask.stepId === currentStep?.id;
+  // The holder of the open verifier task may always verify — mirrors the
+  // backend's `_is_workflow_actor` fallback in near_miss.update_capa.
+  const holdsVerifierTask = !!myTask && myTask.stepId === currentStep?.id;
   const canVerifyCapa =
     !!instance &&
     instance.status === "IN_PROGRESS" &&
-    isHseManagerLike &&
+    (isHseManagerLike || holdsVerifierTask) &&
     currentStep?.stepType === "VERIFIER";
 
   // Joint Review reviewers (extracted from history — APPROVED entries on the

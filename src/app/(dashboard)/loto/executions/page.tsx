@@ -7,7 +7,7 @@ import { WorkspaceTabs } from "@/components/analytics/workspace-tabs";
 import { REGISTERS } from "@/lib/registers";
 import { Button } from "@/components/ui/button";
 import { FilterTab, FilterTabsList } from "@/components/ui/filter-tabs";
-import { cn } from "@/lib/utils";
+import { APP_TIME_ZONE, cn } from "@/lib/utils";
 import { BookLock, Lock, Users } from "lucide-react";
 import {
   EXECUTION_STATUS_CHIP,
@@ -149,6 +149,7 @@ export default async function LotoExecutionsPage(props: {
                   )}
                   <div className="mt-1 text-slate-400">
                     {new Date(ex.initiatedAt).toLocaleDateString("en-IN", {
+                      timeZone: APP_TIME_ZONE,
                       day: "2-digit",
                       month: "short"
                     })}

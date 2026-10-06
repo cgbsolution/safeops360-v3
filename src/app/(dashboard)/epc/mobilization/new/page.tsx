@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { useLabels } from "@/components/labels/label-provider";
+import { readApiError } from "@/lib/client-errors";
 
 type Site = { id: string; siteName: string; siteCode: string };
 type Worker = { id: string; fullName: string; workerCode: string; primaryTrade: string; contractorCompanyName?: string };
@@ -62,8 +63,7 @@ export default function NewMobilizationPage() {
         }),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.detail ?? `Error ${res.status}`);
+        throw new Error(await readApiError(res));
       }
       router.push("/epc/mobilization");
     } catch (e: any) {

@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { useLabels } from "@/components/labels/label-provider";
+import { readApiError } from "@/lib/client-errors";
 import {
   Table,
   TableHeader,
@@ -205,10 +206,11 @@ export default function GateClearancePage() {
           checkMethod: "manual_search",
         }),
       });
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail ?? data.error ?? `Error ${res.status}`);
+        // readApiError flattens 422 detail arrays / dict details to text.
+        throw new Error(await readApiError(res, "Gate check failed"));
       }
+      const data = await res.json();
       setResult(data);
     } catch (e: any) {
       setCheckError(e.message ?? "Gate check failed");

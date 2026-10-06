@@ -12,7 +12,7 @@ import type { LabelFn } from "@/lib/labels/core";
 import { AlertTriangle, Eye, Lock, QrCode } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { cn } from "@/lib/utils";
+import { APP_TIME_ZONE, cn } from "@/lib/utils";
 import {
   PROCEDURE_STATUS_CHIP,
   PROCEDURE_STATUS_LABEL,
@@ -21,6 +21,7 @@ import {
 
 function formatDue(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", {
+    timeZone: APP_TIME_ZONE,
     day: "2-digit",
     month: "short",
     year: "numeric"

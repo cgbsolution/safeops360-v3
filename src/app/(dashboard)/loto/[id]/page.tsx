@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Can } from "@/components/auth/can";
-import { cn } from "@/lib/utils";
+import { APP_TIME_ZONE, cn } from "@/lib/utils";
 import {
   AlertTriangle,
   Camera,
@@ -156,6 +156,7 @@ export default async function LotoProcedurePage(props: {
           <div className={cn("text-slate-800", overdue && "font-semibold text-rose-700")}>
             {procedure.review.nextReviewDueAt
               ? new Date(procedure.review.nextReviewDueAt).toLocaleDateString("en-IN", {
+                  timeZone: APP_TIME_ZONE,
                   day: "2-digit",
                   month: "short",
                   year: "numeric"
@@ -368,6 +369,7 @@ export default async function LotoProcedurePage(props: {
                     </TableCell>
                     <TableCell className="text-muted-foreground py-2 align-top text-xs">
                       {new Date(v.createdAt).toLocaleDateString("en-IN", {
+                        timeZone: APP_TIME_ZONE,
                         day: "2-digit",
                         month: "short",
                         year: "numeric"

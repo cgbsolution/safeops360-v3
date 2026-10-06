@@ -29,6 +29,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AlertTriangle, Clock, Lock, ShieldCheck, Zap } from "lucide-react";
+import { APP_TIME_ZONE } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -320,6 +321,7 @@ export default async function LotoQrPage(props: {
           {data.procedureCode} · v{data.version}
           {data.publishedAt &&
             ` · approved ${new Date(data.publishedAt).toLocaleDateString("en-IN", {
+              timeZone: APP_TIME_ZONE,
               day: "2-digit",
               month: "short",
               year: "numeric"

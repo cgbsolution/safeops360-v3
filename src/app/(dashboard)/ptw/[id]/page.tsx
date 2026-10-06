@@ -126,7 +126,13 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
     include: {
       definition: { include: { steps: { orderBy: { sequence: "asc" } } } },
       history: { include: { performedBy: { include: PARTY_INCLUDE } }, orderBy: { performedAt: "asc" } },
-      pendingTasks: { include: { assignedTo: { include: PARTY_INCLUDE } } }
+      // The relation is named `pendingTasks` but is the unfiltered
+      // WorkflowTask[] — without this `where` a Completed permit kept listing
+      // every finished step under "Awaiting Action" (mirrors incidents/[id]).
+      pendingTasks: {
+        where: { status: { in: ["PENDING", "OVERDUE", "ESCALATED"] } },
+        include: { assignedTo: { include: PARTY_INCLUDE } }
+      }
     }
   });
 

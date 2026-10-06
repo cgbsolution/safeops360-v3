@@ -48,6 +48,10 @@ type Task = {
   assignedTo: Party;
 };
 
+// Task states that still owe an action. OVERDUE / ESCALATED are stamped on top
+// of an unfinished task by the SLA layer — the assignee still has to act.
+const OPEN_TASK_STATUSES = ["PENDING", "OVERDUE", "ESCALATED"];
+
 export function WorkflowTracker({
   steps,
   history,
@@ -146,15 +150,22 @@ export function WorkflowTracker({
         })}
       </div>
 
-      {/* Pending tasks — only those at the CURRENT active step. Stale
+      {/* Pending tasks — only OPEN ones at the CURRENT active step. Stale
           pending tasks at earlier steps (from older code paths that
           didn't mark them COMPLETED when the workflow advanced) are
           filtered out so the UI shows only who is actually expected to
-          act next, not the full history of orphaned tasks. */}
+          act next, not the full history of orphaned tasks.
+          Callers often pass the Prisma `pendingTasks` back-relation, which is
+          really every WorkflowTask on the instance (COMPLETED included). Once
+          the instance completes, currentStepId is cleared, so without the
+          status filter every finished step re-appeared as "Awaiting Action". */}
       {(() => {
+        const openTasks = isComplete
+          ? []
+          : pendingTasks.filter((t) => OPEN_TASK_STATUSES.includes(t.status));
         const visiblePendingTasks = currentStepId
-          ? pendingTasks.filter((t) => t.stepId === currentStepId)
-          : pendingTasks;
+          ? openTasks.filter((t) => t.stepId === currentStepId)
+          : openTasks;
         if (visiblePendingTasks.length === 0) return null;
         return (
         <div className="rounded-lg border bg-amber-50 border-amber-200 p-3">

@@ -1007,7 +1007,9 @@ export function PermitForm({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <Label className="!mb-0">Tools / Equipment Used by Crew</Label>
-                <Button type="button" size="sm" variant="outline" disabled={equipmentList.length === 0}
+                {/* Never gated on the master: a tool row takes a free-text
+                    description, so an empty site master must not block it. */}
+                <Button type="button" size="sm" variant="outline"
                   onClick={() => setTools((p) => [...p, { tempId: tempId(), equipmentId: "", freeTextDescription: "" }])}>+ Add Tool</Button>
               </div>
               {tools.length === 0 && <div className="text-sm text-slate-500 italic">None added.</div>}
@@ -1034,9 +1036,15 @@ export function PermitForm({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <Label className="!mb-0">Subject Equipment (being worked on)</Label>
-                <Button type="button" size="sm" variant="outline" disabled={equipmentList.length === 0}
+                <Button type="button" size="sm" variant="outline" disabled={loadingMasters || equipmentList.length === 0}
                   onClick={() => setSubjectEq((p) => [...p, { tempId: tempId(), equipmentId: "", workNature: "REPAIR" }])}>+ Add Subject</Button>
               </div>
+              {/* Subject equipment must reference the site's Equipment master
+                  (the API drops rows that don't) — say why the button is off
+                  rather than leaving a silently disabled control. */}
+              {!loadingMasters && equipmentList.length === 0 && (
+                <div className="text-xs text-amber-700 mb-1">No equipment is registered for this site yet — ask an admin to add it to the Equipment master.</div>
+              )}
               {subjectEq.length === 0 && <div className="text-sm text-slate-500 italic">None added.</div>}
               {subjectEq.map((s) => (
                 <div key={s.tempId} className="rounded-md border border-slate-200 p-2 grid sm:grid-cols-[2fr_1fr_auto] gap-2 mb-2 items-end">

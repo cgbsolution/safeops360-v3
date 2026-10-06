@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Loader2, HardHat } from "lucide-react";
+import { readApiError } from "@/lib/client-errors";
 
 const TRADE_CATEGORIES = [
   "Civil",
@@ -94,8 +95,7 @@ export default function NewContractorPage() {
         body: JSON.stringify(form),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail ?? data.error ?? `Error ${res.status}`);
+        throw new Error(await readApiError(res));
       }
       router.push("/epc/contractors");
     } catch (e: any) {
