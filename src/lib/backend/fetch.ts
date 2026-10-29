@@ -57,29 +57,10 @@ if (!JWT_SECRET) {
   );
 }
 
-// Production builds strip a server error's message before it reaches the
-// error boundary; only `digest` survives, and Next keeps a digest the error
-// already carries. Access failures therefore carry a stable digest
-// ("SAFEOPS_HTTP_403:<code>") so the dashboard boundary can show "you don't
-// have access" / "not found" instead of the generic "didn't load" screen.
-// The optional code is the backend's machine code (e.g.
-// MODULE_DISABLED_FOR_PLANT) — never the human message.
-export const ACCESS_DIGEST_PREFIX = "SAFEOPS_HTTP_";
-
-function accessDigest(status: number, detail: unknown): string | undefined {
-  if (![401, 403, 404].includes(status)) return undefined;
-  const d = (detail as any)?.detail ?? detail;
-  const code = typeof d?.code === "string" && /^[A-Z0-9_]{1,64}$/.test(d.code) ? `:${d.code}` : "";
-  return `${ACCESS_DIGEST_PREFIX}${status}${code}`;
-}
-
 export class BackendError extends Error {
-  digest?: string;
   constructor(public status: number, message: string, public detail?: unknown) {
     super(message);
     this.name = "BackendError";
-    const digest = accessDigest(status, detail);
-    if (digest) this.digest = digest;
   }
 }
 
@@ -227,21 +208,7 @@ export async function backendFetch<T = unknown>(
     init.body = JSON.stringify(opts.body);
   }
 
-  // Follow the backend's trailing-slash redirects (FastAPI answers
-  // `/api/epc/dashboard` with a 307 to `/api/epc/dashboard/`) ourselves: a
-  // redirect followed by fetch can land on another origin and drop the
-  // Authorization header, turning the call into a silent 401.
-  let res = await fetch(url, { ...init, redirect: "manual" });
-  if ([307, 308].includes(res.status)) {
-    const loc = res.headers.get("location");
-    if (loc) {
-      const target = new URL(loc, url);
-      const origin = new URL(url);
-      target.protocol = origin.protocol;
-      target.host = origin.host;
-      res = await fetch(target.toString(), { ...init, redirect: "manual" });
-    }
-  }
+  const res = await fetch(url, init);
 
   if (!res.ok) {
     let detail: unknown = undefined;

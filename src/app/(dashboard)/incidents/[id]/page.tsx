@@ -1,5 +1,5 @@
-import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
+import { assertRecordAccess } from "@/lib/backend/record-access";
 import { redirect } from "next/navigation";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
 import { getServerSession } from "next-auth";
@@ -39,7 +39,6 @@ import {
   DocumentsReviewedSection, EffectivenessReviewSection, CommentsSection
 } from "@/components/incidents/incident-detail-sections";
 import { humanize } from "@/lib/utils";
-import { getServerLabels } from "@/lib/labels/server";
 import { ArrowUpRight, Camera } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -61,7 +60,9 @@ export default async function IncidentDetailPage(props: { params: Promise<{ id: 
   const params = await props.params;
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id ?? "";
-  const L = await getServerLabels();
+
+  // Same RBAC scope as the API before any Prisma read (see lib/backend/record-access).
+  await assertRecordAccess(`/api/incidents/${encodeURIComponent(params.id)}`, "INCIDENT.READ");
 
   // Fetch the incident with everything the audit-grade view needs in
   // ONE Prisma findUnique. The 8 child collections are run in a single
@@ -93,9 +94,6 @@ export default async function IncidentDetailPage(props: { params: Promise<{ id: 
     }
   });
   if (!i) redirectMissingRecord("/incidents", "Incident");
-  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
-  // is treated as missing.
-  if (!(await inViewerTenant((i as any).plantId ?? (i as any).plant?.id))) redirectMissingRecord("/incidents", "Incident");
 
   // Opening the record clears its Inbox unread state, however the viewer got
   // here. No-op unless they're the action owner.
@@ -426,7 +424,7 @@ export default async function IncidentDetailPage(props: { params: Promise<{ id: 
           <IncidentStatutoryPanel incidentId={i.id} canManage={canManageIntel} />
 
           {/* ─── 14. Lessons Learned ─── */}
-          <LessonsLearnedSection incident={i} L={L} />
+          <LessonsLearnedSection incident={i} />
 
           {/* ─── 15. 90-Day Effectiveness Review ─── */}
           <EffectivenessReviewSection incident={i} />
@@ -446,7 +444,7 @@ export default async function IncidentDetailPage(props: { params: Promise<{ id: 
         {/* Sidebar */}
         <div className="space-y-4">
           {/* ─── Sidebar metadata ─── */}
-          <IncidentMetadataSidebar incident={i} canSeeScore={canSeeScore} masters={masters} L={L} />
+          <IncidentMetadataSidebar incident={i} canSeeScore={canSeeScore} masters={masters} />
 
           {/* ─── 13. Investigation Team ─── */}
           <InvestigationTeamSection team={i.investigationTeam as any} />

@@ -1,5 +1,5 @@
-import { inViewerTenant } from "@/lib/tenancy/server";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
+import { assertRecordAccess } from "@/lib/backend/record-access";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -13,8 +13,6 @@ import { RedoFlraPanel } from "@/components/flra/redo-flra-panel";
 import { formatDate, formatDateTime, humanize } from "@/lib/utils";
 import { CheckCircle2, ArrowUpRight, AlertTriangle, Heart, Printer, ShieldAlert, XCircle } from "lucide-react";
 import { PrintButton } from "@/components/ui/print-button";
-import { getServerLabels } from "@/lib/labels/server";
-import { TERM } from "@/lib/labels/core";
 
 import { SITE_SAFETY_CHECK, FLRA_TOOLTIP } from "@/lib/flra/terminology";
 
@@ -38,6 +36,9 @@ export default async function FLRADetailPage(props: { params: Promise<{ id: stri
   const params = await props.params;
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id ?? "";
+
+  // Same RBAC scope as the API before any Prisma read (see lib/backend/record-access).
+  await assertRecordAccess(`/api/flra/${encodeURIComponent(params.id)}`, "FLRA.READ");
 
   const f = await prisma.fLRA.findUnique({
     where: { id: params.id },
@@ -63,10 +64,6 @@ export default async function FLRADetailPage(props: { params: Promise<{ id: stri
     }
   });
   if (!f) redirectMissingRecord("/flra", "Site Safety Check");
-  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
-  // is treated as missing.
-  if (!(await inViewerTenant((f as any).plantId ?? (f as any).plant?.id))) redirectMissingRecord("/flra", "Site Safety Check");
-  const L = await getServerLabels();
 
   const hazards: any[] = (() => {
     try {
@@ -368,7 +365,7 @@ export default async function FLRADetailPage(props: { params: Promise<{ id: stri
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <Row label="Date" value={formatDate(f.date)} />
-              <Row label={L(TERM.plant, "Plant")} value={f.plant.name} />
+              <Row label="Plant" value={f.plant.name} />
               <Row label="Location" value={f.location} />
               <Row label="Leader" value={f.leader.name} />
               <Row label="Toolbox Talk by" value={f.toolboxTalkBy?.name ?? "—"} />

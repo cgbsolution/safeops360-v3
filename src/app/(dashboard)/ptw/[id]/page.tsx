@@ -1,6 +1,5 @@
-import { inViewerTenant } from "@/lib/tenancy/server";
-import { withStockEquivalents } from "@/lib/auth/tenant-roles";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
+import { assertRecordAccess } from "@/lib/backend/record-access";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -36,6 +35,7 @@ import {
 } from "@/components/ptw/audit-trail-panel";
 import { PrintButton } from "@/components/ui/print-button";
 import { HiraSuggestionsPanel } from "@/components/hira/hira-suggestions-panel";
+import { AgentAssistantCard } from "@/components/agents/agent-assistant-card";
 import { PanelBoundary } from "@/components/ui/panel-boundary";
 import { getPtwActivationGate } from "@/lib/ptw/activation-gate";
 import { formatDateTime, statusColor, humanize } from "@/lib/utils";
@@ -57,6 +57,9 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id ?? "";
   const role = (session?.user as any)?.role ?? "";
+
+  // Same RBAC scope as the API before any Prisma read (see lib/backend/record-access).
+  await assertRecordAccess(`/api/ptw/${encodeURIComponent(params.id)}`, "PTW.READ");
 
   const p = await prisma.permit.findUnique({
     where: { id: params.id },
@@ -105,9 +108,6 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
   // Soft-deleted permits (governed-entity delete) are treated as gone — a
   // deep-link/bookmark to one 404s rather than rendering a removed record.
   if (!p || p.isDeleted) redirectMissingRecord("/ptw", "Permit");
-  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
-  // is treated as missing.
-  if (!(await inViewerTenant((p as any).plantId ?? (p as any).plant?.id))) redirectMissingRecord("/ptw", "Permit");
 
   // Opening the record clears its Inbox unread state, however the viewer got
   // here. No-op unless they're the action owner.
@@ -126,13 +126,7 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
     include: {
       definition: { include: { steps: { orderBy: { sequence: "asc" } } } },
       history: { include: { performedBy: { include: PARTY_INCLUDE } }, orderBy: { performedAt: "asc" } },
-      // The relation is named `pendingTasks` but is the unfiltered
-      // WorkflowTask[] — without this `where` a Completed permit kept listing
-      // every finished step under "Awaiting Action" (mirrors incidents/[id]).
-      pendingTasks: {
-        where: { status: { in: ["PENDING", "OVERDUE", "ESCALATED"] } },
-        include: { assignedTo: { include: PARTY_INCLUDE } }
-      }
+      pendingTasks: { include: { assignedTo: { include: PARTY_INCLUDE } } }
     }
   });
 
@@ -158,32 +152,24 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
   // generic execution panel.
   const isAcceptStep =
     isReceiverStep && myTask!.stepName === "Receiver Accepts Permit";
-  // The live chains name the closure step "Safety Officer Closes" / "Issuer
-  // Closes Permit" (the closed-loop seed calls it "Closure"); matching only the
-  // latter demanded a photo at closure and hid that the remark is mandatory.
   const isClosureApproval =
-    !!myTask &&
-    myTask.taskType === "APPROVAL" &&
-    ["Closure", "Safety Officer Closes", "Issuer Closes Permit"].includes(myTask.stepName);
+    !!myTask && myTask.taskType === "APPROVAL" && myTask.stepName === "Closure";
 
-  // Tenant role clones count as the stock role they stand in for
-  // (RETAIL_STORE_MANAGER → PLANT_HEAD, RETAIL_OPS_ADMIN → HSE_MANAGER / SAFETY_OFFICER).
-  const roles = withStockEquivalents(role);
-  const canSuspendResume = roles.has("HSE_MANAGER") || roles.has("ADMIN");
+  const canSuspendResume = role === "HSE_MANAGER" || role === "ADMIN";
   // Mirrors the role set enforced by `decide_extension` on the API. This used
   // to reuse `canSuspendResume` (HSE Manager / Admin only), which is narrower
   // than what the backend accepts — so a Plant Head saw no Approve/Reject on a
   // pending extension the API would have let them decide.
   const canDecideExtension =
-    roles.has("PERMIT_ISSUER") || roles.has("SAFETY_OFFICER") || roles.has("PLANT_HEAD") ||
-    roles.has("HSE_MANAGER") || roles.has("ADMIN") || roles.has("SYSTEM_ADMIN");
+    role === "PERMIT_ISSUER" || role === "SAFETY_OFFICER" || role === "PLANT_HEAD" ||
+    role === "HSE_MANAGER" || role === "ADMIN" || role === "SYSTEM_ADMIN";
   // Mirrors _PRIV_ROLES on the API — the only roles allowed to declare Work
   // Completed for the receiver. Issuer/Safety Officer are deliberately absent.
   const isPrivRole =
-    roles.has("HSE_MANAGER") || roles.has("ADMIN") || roles.has("SYSTEM_ADMIN");
+    role === "HSE_MANAGER" || role === "ADMIN" || role === "SYSTEM_ADMIN";
   const canVerifyRoles =
-    roles.has("PERMIT_ISSUER") || roles.has("SAFETY_OFFICER") || roles.has("PLANT_HEAD") ||
-    roles.has("HSE_MANAGER") || roles.has("ADMIN") || roles.has("SYSTEM_ADMIN");
+    role === "PERMIT_ISSUER" || role === "SAFETY_OFFICER" || role === "PLANT_HEAD" ||
+    role === "HSE_MANAGER" || role === "ADMIN" || role === "SYSTEM_ADMIN";
   const canCancel =
     canVerifyRoles || userId === p.originatorId || userId === p.issuerId;
 
@@ -253,6 +239,19 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
             plantId={p.plantId}
             areaId={p.areaId}
             permitType={p.type}
+          />
+        </PanelBoundary>
+      </div>
+      <div className="mb-4">
+        <PanelBoundary label="Permit risk review">
+          <AgentAssistantCard
+            agentCode="PERMIT_RISK_REVIEWER"
+            sourceModule="PTW"
+            sourceRecordId={p.id}
+            permission="AGENT.PERMIT_REVIEW_INVOKE"
+            title="Permit Risk Reviewer"
+            description="Review this permit for SIMOPS conflicts with concurrent permits, crew training currency, past incidents on similar work and recent findings in the area."
+            runningLabel="Checking concurrent permits, crew competency and history…"
           />
         </PanelBoundary>
       </div>
@@ -610,7 +609,6 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
                 flraRequired: Boolean((p as any).flraRequired)
               }}
               ptwEvidence={{ permitId: p.id, requirePhoto: !isClosureApproval }}
-              closingRemarkRequired={isClosureApproval}
             />
           )}
           {myTask && myTask.taskType === "EXECUTION" && isAcceptStep && (

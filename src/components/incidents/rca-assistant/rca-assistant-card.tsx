@@ -45,7 +45,7 @@ import {
   type InvocationStartedResponse,
   type RcaSuggestion
 } from "./types";
-import type { RcaMethod } from "@/lib/rca/types";
+import { emptyDataFor, normaliseRcaMethod, type RcaMethod } from "@/lib/rca/types";
 
 // ─── Constants ──────────────────────────────────────────────────────────
 const POLL_INTERVAL_MS = 2500;
@@ -477,11 +477,12 @@ export function RcaAssistantCard(props: RcaAssistantCardProps) {
             onLoadIntoEditor={() => {
               const sugg = inv.agentSuggestion as RcaSuggestion | null;
               if (!sugg || !("recommendedMethod" in sugg)) return;
+              const method = toEditorMethod(sugg.recommendedMethod);
               props.onLoadIntoEditor({
-                method: sugg.recommendedMethod,
-                data: sugg.draftAnalysis,
-                proposedRootCauses: sugg.proposedRootCauses ?? [],
-                contributingFactors: sugg.contributingFactors ?? []
+                method,
+                data: normaliseDraftForEditor(method, sugg.draftAnalysis),
+                proposedRootCauses: toStringList(sugg.proposedRootCauses),
+                contributingFactors: toStringList(sugg.contributingFactors)
               });
               setHasLoaded(true);
               toast({
@@ -725,4 +726,89 @@ function ProgressList({
       )}
     </div>
   );
+}
+
+// ─── Load-into-editor normalisation ─────────────────────────────────────
+// The editors index straight into their shapes (`data.whys.map`,
+// `data.threats.map`, ...). A model draft that omits a key, uses a legacy
+// method code ("5-Why", "5_WHY") or returns objects where strings are
+// expected would crash the editor on load, so coerce it first.
+
+function toEditorMethod(raw: unknown): RcaMethod {
+  const s = String(raw ?? "").trim();
+  const canonical = s.toUpperCase().replace(/[\s-]+/g, "_");
+  const aliases: Record<string, RcaMethod> = { "5_WHY": "FIVE_WHY", "5_WHYS": "FIVE_WHY", "FIVE_WHYS": "FIVE_WHY", "ISHIKAWA": "FISHBONE" };
+  return normaliseRcaMethod(s) ?? normaliseRcaMethod(canonical) ?? aliases[canonical] ?? "FIVE_WHY";
+}
+
+function toStringList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x) =>
+      typeof x === "string"
+        ? x
+        : x && typeof x === "object"
+          ? String((x as any).description ?? (x as any).text ?? (x as any).cause ?? JSON.stringify(x))
+          : String(x ?? "")
+    )
+    .filter((x) => x.trim() !== "");
+}
+
+const arr = (v: unknown): any[] => (Array.isArray(v) ? v : []);
+const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
+
+function ftaNode(n: any): any {
+  const node = n && typeof n === "object" ? n : {};
+  return {
+    ...node,
+    id: str(node.id) || Math.random().toString(36).slice(2, 10),
+    description: str(node.description),
+    nodeType: ["EVENT", "AND_GATE", "OR_GATE", "BASIC_EVENT"].includes(node.nodeType) ? node.nodeType : "BASIC_EVENT",
+    children: arr(node.children).map(ftaNode)
+  };
+}
+
+function normaliseDraftForEditor(method: RcaMethod, raw: unknown): unknown {
+  const empty = emptyDataFor(method) as Record<string, any>;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return empty;
+  const d = { ...empty, ...(raw as Record<string, any>) };
+  switch (method) {
+    case "FIVE_WHY":
+      return {
+        problemStatement: str(d.problemStatement),
+        whys: arr(d.whys).length
+          ? arr(d.whys).map((w: any) => ({ question: str(w?.question), answer: str(w?.answer ?? w) }))
+          : empty.whys,
+        rootCause: str(d.rootCause)
+      };
+    case "FISHBONE": {
+      const cats = d.categories && typeof d.categories === "object" ? d.categories : {};
+      const categories = Object.fromEntries(
+        Object.keys(empty.categories).map((k) => [k, toStringList(cats[k])])
+      );
+      return { problemStatement: str(d.problemStatement), categories, rootCauses: toStringList(d.rootCauses) };
+    }
+    case "FTA":
+      return { topEvent: str(d.topEvent), rootNode: d.rootNode ? ftaNode(d.rootNode) : empty.rootNode };
+    case "BOWTIE":
+      return {
+        topEvent: str(d.topEvent),
+        threats: arr(d.threats).map((t: any) => ({ description: str(t?.description), preventiveBarriers: arr(t?.preventiveBarriers) })),
+        consequences: arr(d.consequences).map((c: any) => ({
+          description: str(c?.description),
+          mitigativeBarriers: arr(c?.mitigativeBarriers)
+        }))
+      };
+    case "TAPROOT":
+      return {
+        eventDescription: str(d.eventDescription),
+        snapChart: arr(d.snapChart),
+        causalFactors: arr(d.causalFactors).map((cf: any) => ({ description: str(cf?.description), rootCauseTree: arr(cf?.rootCauseTree) })),
+        genericCauses: toStringList(d.genericCauses),
+        correctiveActions: arr(d.correctiveActions).map((a: any) => ({ description: str(a?.description), traceableTo: toStringList(a?.traceableTo) }))
+      };
+    case "CAUSE_MAP":
+      return { impacts: toStringList(d.impacts), rootEvent: str(d.rootEvent), causeNodes: arr(d.causeNodes) };
+  }
+  return empty;
 }

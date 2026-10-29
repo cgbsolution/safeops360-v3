@@ -29,7 +29,6 @@ import {
   BookOpen,
   FileBarChart,
   FileCheck,
-  Flame,
   FileText,
   TrendingUp,
   FlaskConical,
@@ -75,9 +74,7 @@ import {
 } from "lucide-react";
 import { usePermissions } from "@/components/auth/can";
 import { useLicence } from "@/components/licensing/licence-provider";
-import { modulesForPath } from "@/lib/licensing/route-map";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM, navKey, navSectionKey } from "@/lib/labels/core";
+import { moduleForPath } from "@/lib/licensing/route-map";
 import { shortPlantName } from "@/lib/utils";
 import {
   Sidebar,
@@ -123,8 +120,6 @@ type NavSection = {
   label: string | null;
   items: NavItem[];
   permissionPrefix?: string;
-  /** Shown only for tenants whose display labels name the section. */
-  optIn?: boolean;
 };
 
 const SECTIONS: NavSection[] = [
@@ -202,9 +197,6 @@ const SECTIONS: NavSection[] = [
       // labelled in plain language everywhere user-facing (@/lib/flra/terminology).
       // Route, permission key and schema keep the original term.
       { href: "/flra", label: "Site Safety Check", icon: Hammer, permission: "FLRA.READ" },
-      // Fire & Life Safety — asset registers, routine checklists, QR stickers
-      // (ported from the Page Industries build). Gated on FIRE.READ.
-      { href: "/fire-safety", label: "Fire & Life Safety", icon: Flame, permission: "FIRE.READ" },
       { href: "/incidents", label: "Incident Investigation", icon: ShieldAlert, permission: "INCIDENT.READ" },
       // Guided Field Capture — the technician wizard is a full-screen, offline,
       // no-chrome PWA (route group (field)); technicians also land there via
@@ -362,24 +354,19 @@ const SECTIONS: NavSection[] = [
       { href: "/configuration/agents", label: "AI Agents", icon: Sparkles },
     ],
   },
-  // EPC / contractor safety. Opt-in per tenant: hidden unless the viewer's
-  // tenant names the section in its display labels (nav.section.epc) — Meridian
-  // Retail shows it as "Contractor Safety Management"; every other tenant keeps
-  // the section hidden exactly as before.
-  {
-    key: "epc",
-    label: "EPC / Sites",
-    optIn: true,
-    items: [
-      { href: "/epc", label: "Multi-Site Dashboard", icon: LayoutDashboard, permission: "EPC.READ", exact: true },
-      { href: "/epc/sites", label: "Sites", icon: MapPin, permission: "EPC.READ" },
-      { href: "/epc/contractors", label: "Contractor Companies", icon: Building2, permission: "EPC.READ" },
-      { href: "/epc/workers", label: "Workers", icon: UserCheck, permission: "EPC.READ" },
-      { href: "/epc/mobilization", label: "Mobilization", icon: Truck, permission: "EPC.READ" },
-      { href: "/epc/inductions/new", label: "Record Site Induction", icon: ClipboardCheck, permission: "EPC.READ" },
-      { href: "/epc/gate", label: "Gate Clearance", icon: QrCode, permission: "EPC.READ" },
-    ],
-  },
+  // EPC / Sites hidden — to restore, uncomment this block
+  // {
+  //   key: "epc",
+  //   label: "EPC / Sites",
+  //   items: [
+  //     { href: "/epc", label: "Multi-Site Dashboard", icon: LayoutDashboard, permission: "EPC.READ" },
+  //     { href: "/epc/sites", label: "Sites", icon: MapPin, permission: "EPC.READ" },
+  //     { href: "/epc/contractors", label: "Contractor Companies", icon: Building2, permission: "EPC.READ" },
+  //     { href: "/epc/workers", label: "Workers", icon: UserCheck, permission: "EPC.READ" },
+  //     { href: "/epc/mobilization", label: "Mobilization", icon: Truck, permission: "EPC.READ" },
+  //     { href: "/epc/gate", label: "Gate Clearance", icon: QrCode, permission: "EPC.READ" },
+  //   ],
+  // },
   {
     key: "people",
     label: "People & Competency",
@@ -476,10 +463,7 @@ export function AppSidebar() {
   const { data: session } = useSession();
   const user = session?.user as any;
   const permissions = usePermissions();
-  const { hasModule, loading: licenceLoading } = useLicence();
-  // Display-label overrides (nav.<href>, nav.section.<key>, term.*); every
-  // lookup falls back to the literal below, so plants without a profile render as before.
-  const L = useLabels();
+  const { hasModule } = useLicence();
   const [inboxCount, setInboxCount] = React.useState<number | null>(null);
   // Hydration guard. `permissions` and `hasModule()` come from client-only state
   // (async permission fetch + per-factory licence fetch) whose value at the first
@@ -550,7 +534,7 @@ export function AppSidebar() {
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-bold">SafeOps360</span>
                     <span className="truncate text-xs text-sidebar-foreground/70">
-                      {shortPlantName(user?.plantName) ?? L(TERM.allPlants, "All Plants")}
+                      {shortPlantName(user?.plantName) ?? "All Plants"}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto size-4 opacity-70" />
@@ -563,12 +547,12 @@ export function AppSidebar() {
                 sideOffset={4}
               >
                 <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  {L(TERM.plant, "Plant")}
+                  Plant
                 </DropdownMenuLabel>
                 <DropdownMenuItem className="gap-2 p-2" disabled>
                   <Building2 className="size-4 shrink-0 text-primary-700" />
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="font-medium">{shortPlantName(user?.plantName) ?? L(TERM.allPlants, "All Plants")}</span>
+                    <span className="font-medium">{shortPlantName(user?.plantName) ?? "All Plants"}</span>
                     <span className="text-xs text-muted-foreground">Active scope</span>
                   </div>
                 </DropdownMenuItem>
@@ -592,7 +576,6 @@ export function AppSidebar() {
       {/* ─── Nav body ─── */}
       <SidebarContent>
         {SECTIONS.map((section) => {
-          if (section.optIn && !L(navSectionKey(section.key), "")) return null;
           const visibleItems = section.items.filter((item) => {
             // Before hydration, do NOT consult client-only permission/licence
             // state — render the same deterministic baseline the server rendered
@@ -603,12 +586,8 @@ export function AppSidebar() {
             // Module entitlement gate (licence) — hide items whose module the
             // licence doesn't include. Core/unmatched routes (module === null)
             // always pass. This is UX; the API enforces independently.
-            // While the active site's module set is still loading, hide gated
-            // items instead of failing open: a click in that window used to
-            // land on a module the site has switched off (403 → error page).
-            const mods = modulesForPath(item.href);
-            if (licenceLoading && mods.length) return false;
-            if (!mods.every(hasModule)) return false;
+            const mod = moduleForPath(item.href);
+            if (mod && !hasModule(mod)) return false;
             if (!item.permission) return true;
             return !!permissions[item.permission];
           });
@@ -628,13 +607,12 @@ export function AppSidebar() {
                 const active = item.exact
                   ? pathname === item.href
                   : pathname === item.href || pathname.startsWith(item.href + "/");
-                const label = L(navKey(item.href), item.label);
                 return (
                   <SidebarMenuItem key={`${section.key}-${item.href}-${item.label}`}>
-                    <SidebarMenuButton asChild isActive={active} tooltip={label}>
+                    <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
                       <Link href={item.href}>
                         <Icon />
-                        <span>{label}</span>
+                        <span>{item.label}</span>
                       </Link>
                     </SidebarMenuButton>
                     {item.showBadge && inboxCount !== null && inboxCount > 0 && (
@@ -669,7 +647,7 @@ export function AppSidebar() {
               <SidebarGroup>
                 <SidebarGroupLabel asChild>
                   <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors">
-                    <span className="flex-1 text-left">{L(navSectionKey(section.key), section.label)}</span>
+                    <span className="flex-1 text-left">{section.label}</span>
                     <ChevronRight className="size-3.5 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                   </CollapsibleTrigger>
                 </SidebarGroupLabel>

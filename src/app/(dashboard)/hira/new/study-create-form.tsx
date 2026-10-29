@@ -10,8 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM, type LabelFn } from "@/lib/labels/core";
 
 type Plant = {
   id: string;
@@ -54,8 +52,8 @@ const TEAM_ROLES = [
   { code: "EXTERNAL_CONSULTANT", label: "External Consultant" }
 ];
 
-const buildScopeTypes = (L: LabelFn) => [
-  { code: "PLANT", label: `Entire ${L(TERM.plant, "Plant")}` },
+const SCOPE_TYPES = [
+  { code: "PLANT", label: "Entire Plant" },
   { code: "DEPARTMENT", label: "Department" },
   { code: "AREA", label: "Area" },
   { code: "ACTIVITY", label: "Activity Set" },
@@ -80,8 +78,6 @@ export function StudyCreateForm({
   riskMatrices: RiskMatrix[];
   users: UserOption[];
 }) {
-  const L = useLabels();
-  const scopeTypes = useMemo(() => buildScopeTypes(L), [L]);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -186,7 +182,7 @@ export function StudyCreateForm({
 
       <Section title="1 — Scope">
         <Grid>
-          <Field label={L(TERM.plant, "Plant")} required>
+          <Field label="Plant" required>
             <Select
               className="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-600"
               value={plantId}
@@ -209,7 +205,7 @@ export function StudyCreateForm({
               value={scopeType}
               onChange={(e) => setScopeType(e.target.value)}
             >
-              {scopeTypes.map((s) => (
+              {SCOPE_TYPES.map((s) => (
                 <SelectItem key={s.code} value={s.code}>
                   {s.label}
                 </SelectItem>

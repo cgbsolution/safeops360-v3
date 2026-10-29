@@ -1,10 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM, type LabelFn } from "@/lib/labels/core";
 import { Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
@@ -30,7 +27,7 @@ export interface IncidentRow {
   signal?: Signal | null;
 }
 
-const buildColumns = (L: LabelFn): ColumnDef<IncidentRow>[] => [
+const columns: ColumnDef<IncidentRow>[] = [
   {
     accessorKey: "number",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Number" />,
@@ -60,7 +57,7 @@ const buildColumns = (L: LabelFn): ColumnDef<IncidentRow>[] => [
   {
     id: "plant",
     accessorFn: (r) => `${r.plantName} ${r.location}`,
-    header: ({ column }) => <DataTableColumnHeader column={column} title={`${L(TERM.plant, "Plant")} / Location`} />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant / Location" />,
     cell: ({ row }) => (
       <div className="text-sm">
         <div className="text-foreground font-medium">{row.original.plantName}</div>
@@ -68,7 +65,7 @@ const buildColumns = (L: LabelFn): ColumnDef<IncidentRow>[] => [
       </div>
     ),
     size: 180,
-    meta: { label: `${L(TERM.plant, "Plant")} / Location` }
+    meta: { label: "Plant / Location" }
   },
   {
     accessorKey: "description",
@@ -132,8 +129,6 @@ const buildColumns = (L: LabelFn): ColumnDef<IncidentRow>[] => [
 ];
 
 export function IncidentsTable({ data }: { data: IncidentRow[] }) {
-  const L = useLabels();
-  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}
@@ -146,7 +141,7 @@ export function IncidentsTable({ data }: { data: IncidentRow[] }) {
           { header: "Number", value: (r) => r.number },
           { header: "Date", value: (r) => formatDate(r.date) },
           { header: "Type", value: (r) => humanize(r.type) },
-          { header: L(TERM.plant, "Plant"), value: (r) => r.plantName },
+          { header: "Plant", value: (r) => r.plantName },
           { header: "Location", value: (r) => r.location },
           { header: "Description", value: (r) => r.description },
           { header: "Lost days", value: (r) => r.lostDays },

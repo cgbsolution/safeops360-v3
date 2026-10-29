@@ -12,8 +12,6 @@ import {
   type SocialComplianceRegisterResponse,
 } from "../lib";
 import { Button } from "@/components/ui/button";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 export function ReportsView({
   factories,
@@ -26,9 +24,8 @@ export function ReportsView({
   buildings: BuildingRegisterResponse;
   certs: CertificationRegisterResponse;
 }) {
-  const L = useLabels();
   const factoryMaster = () => {
-    const header = ["Code", L(TERM.factory, "Factory"), "Status", "City", "State", "Industry", "Buildings", "Employees", "Profile Status", "Certs", "Certs Expiring"];
+    const header = ["Code", "Factory", "Status", "City", "State", "Industry", "Buildings", "Employees", "Profile Status", "Certs", "Certs Expiring"];
     const rows = factories.map((f) => [
       f.factoryCode, f.factoryName, titleCase(f.status), f.city, f.state, f.primaryIndustry,
       f.buildingCount, f.totalEmployees, titleCase(f.profileStatus), f.certCount, f.certsExpiringCount,
@@ -37,7 +34,7 @@ export function ReportsView({
   };
 
   const complianceSummary = () => {
-    const header = ["Code", L(TERM.factory, "Factory"), "State", "Compliance %", "Open Findings", "Critical", "Open CAPAs", "Overdue CAPAs", "Open Obligations", "Incidents 12m", "Last Audit"];
+    const header = ["Code", "Factory", "State", "Compliance %", "Open Findings", "Critical", "Open CAPAs", "Overdue CAPAs", "Open Obligations", "Incidents 12m", "Last Audit"];
     const rows = factories.map((f) => [
       f.factoryCode, f.factoryName, f.state,
       f.metrics?.auditComplianceScorePct ?? "", f.metrics?.openFindings ?? 0, f.metrics?.criticalFindings ?? 0,
@@ -48,13 +45,13 @@ export function ReportsView({
   };
 
   const workforceSa8000 = () =>
-    downloadCsv(`workforce-sa8000-register_${stamp()}.csv`, workforceRegisterCsv(social.items, social.rollup, L));
+    downloadCsv(`workforce-sa8000-register_${stamp()}.csv`, workforceRegisterCsv(social.items, social.rollup));
 
   const buildingRegister = () =>
-    downloadCsv(`building-register_${stamp()}.csv`, buildingRegisterCsv(buildings, L));
+    downloadCsv(`building-register_${stamp()}.csv`, buildingRegisterCsv(buildings));
 
   const certificationRegister = () =>
-    downloadCsv(`certification-register_${stamp()}.csv`, certificationRegisterCsv(certs, L));
+    downloadCsv(`certification-register_${stamp()}.csv`, certificationRegisterCsv(certs));
 
   const flagged =
     (social.rollup?.flagCounts?.["ATTENTION"] ?? 0) +
@@ -63,21 +60,21 @@ export function ReportsView({
 
   const reports: { title: string; desc: string; count: string; run: () => void }[] = [
     {
-      title: `${L(TERM.factory, "Factory")} Master`,
-      desc: L("facilities.reports.factory_master_desc", "All factory profiles — identity, location, buildings, employees, cert counts."),
-      count: `${factories.length} ${L("term.factories_lc", "factories")}`,
+      title: "Factory Master",
+      desc: "All factory profiles — identity, location, buildings, employees, cert counts.",
+      count: `${factories.length} factories`,
       run: factoryMaster,
     },
     {
       title: "Group Compliance Summary",
-      desc: L("facilities.reports.group_compliance_desc", "Live compliance score, findings, CAPA load, obligations & incidents per factory."),
-      count: `${factories.length} ${L("term.factories_lc", "factories")}`,
+      desc: "Live compliance score, findings, CAPA load, obligations & incidents per factory.",
+      count: `${factories.length} factories`,
       run: complianceSummary,
     },
     {
       title: "Workforce & SA8000 Register",
-      desc: L("facilities.reports.workforce_sa8000_desc", "Per-factory workforce split, gender, migrant, child-labour evidence, wages, hours, freedom of association, grievance & SA8000 training — with the social-compliance flag."),
-      count: `${social.items.length} ${L("term.factories_lc", "factories")} · ${flagged} flagged`,
+      desc: "Per-factory workforce split, gender, migrant, child-labour evidence, wages, hours, freedom of association, grievance & SA8000 training — with the social-compliance flag.",
+      count: `${social.items.length} factories · ${flagged} flagged`,
       run: workforceSa8000,
     },
     {

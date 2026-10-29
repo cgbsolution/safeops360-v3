@@ -8,14 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
-import { useLabels } from "@/components/labels/label-provider";
-import { readApiError } from "@/lib/client-errors";
 
 type Site = { id: string; siteName: string; siteCode: string };
 type Worker = { id: string; fullName: string; workerCode: string; primaryTrade: string; contractorCompanyName?: string };
 
 export default function NewMobilizationPage() {
-  const L = useLabels();
   const router = useRouter();
   const searchParams = useSearchParams();
   const defaultSiteId = searchParams.get("siteId") ?? "";
@@ -36,8 +33,8 @@ export default function NewMobilizationPage() {
   });
 
   useEffect(() => {
-    fetch("/api/epc/sites").then(r => r.json()).then(d => setSites(Array.isArray(d?.sites) ? d.sites : Array.isArray(d) ? d : []));
-    fetch("/api/epc/workers").then(r => r.json()).then(d => setWorkers(Array.isArray(d?.workers) ? d.workers : Array.isArray(d) ? d : []));
+    fetch("/api/epc/sites").then(r => r.json()).then(d => setSites(d.sites ?? d ?? []));
+    fetch("/api/epc/workers").then(r => r.json()).then(d => setWorkers(d.workers ?? d ?? []));
   }, []);
 
   // When worker is selected, pre-fill tradeAtSite with their primary trade
@@ -63,7 +60,8 @@ export default function NewMobilizationPage() {
         }),
       });
       if (!res.ok) {
-        throw new Error(await readApiError(res));
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail ?? `Error ${res.status}`);
       }
       router.push("/epc/mobilization");
     } catch (e: any) {
@@ -91,7 +89,7 @@ export default function NewMobilizationPage() {
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Label htmlFor="siteId">{`${L("term.construction_site", "Construction Site")} *`}</Label>
+            <Label htmlFor="siteId">Construction Site *</Label>
             <Select
               id="siteId"
               required
@@ -99,7 +97,7 @@ export default function NewMobilizationPage() {
               onChange={e => setForm(f => ({ ...f, siteId: e.target.value }))}
               className="mt-1"
             >
-              <SelectItem value="">{L("term.select_a_site", "Select a site...")}</SelectItem>
+              <SelectItem value="">Select a site...</SelectItem>
               {sites.map(s => (
                 <SelectItem key={s.id} value={s.id}>{s.siteName} ({s.siteCode})</SelectItem>
               ))}
@@ -138,7 +136,7 @@ export default function NewMobilizationPage() {
           </div>
 
           <div>
-            <Label htmlFor="tradeAtSite">{`Trade at This ${L("term.site", "Site")} *`}</Label>
+            <Label htmlFor="tradeAtSite">Trade at This Site *</Label>
             <Input
               id="tradeAtSite"
               required

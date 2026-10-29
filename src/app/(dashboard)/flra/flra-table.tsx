@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { Eye } from "lucide-react";
@@ -8,8 +7,6 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DeleteFlraIconButton } from "@/components/flra/delete-icon-button";
 import { formatDate } from "@/lib/utils";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM, type LabelFn } from "@/lib/labels/core";
 
 export interface FlraRow {
   id: string;
@@ -22,7 +19,7 @@ export interface FlraRow {
   permitNumber: string | null;
 }
 
-const buildColumns = (L: LabelFn): ColumnDef<FlraRow>[] => [
+const columns: ColumnDef<FlraRow>[] = [
   {
     accessorKey: "number",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Number" />,
@@ -44,10 +41,10 @@ const buildColumns = (L: LabelFn): ColumnDef<FlraRow>[] => [
   },
   {
     accessorKey: "plantName",
-    header: ({ column }) => <DataTableColumnHeader column={column} title={L(TERM.plant, "Plant")} />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant" />,
     cell: ({ row }) => <span className="text-sm">{row.original.plantName}</span>,
     size: 160,
-    meta: { label: L(TERM.plant, "Plant") }
+    meta: { label: "Plant" }
   },
   {
     accessorKey: "jobDescription",
@@ -101,8 +98,6 @@ const buildColumns = (L: LabelFn): ColumnDef<FlraRow>[] => [
 ];
 
 export function FlraTable({ data }: { data: FlraRow[] }) {
-  const L = useLabels();
-  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}
@@ -114,7 +109,7 @@ export function FlraTable({ data }: { data: FlraRow[] }) {
         columns: [
           { header: "Number", value: (r) => r.number },
           { header: "Date", value: (r) => formatDate(r.date) },
-          { header: L(TERM.plant, "Plant"), value: (r) => r.plantName },
+          { header: "Plant", value: (r) => r.plantName },
           { header: "Job", value: (r) => r.jobDescription },
           { header: "Leader", value: (r) => r.leaderName },
           { header: "Permit", value: (r) => r.permitNumber ?? "Standalone" }

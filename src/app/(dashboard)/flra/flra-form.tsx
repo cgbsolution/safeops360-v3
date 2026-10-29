@@ -34,8 +34,6 @@ import { useGeolocation } from "@/hooks/use-geolocation";
 import { formatDateTime, humanize } from "@/lib/utils";
 import { readApiError } from "@/lib/client-errors";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; name: string };
 type MasterItem = { id: string; code: string; label: string };
@@ -158,7 +156,6 @@ export function FLRAForm({
   plants: Plant[];
   permit: EligiblePermit | null;
 }) {
-  const L = useLabels();
   const router = useRouter();
   const [step, setStep] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
@@ -294,7 +291,7 @@ export function FLRAForm({
 
   function validateStep(n: number): string | null {
     if (n === 1) {
-      if (!plantId) return `Choose a ${L("term.plant_lc", "plant")}.`;
+      if (!plantId) return "Choose a plant.";
       if (!location.trim()) return "Enter the worksite location.";
       if (!date) return "Choose a date.";
       if (jobDescription.trim().length < 10)
@@ -657,7 +654,6 @@ function Step1JobInfo(props: {
   clearPermit: () => void;
   lockedByPermit: boolean;
 }) {
-  const L = useLabels();
   return (
     <div className="space-y-4">
       <Card className={props.selectedPermit ? "border-primary-300 ring-2 ring-primary-100" : ""}>
@@ -719,7 +715,7 @@ function Step1JobInfo(props: {
         <CardContent className="space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">{`${L(TERM.plant, "Plant")} *`}</Label>
+              <Label className="text-xs">Plant *</Label>
               <Select
                 value={props.plantId}
                 onChange={(e) => props.setPlantId(e.target.value)}
@@ -1507,7 +1503,6 @@ function Step5Review(props: {
   jobSteps: JobStep[];
   fitness: FitnessDeclaration[];
 }) {
-  const L = useLabels();
   const totalHazards = props.jobSteps.reduce((acc, s) => acc + s.hazards.length, 0);
   const fitCount = props.fitness.filter((f) => f.isFit).length;
 
@@ -1531,7 +1526,7 @@ function Step5Review(props: {
             </div>
           )}
 
-          <ReviewRow label={L(TERM.plant, "Plant")} value={props.plantName} />
+          <ReviewRow label="Plant" value={props.plantName} />
           <ReviewRow
             label="Location"
             value={`${props.location}${props.specificLocation ? " · " + props.specificLocation : ""}`}

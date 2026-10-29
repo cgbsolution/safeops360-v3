@@ -1,5 +1,5 @@
-import { inViewerTenant } from "@/lib/tenancy/server";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
+import { assertRecordAccess } from "@/lib/backend/record-access";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -19,6 +19,7 @@ import { ResubmitPanel } from "@/components/workflow/resubmit-panel";
 import { ObservationAttachmentGallery } from "@/components/observations/attachment-gallery";
 import { ActionEvidencePanel } from "@/components/observations/action-evidence-panel";
 import { AiInsightsPanel } from "@/components/observations/ai-insights-panel";
+import { AgentAssistantCard } from "@/components/agents/agent-assistant-card";
 import { DeleteObservationButton } from "@/components/observations/delete-observation-button";
 import { RelatedItems } from "@/components/observations/related-items";
 import { DerosterPanel, type DerosterStatus } from "@/components/observations/deroster-panel";
@@ -47,8 +48,6 @@ const DEROSTER_DECISION_ROLES = [
   "ADMIN"
 ];
 import { formatDate, statusColor, severityColor, humanize } from "@/lib/utils";
-import { getServerLabels } from "@/lib/labels/server";
-import { TERM } from "@/lib/labels/core";
 import { CalendarDays, MapPin, User as UserIcon, AlertCircle, Clock, Camera, CheckCircle2 as CheckCircle2Icon } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +64,8 @@ export default async function ObservationDetailPage(
   const photoErrors = parseInt(searchParams?.["photo-errors"] ?? "0", 10) || 0;
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id ?? "";
-  const L = await getServerLabels();
+  // Same RBAC scope as the API before any Prisma read (see lib/backend/record-access).
+  await assertRecordAccess(`/api/observations/${encodeURIComponent(params.id)}`, "OBSERVATION.READ");
 
   // Both reads are independent — run them in parallel so the slowest one
   // (network RTT to Postgres) doesn't stack on top of the other.
@@ -213,9 +213,6 @@ export default async function ObservationDetailPage(
     })
   ]);
   if (!o) redirectMissingRecord("/observations", "Observation");
-  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
-  // is treated as missing.
-  if (!(await inViewerTenant((o as any).plantId ?? (o as any).plant?.id))) redirectMissingRecord("/observations", "Observation");
 
   // Opening the record clears its Inbox unread state — however the viewer got
   // here (Inbox row, deep link, notification, modal). No-op unless they're the
@@ -567,6 +564,16 @@ export default async function ObservationDetailPage(
 
           <AiInsightsPanel closureTriggers={o.closureTriggers} />
 
+          <AgentAssistantCard
+            agentCode="TRIAGE_AGENT"
+            sourceModule="OBSERVATION"
+            sourceRecordId={o.id}
+            permission="AGENT.TRIAGE_INVOKE"
+            title="Triage Agent"
+            description="Suggest the category, severity, statutory implications and an action owner for this observation, with the reasoning behind each."
+            runningLabel="Classifying the observation…"
+          />
+
           {/* Corrective-action photos uploaded by the action owner — shown
               prominently above the general gallery so reviewers see the
               proof of action without scrolling. Self-hides when empty.
@@ -627,7 +634,7 @@ export default async function ObservationDetailPage(
             <CardHeader><CardTitle className="text-sm">Metadata</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">
               <Meta icon={CalendarDays} label="Date" value={formatDate(o.date)} />
-              <Meta icon={MapPin} label={L(TERM.plant, "Plant")} value={o.plant.name} />
+              <Meta icon={MapPin} label="Plant" value={o.plant.name} />
               <Meta icon={MapPin} label="Area" value={o.area?.name ?? "—"} />
               <Meta icon={UserIcon} label="Observer" value={o.observer.name} />
               {o.contractorCompany && (

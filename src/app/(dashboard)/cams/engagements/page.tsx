@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { backendFetch } from "@/lib/backend/fetch";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Can } from "@/components/auth/can";
@@ -13,7 +11,6 @@ import {
 } from "../lib-cams";
 import { ScheduleEngagementButton } from "./schedule-engagement";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +18,6 @@ export default async function EngagementsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requirePermission("CAMS.READ");
-  const L = await getServerLabels();
   const sp = await props.searchParams;
   const get = (k: string) => {
     const v = sp[k];
@@ -35,20 +31,6 @@ export default async function EngagementsPage(props: {
   for (const k of ["status", "siteId", "sourceModule", "q"]) {
     const v = get(k);
     if (v) query[k] = v;
-  }
-  // A site that runs CAMS for Fire Safety only (general CAMS switched off —
-  // see the backend's plant_modules.CAMS_GENERAL) has no ComplianceAudit flow;
-  // its Fire Safety audits are CAMS engagements, so this register lists every
-  // FIRE engagement (audits and inspections). Other sites: unchanged.
-  const session = await getServerSession(authOptions);
-  const home = (session?.user as any)?.plantId as string | undefined;
-  const mods = home
-    ? await backendFetch<{ disabledModules?: string[] }>("/api/licensing/modules", { query: { plantId: home } }).catch(() => null)
-    : null;
-  const fireOnly = !!mods?.disabledModules?.includes("CAMS_GENERAL");
-  if (fireOnly || query.sourceModule === "FIRE") {
-    delete query.engagementType;
-    query.sourceModule = "FIRE";
   }
 
   let data: EngagementListResponse = { items: [], total: 0, statusCounts: {}, typeCounts: {} };
@@ -88,21 +70,13 @@ export default async function EngagementsPage(props: {
   return (
     <div>
       <PageHeader
-        title={L("nav./cams/engagements", "Inspections")}
-        description={
-          fireOnly
-            ? "Fire Safety audits and inspections on the CAMS engine — lead auditor, fire standards, independence-checked assignment, findings and CAPA. Each audit carries a live Compliance Snapshot from the fire register and routine checklists."
-            : "Routine inspections on the CAMS engine — scheduled, executed, scored, closed. Consumer-raised inspections (Fire / PPE / Pharma / EPC) appear here with a source badge. Audits run on the audit flow under Audits."
-        }
-        breadcrumbs={[{ label: "CAMS", href: "/cams" }, { label: L("nav./cams/engagements", "Inspections") }]}
+        title="Inspections"
+        description="Routine inspections on the CAMS engine — scheduled, executed, scored, closed. Consumer-raised inspections (Fire / PPE / Pharma / EPC) appear here with a source badge. Audits run on the audit flow under Audits."
+        breadcrumbs={[{ label: "CAMS", href: "/cams" }, { label: "Inspections" }]}
         action={
-          // Fire-only sites schedule Fire Safety audits through /api/fire/audits
-          // (independence-checked); the generic CAMS scheduler is refused there.
-          fireOnly ? undefined : (
-            <Can permission="CAMS.SCHEDULE">
-              <ScheduleEngagementButton auditTypes={auditTypes} templates={templates} plants={plants} inspectionOnly />
-            </Can>
-          )
+          <Can permission="CAMS.SCHEDULE">
+            <ScheduleEngagementButton auditTypes={auditTypes} templates={templates} plants={plants} inspectionOnly />
+          </Can>
         }
       />
 
@@ -124,7 +98,7 @@ export default async function EngagementsPage(props: {
                   <TableHead className="px-3 py-2.5">Code</TableHead>
                   <TableHead className="px-3 py-2.5">Title</TableHead>
                   <TableHead className="px-3 py-2.5">Type</TableHead>
-                  <TableHead className="px-3 py-2.5">{L("term.site", "Site")}</TableHead>
+                  <TableHead className="px-3 py-2.5">Site</TableHead>
                   <TableHead className="px-3 py-2.5">Lead</TableHead>
                   <TableHead className="px-3 py-2.5">Planned</TableHead>
                   <TableHead className="px-3 py-2.5">Status</TableHead>

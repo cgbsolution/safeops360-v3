@@ -9,8 +9,6 @@ import { ShieldAlert, Lock, GraduationCap, ClipboardList, Sparkles } from "lucid
 import { ProgramApprovalActions } from "@/components/training/program-approval-actions";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getServerLabels } from "@/lib/labels/server";
-import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +37,6 @@ export default async function TrainingProgramDetailPage(props: {
     }
   });
   if (!program) return notFound();
-  const L = await getServerLabels();
 
   const validity =
     program.certificateValidityMonths ?? program.validityMonths;
@@ -242,7 +239,7 @@ export default async function TrainingProgramDetailPage(props: {
               <Row label="Max participants" value={String(program.maxParticipantsPerBatch)} />
               <Row label="Languages" value={(program.language ?? []).join(", ") || "—"} />
               <Row label="Owner" value={program.owner?.name ?? "—"} />
-              <Row label={`${L(TERM.plant, "Plant")} scope`} value={program.plant?.name ?? L(TERM.allPlants, "All plants")} />
+              <Row label="Plant scope" value={program.plant?.name ?? "All plants"} />
             </CardContent>
           </Card>
 

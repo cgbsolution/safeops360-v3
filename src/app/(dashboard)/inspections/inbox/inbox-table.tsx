@@ -6,9 +6,6 @@ import { ClipboardCheck, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { useMemo } from "react";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM, type LabelFn } from "@/lib/labels/core";
 
 const STATUS_BADGE: Record<string, string> = {
   SCHEDULED: "bg-slate-100 text-slate-700 border-slate-200",
@@ -30,7 +27,7 @@ export interface InboxRow {
   status: string;
 }
 
-const buildColumns = (L: LabelFn): ColumnDef<InboxRow>[] => [
+const columns: ColumnDef<InboxRow>[] = [
   {
     accessorKey: "number",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Number" />,
@@ -53,7 +50,7 @@ const buildColumns = (L: LabelFn): ColumnDef<InboxRow>[] => [
   },
   {
     accessorKey: "plantCode",
-    header: ({ column }) => <DataTableColumnHeader column={column} title={L(TERM.plant, "Plant")} />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant" />,
     cell: ({ row }) => <span className="text-xs">{row.original.plantCode}</span>,
     size: 100
   },
@@ -95,8 +92,6 @@ const buildColumns = (L: LabelFn): ColumnDef<InboxRow>[] => [
 ];
 
 export function InspectionInboxTable({ data }: { data: InboxRow[] }) {
-  const L = useLabels();
-  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}

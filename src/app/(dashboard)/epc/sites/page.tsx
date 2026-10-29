@@ -12,7 +12,6 @@ import {
   Plus,
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -51,20 +50,19 @@ function HealthBadge({ health }: { health: "green" | "amber" | "red" }) {
 }
 
 export default async function SitesPage() {
-  const L = await getServerLabels();
   const data = await backendFetch<{ sites: Site[] }>("/api/epc/sites").catch(() => null);
   const sites = data?.sites ?? [];
 
   return (
     <div>
       <PageHeader
-        title={L("term.construction_sites", "Construction Sites")}
-        description={L("epc.sites_description", "All registered EPC project sites")}
-        breadcrumbs={[{ label: "EPC", href: "/epc" }, { label: L("term.sites", "Sites") }]}
+        title="Construction Sites"
+        description="All registered EPC project sites"
+        breadcrumbs={[{ label: "EPC", href: "/epc" }, { label: "Sites" }]}
         action={
           <Button asChild size="sm">
             <Link href="/epc/sites/new">
-              <Plus size={16} className="mr-1" />{` New ${L("term.site", "Site")}`}
+              <Plus size={16} className="mr-1" /> New Site
             </Link>
           </Button>
         }
@@ -73,10 +71,10 @@ export default async function SitesPage() {
       {sites.length === 0 ? (
         <div className="rounded-xl border bg-white p-12 text-center">
           <Building2 size={40} className="mx-auto mb-3 text-slate-300" />
-          <p className="text-sm font-medium text-slate-600 mb-1">{L("epc.no_sites_registered", "No sites registered")}</p>
-          <p className="text-xs text-slate-400 mb-4">{L("epc.register_first_site", "Register your first construction site to begin managing operations.")}</p>
+          <p className="text-sm font-medium text-slate-600 mb-1">No sites registered</p>
+          <p className="text-xs text-slate-400 mb-4">Register your first construction site to begin managing operations.</p>
           <Button asChild size="sm">
-            <Link href="/epc/sites/new"><Plus size={14} className="mr-1" />{` Register ${L("term.site", "Site")}`}</Link>
+            <Link href="/epc/sites/new"><Plus size={14} className="mr-1" /> Register Site</Link>
           </Button>
         </div>
       ) : (
@@ -84,8 +82,8 @@ export default async function SitesPage() {
           <Table className="w-full text-sm">
             <TableHeader>
               <TableRow className="border-b bg-slate-50 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">{`${L("term.site", "Site")} Code`}</TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">{`${L("term.site", "Site")} Name`}</TableHead>
+                <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Site Code</TableHead>
+                <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Site Name</TableHead>
                 <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Client</TableHead>
                 <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">State</TableHead>
                 <TableHead className="px-4 py-3 text-xs font-semibold text-slate-600 h-auto">Status</TableHead>

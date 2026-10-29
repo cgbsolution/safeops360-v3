@@ -5,9 +5,6 @@ import { ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { useMemo } from "react";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM, type LabelFn } from "@/lib/labels/core";
 
 const CRITICALITY_COLOR: Record<string, string> = {
   A: "bg-rose-100 text-rose-800 border-rose-200",
@@ -37,7 +34,7 @@ export interface EquipmentRow {
   isOverdue: boolean;
 }
 
-const buildColumns = (L: LabelFn): ColumnDef<EquipmentRow>[] => [
+const columns: ColumnDef<EquipmentRow>[] = [
   {
     accessorKey: "code",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Code" />,
@@ -64,7 +61,7 @@ const buildColumns = (L: LabelFn): ColumnDef<EquipmentRow>[] => [
   },
   {
     accessorKey: "plantCode",
-    header: ({ column }) => <DataTableColumnHeader column={column} title={L(TERM.plant, "Plant")} />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Plant" />,
     cell: ({ row }) => <span className="text-xs">{row.original.plantCode}</span>,
     size: 90
   },
@@ -126,8 +123,6 @@ const buildColumns = (L: LabelFn): ColumnDef<EquipmentRow>[] => [
 ];
 
 export function EquipmentTable({ data }: { data: EquipmentRow[] }) {
-  const L = useLabels();
-  const columns = useMemo(() => buildColumns(L), [L]);
   return (
     <DataTable
       columns={columns}

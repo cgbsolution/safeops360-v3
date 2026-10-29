@@ -1,4 +1,3 @@
-import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -10,8 +9,6 @@ import { FindingActions } from "../finding-actions";
 import { FindingCapaList } from "../finding-capa-list";
 import { RegisterCapaPanel } from "../register-capa-panel";
 import { requirePermission } from "@/lib/auth/server";
-import { getServerLabels } from "@/lib/labels/server";
-import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -63,10 +60,6 @@ export default async function FindingDetailPage(props: { params: Promise<{ id: s
     }
   });
   if (!f) return notFound();
-  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
-  // is treated as missing.
-  if (!(await inViewerTenant((f as any).plantId ?? (f as any).plant?.id))) return notFound();
-  const L = await getServerLabels();
 
   const overdue = f.dueDate && f.dueDate < new Date() && !["CLOSED", "VERIFIED", "DUPLICATE"].includes(f.status);
 
@@ -136,7 +129,7 @@ export default async function FindingDetailPage(props: { params: Promise<{ id: s
             <CardTitle>Profile</CardTitle>
           </CardHeader>
           <CardContent className="text-sm space-y-2">
-            <Field label={L(TERM.plant, "Plant")} value={`${f.inspection.plant.name} (${f.inspection.plant.code})`} />
+            <Field label="Plant" value={`${f.inspection.plant.name} (${f.inspection.plant.code})`} />
             <Field
               label="Equipment"
               value={<span className="text-slate-900">{f.inspection.equipment.name}</span>}

@@ -21,9 +21,10 @@
  */
 
 import { useMemo } from "react";
-import { AlertTriangle, Check, CircleSlash, Info, Lock, X } from "lucide-react";
+import { AlertTriangle, Check, CircleSlash, Info, Lock, Sparkles, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -67,9 +68,11 @@ export type HazardAnnexuresStepProps = {
   catalogLoading?: boolean;
   /** Hours currently requested, so the cap warning can be concrete. */
   validityHours: number | null;
-  /** Annexures this plant does not use (its permit-type curation removed the
-   *  type they belong to). Omitted → every hazard is attachable. */
-  blockedHazards?: readonly string[];
+  /** Item ids per hazard whose answer the copilot suggested (not yet the user's). */
+  suggested?: Record<string, string[]>;
+  /** Per hazard: the user has verified the suggested answers on site. */
+  confirmed?: Record<string, boolean>;
+  onConfirmedChange?: (hazard: string, value: boolean) => void;
 };
 
 export function HazardAnnexuresStep({
@@ -83,14 +86,13 @@ export function HazardAnnexuresStep({
   onActiveHazardChange,
   catalogLoading = false,
   validityHours,
-  blockedHazards
+  suggested = {},
+  confirmed = {},
+  onConfirmedChange
 }: HazardAnnexuresStepProps) {
   const baseHazard = hazardForBaseType(baseType);
   const inForce = useMemo(() => effectiveHazards(baseType, hazards), [baseType, hazards]);
-  const attachable = useMemo(
-    () => attachableHazards(baseType).filter((h) => !blockedHazards?.includes(h)),
-    [baseType, blockedHazards]
-  );
+  const attachable = useMemo(() => attachableHazards(baseType), [baseType]);
 
   const cap = validityCapHours(baseType, hazards);
   const capDriver = bindingCapHazard(baseType, hazards);
@@ -98,6 +100,8 @@ export function HazardAnnexuresStep({
 
   const activeItems = catalog[activeHazard] ?? [];
   const activeAnswers = answers[activeHazard] ?? {};
+  const activeSuggested = new Set(suggested[activeHazard] ?? []);
+  const activeConfirmed = !!confirmed[activeHazard];
 
   function toggleHazard(h: HazardType) {
     if (h === baseHazard) return; // base annexure is not detachable
@@ -252,6 +256,9 @@ export function HazardAnnexuresStep({
                 )}
               >
                 {HAZARD_LABELS[h]}
+                {(suggested[h]?.length ?? 0) > 0 && !confirmed[h] && (
+                  <Sparkles className="h-3 w-3 text-amber-500" aria-label="Copilot suggestions to confirm" />
+                )}
                 {empty ? (
                   <Badge className="border-slate-300 bg-transparent text-[10px] font-normal text-slate-500 dark:border-slate-700">no checklist</Badge>
                 ) : (
@@ -299,12 +306,37 @@ export function HazardAnnexuresStep({
                   Mark remaining as Yes
                 </Button>
               </div>
+              {activeSuggested.size > 0 && (
+                <div className={cn(
+                  "mb-3 rounded-lg border p-3 text-sm",
+                  activeConfirmed ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"
+                )}>
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="space-y-2">
+                      <p>
+                        Copilot pre-filled <strong>{activeSuggested.size}</strong> answer{activeSuggested.size === 1 ? "" : "s"} from
+                        the job description (marked <em>Suggested</em>). These are suggestions, not checks. Walk the site, change any
+                        answer that isn&apos;t true, then confirm.
+                      </p>
+                      <Label className="flex cursor-pointer items-center gap-2 font-medium text-inherit">
+                        <Checkbox
+                          checked={activeConfirmed}
+                          onChange={(e) => onConfirmedChange?.(activeHazard, e.target.checked)}
+                        />
+                        I have checked each suggested answer for {HAZARD_LABELS[activeHazard]} on site
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+              )}
               <ol className="space-y-2">
                 {activeItems.map((item, idx) => (
                   <PrecautionRow
                     key={item.id}
                     index={idx + 1}
                     item={item}
+                    suggested={activeSuggested.has(item.id) && !activeConfirmed}
                     answer={activeAnswers[item.id]}
                     onAnswer={(r) => setAnswer(item.id, r)}
                     onRemark={(v) => setRemark(item.id, v)}
@@ -322,12 +354,14 @@ export function HazardAnnexuresStep({
 function PrecautionRow({
   index,
   item,
+  suggested = false,
   answer,
   onAnswer,
   onRemark
 }: {
   index: number;
   item: PrecautionItem;
+  suggested?: boolean;
   answer?: { response: PrecautionAnswer; remark: string };
   onAnswer: (r: PrecautionAnswer) => void;
   onRemark: (v: string) => void;
@@ -344,13 +378,20 @@ function PrecautionRow({
           ? "border-rose-300 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/30"
           : needsRemark
             ? "border-amber-300 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/30"
-            : "border-slate-200 dark:border-slate-800"
+            : suggested
+              ? "border-dashed border-amber-300 bg-amber-50/40 dark:border-amber-900/60"
+              : "border-slate-200 dark:border-slate-800"
       )}
     >
       <div className="flex items-start gap-3">
         <span className="mt-0.5 w-5 flex-shrink-0 text-right text-xs text-slate-400">{index}.</span>
         <p className="flex-1 text-sm leading-snug">
           {item.text}
+          {suggested && (
+            <Badge className="ml-2 border-amber-300 bg-amber-100 align-middle text-[10px] font-normal text-amber-800">
+              Suggested
+            </Badge>
+          )}
           {!item.isMandatory && (
             <Badge className="ml-2 border-slate-300 bg-transparent align-middle text-[10px] font-normal text-slate-500 dark:border-slate-700">
               advisory

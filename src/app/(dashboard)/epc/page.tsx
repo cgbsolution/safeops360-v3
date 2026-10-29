@@ -14,7 +14,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +83,6 @@ function humanizeStatus(s: string): string {
 }
 
 export default async function EpcDashboardPage() {
-  const L = await getServerLabels();
   const data = await backendFetch<DashboardData>("/api/epc/dashboard").catch(() => null);
 
   const summary = data?.summary ?? {
@@ -101,13 +99,13 @@ export default async function EpcDashboardPage() {
   return (
     <div>
       <PageHeader
-        title={`Multi-${L("term.site", "Site")} Dashboard`}
+        title="Multi-Site Dashboard"
         description="Corporate EPC operations overview"
         breadcrumbs={[{ label: "EPC" }, { label: "Dashboard" }]}
         action={
           <div className="flex gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link href="/epc/sites/new">{`+ New ${L("term.site", "Site")}`}</Link>
+              <Link href="/epc/sites/new">+ New Site</Link>
             </Button>
             <Button asChild size="sm">
               <Link href="/epc/gate">Gate Clearance</Link>
@@ -119,7 +117,7 @@ export default async function EpcDashboardPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <SummaryCard
-          label={`Active ${L("term.sites", "Sites")}`}
+          label="Active Sites"
           value={summary.activeSites}
           icon={<Building2 size={20} className="text-cyan-700" />}
           href="/epc/sites"
@@ -151,16 +149,16 @@ export default async function EpcDashboardPage() {
       {/* Site Health Grid */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-slate-800">{`${L("term.site", "Site")} Health`}</h2>
+          <h2 className="text-base font-semibold text-slate-800">Site Health</h2>
           <Link href="/epc/sites" className="text-xs text-cyan-700 hover:underline flex items-center gap-1">
-            {`${L("term.all_sites", "All sites")} `}<ExternalLink size={12} />
+            All sites <ExternalLink size={12} />
           </Link>
         </div>
 
         {sites.length === 0 ? (
           <div className="rounded-xl border bg-white p-10 text-center text-slate-500">
             <Building2 size={36} className="mx-auto mb-2 text-slate-300" />
-            <p className="text-sm">{`${L("epc.no_sites_found", "No sites found.")} `}<Link href="/epc/sites/new" className="text-cyan-700 hover:underline">{L("epc.register_a_site", "Register a site")}</Link> to get started.</p>
+            <p className="text-sm">No sites found. <Link href="/epc/sites/new" className="text-cyan-700 hover:underline">Register a site</Link> to get started.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

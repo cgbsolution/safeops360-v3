@@ -12,12 +12,10 @@
 // caller's plantId + areaId. The panel polls when those props change so
 // the suggestions stay in sync as the user picks the location.
 
-import { httpStatusMessage } from "@/lib/client-errors";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, ExternalLink, ShieldAlert } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useLicence } from "@/components/licensing/licence-provider";
 
 type HiraEntrySuggestion = {
   id: string;
@@ -70,15 +68,9 @@ export function HiraSuggestionsPanel({
   const [advisory, setAdvisory] = useState<string | null>(null);
   const [gatingBlockers, setGatingBlockers] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  // HIRA can be switched off for a site (licence or per-site module switch).
-  // The panel is context, not the page's job — it disappears rather than
-  // showing the permit page an "HTTP 403" box.
-  const { hasModule } = useLicence();
-  const hiraOn = hasModule("HIRA");
-  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
-    if (!plantId || !hiraOn) return;
+    if (!plantId) return;
     const ctrl = new AbortController();
     setLoading(true);
     setError(null);
@@ -88,15 +80,10 @@ export function HiraSuggestionsPanel({
     if (mode === "ptw" && permitType) params.set("permitType", permitType);
     fetch(`/api/hira/integrations/for-${mode}?${params.toString()}`, { signal: ctrl.signal })
       .then((r) => {
-        if (r.status === 403) {
-          setForbidden(true);
-          return null;
-        }
-        if (!r.ok) throw new Error(httpStatusMessage(r.status));
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((data) => {
-        if (!data) return;
         setEntries(data.entries ?? []);
         setAdvisory(data.advisory ?? null);
         setGatingBlockers(data.gatingBlockers ?? 0);
@@ -106,9 +93,7 @@ export function HiraSuggestionsPanel({
       })
       .finally(() => setLoading(false));
     return () => ctrl.abort();
-  }, [mode, plantId, areaId, activityKeyword, permitType, hiraOn]);
-
-  if (!hiraOn || forbidden) return null;
+  }, [mode, plantId, areaId, activityKeyword, permitType]);
 
   if (!plantId) {
     return (

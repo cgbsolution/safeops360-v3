@@ -8,8 +8,6 @@
 // AUDITOR role. So a verdict is always about one person on one engagement, and
 // the same person legitimately carries different verdicts elsewhere.
 
-import type { LabelFn } from "@/lib/labels/core";
-
 export type ConflictSeverity = "BLOCK" | "WARN";
 
 export type IndependenceConflict = {
@@ -66,12 +64,6 @@ export const SOURCE_LABEL: Record<string, string> = {
   // not have.
   SAME_ENGAGEMENT_ROSTER: "Same engagement",
 };
-
-/** SOURCE_LABEL with the site vocabulary routed through display labels. */
-export function sourceLabel(L: LabelFn, source: string): string {
-  if (source === "ROLE_SCOPE") return `${L("term.site", "Site")}/department role`;
-  return SOURCE_LABEL[source] ?? source;
-}
 
 export type TwoHatRow = {
   engagementKind: "AUDIT" | "INSPECTION" | null;

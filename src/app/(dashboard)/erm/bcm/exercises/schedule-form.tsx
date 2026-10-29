@@ -1,6 +1,5 @@
 "use client";
 
-import { httpStatusMessage } from "@/lib/client-errors";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -53,7 +52,7 @@ function ScheduleModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
   useEffect(() => {
     let cancelled = false;
     fetch("/api/erm/bcm/plans")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data) => {
         if (cancelled) return;
         const items: PlanOption[] = (data?.items ?? data ?? []).map((p: any) => ({

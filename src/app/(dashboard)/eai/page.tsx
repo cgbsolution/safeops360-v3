@@ -19,8 +19,6 @@ import { ObservationAnalyticsPanels } from "@/components/observations/analytics-
 import { buildHeroFromRecords } from "@/lib/insight-hero-from-records";
 import { fetchInsights } from "@/lib/insights";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { getServerLabels } from "@/lib/labels/server";
-import { DEFAULT_LABELS, TERM, type LabelFn } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +74,6 @@ export default async function EaiStudiesPage(
   props: { searchParams: Promise<{ tab?: string; status?: string; plantId?: string; insight?: string }> }
 ) {
   const searchParams = await props.searchParams;
-  const L = await getServerLabels();
 
   // Tier-2 workspace tabs. Analytics and Signals are PANES on this
   // route, not screens of their own — see @/lib/registers.
@@ -99,7 +96,7 @@ export default async function EaiStudiesPage(
           title="EAI — Environmental Register"
           description="ISO 14001 §6.1.2 environmental aspect and impact register"
         />
-        <PlantSelectorEmptyState L={L} />
+        <PlantSelectorEmptyState />
       </div>
     );
   }
@@ -116,7 +113,7 @@ export default async function EaiStudiesPage(
           description="ISO 14001 §6.1.2 environmental aspect and impact register"
           action={<PlantSwitcher plants={plants} currentPlantId={plantId} />}
         />
-        <FeatureDisabledNotice plantId={plantId} L={L} />
+        <FeatureDisabledNotice plantId={plantId} />
       </div>
     );
   }
@@ -149,7 +146,7 @@ export default async function EaiStudiesPage(
       date: new Date(s.initiatedAt),
       open: !EAI_DONE.includes(s.status),
       severity: s.status,
-      group: s.scopeType || `${L(TERM.plant, "Plant")}-wide`
+      group: s.scopeType || "Plant-wide"
     })),
     {
       type: "eai progress",
@@ -347,10 +344,10 @@ function EmptyState({ plantId }: { plantId: string }) {
   );
 }
 
-function PlantSelectorEmptyState({ L = DEFAULT_LABELS }: { L?: LabelFn }) {
+function PlantSelectorEmptyState() {
   return (
     <div className="rounded-xl border bg-white p-8 text-sm text-slate-600">
-      <div className="font-medium text-slate-800 mb-1">{`Select a ${L("term.plant_lc", "plant")} to view EAI studies`}</div>
+      <div className="font-medium text-slate-800 mb-1">Select a plant to view EAI studies</div>
       <p>
         Add{" "}
         <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">?plantId=</code>{" "}
@@ -361,16 +358,16 @@ function PlantSelectorEmptyState({ L = DEFAULT_LABELS }: { L?: LabelFn }) {
   );
 }
 
-function FeatureDisabledNotice({ plantId, L = DEFAULT_LABELS }: { plantId: string; L?: LabelFn }) {
+function FeatureDisabledNotice({ plantId }: { plantId: string }) {
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm">
-      <div className="font-medium text-amber-900 mb-2">{`EAI Register is not enabled for this ${L("term.plant_lc", "plant")}`}</div>
+      <div className="font-medium text-amber-900 mb-2">EAI Register is not enabled for this plant</div>
       <p className="text-amber-800">
-        {`The HIRA Phase 2 EAI Register is currently disabled for ${L("term.plant_lc", "plant")}`}{" "}
+        The HIRA Phase 2 EAI Register is currently disabled for plant{" "}
         <code className="bg-amber-100 px-1.5 py-0.5 rounded text-xs">{plantId}</code>.
       </p>
       <p className="text-amber-800 mt-2">
-        {`${L(TERM.plantHead, "Plant Head")} or System Admin can enable it from`}{" "}
+        Plant Head or System Admin can enable it from{" "}
         <Link
           href={`/configuration/feature-flags?plantId=${plantId}`}
           className="text-amber-900 underline"

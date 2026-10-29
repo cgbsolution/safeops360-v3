@@ -37,8 +37,6 @@ import {
   type LossAnalytics,
   type CalibrationRow,
 } from "@/app/(dashboard)/erm/lib-p2";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 type Tab = "register" | "analytics";
 type Filters = { category: string | null; status: string | null; source: string | null };
@@ -178,7 +176,6 @@ function RegisterTab({
   filters: Filters;
   onRowClick: (ev: LossEvent) => void;
 }) {
-  const L = useLabels();
   const draftCount = list.statusCounts.DRAFT ?? 0;
 
   function toggleHref(key: "status" | "source", value: string) {
@@ -240,7 +237,7 @@ function RegisterTab({
               <TableHead className="px-3 py-2.5">Date</TableHead>
               <TableHead className="px-3 py-2.5">Title</TableHead>
               <TableHead className="px-3 py-2.5">Category</TableHead>
-              <TableHead className="px-3 py-2.5">{L("term.site", "Site")}</TableHead>
+              <TableHead className="px-3 py-2.5">Site</TableHead>
               <TableHead className="px-3 py-2.5">Src</TableHead>
               <TableHead className="px-3 py-2.5 text-right">Gross</TableHead>
               <TableHead className="px-3 py-2.5 text-right">Recovered</TableHead>
@@ -346,7 +343,6 @@ function DetailDrawer({
   onEdit: () => void;
   onDone: () => void;
 }) {
-  const L = useLabels();
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
   const [closing, setClosing] = useState(false);
@@ -435,7 +431,7 @@ function DetailDrawer({
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <Meta label="Event date" value={fmtDate(ev.eventDate)} />
-            <Meta label={L("term.site", "Site")} value={ev.siteName ?? "—"} />
+            <Meta label="Site" value={ev.siteName ?? "—"} />
             <Meta label="Category" value={ev.categoryName ?? ev.categoryCode ?? "—"} />
             <Meta label="Last updated" value={fmtDate(ev.updatedAt)} />
             {ev.sourceIncidentId && <Meta label="Source incident" value={ev.sourceIncidentId} />}
@@ -606,7 +602,6 @@ function LossFormModal({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const L = useLabels();
   const [title, setTitle] = useState(ev?.title ?? "");
   const [description, setDescription] = useState(ev?.description ?? "");
   const [eventDate, setEventDate] = useState(ev?.eventDate ? ev.eventDate.slice(0, 10) : "");
@@ -715,11 +710,11 @@ function LossFormModal({
                 onChange={(e) => setEventDate(e.target.value)}
               />
             </Field>
-            <Field label={L("term.site_id_optional", "Site ID (optional)")}>
+            <Field label="Site ID (optional)">
               <Input
                 value={siteId}
                 onChange={(e) => setSiteId(e.target.value)}
-                placeholder={`${L(TERM.plant, "Plant")} / site identifier`}
+                placeholder="Plant / site identifier"
               />
             </Field>
           </div>

@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { buildFlraListWhere } from "@/lib/auth/list-filters";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -10,7 +13,13 @@ import { SITE_SAFETY_CHECK, FLRA_TOOLTIP } from "@/lib/flra/terminology";
 export const dynamic = "force-dynamic";
 
 export default async function FLRAPage() {
+  // RBAC: the same rows GET /api/flra would return. Without this every user
+  // saw every FLRA on the platform.
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as any)?.id ?? "";
+  const where = await buildFlraListWhere(userId);
   const items = await prisma.fLRA.findMany({
+    where,
     select: {
       id: true,
       number: true,

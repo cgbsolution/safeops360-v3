@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useLabels } from "@/components/labels/label-provider";
-import { ComplianceSnapshot } from "@/components/compliance/compliance-snapshot";
 import {
   ENGAGEMENT_STATUS_CHIP, RESULT_CHIP, SEVERITY_CHIP, FINDING_STATUS_CHIP,
   fmtDate, labelize, engagementTypeLabel,
@@ -45,14 +43,6 @@ export function EngagementWorkspace({
   return (
     <div>
       <EngagementHeader engagement={engagement} perms={perms} />
-      {/* Fire Safety engagements carry a read-only Compliance Snapshot pulled
-          live from the fire register + routine checklist completion. Other
-          audit domains have no such source, so they render nothing here. */}
-      {engagement.sourceModule === "FIRE" && (
-        <div className="mt-4">
-          <ComplianceSnapshot engagementId={engagement.id} />
-        </div>
-      )}
       <div className="mt-4 flex gap-1 border-b border-slate-200">
         {tabs.map((t) => (
           <Button key={t.key} type="button" variant="ghost" onClick={() => setTab(t.key)}
@@ -77,7 +67,6 @@ export function EngagementWorkspace({
 
 // ── header + transitions ──────────────────────────────────────────────────
 function EngagementHeader({ engagement, perms }: { engagement: Engagement; perms: Perms }) {
-  const L = useLabels();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -123,7 +112,7 @@ function EngagementHeader({ engagement, perms }: { engagement: Engagement; perms
         </div>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-        <Meta label={L("term.site", "Site")} value={engagement.siteName} />
+        <Meta label="Site" value={engagement.siteName} />
         <Meta label="Lead auditor" value={engagement.leadAuditorName} />
         <Meta label="Auditee owner" value={engagement.auditeeOwnerName} />
         <Meta label="Planned" value={fmtDate(engagement.plannedDate)} />
@@ -196,7 +185,7 @@ function ExecuteTab({ engagement, runner, perms }: { engagement: Engagement; run
     runner?.sections.forEach((s) => s.questions.forEach((q) => {
       init[q.id] = {
         value: q.value, conformance: q.conformance ?? null, note: q.note ?? "",
-        ncSeverity: q.ncSeverity ?? null, evidenceAttachmentIds: q.evidenceAttachmentIds ?? [],
+        ncSeverity: null, evidenceAttachmentIds: q.evidenceAttachmentIds ?? [],
       };
     }));
     return init;
@@ -341,20 +330,16 @@ function QuestionRow({ q, ans, readOnly, onChange }: { q: RunnerQuestion; ans: A
 function FindingsTab({ engagement, findings, perms }: { engagement: Engagement; findings: Finding[]; perms: Perms }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
 
   async function raiseCapa(id: string) {
-    setBusy(id); setErr(null);
-    const res = await fetch(`/api/cams/findings/${id}/raise-capa`, { method: "POST" });
+    setBusy(id);
+    await fetch(`/api/cams/findings/${id}/raise-capa`, { method: "POST" });
     setBusy(null);
-    // A refused CAPA used to vanish silently — the button just stopped spinning.
-    if (!res.ok) { const j = await res.json().catch(() => ({})); setErr(j.detail || j.error || `Could not raise the CAPA (${res.status}).`); return; }
     router.refresh();
   }
 
   return (
     <div className="space-y-3">
-      {err && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
       {findings.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400">
           No findings yet. Non-conforming checklist answers raise findings automatically when fieldwork completes.

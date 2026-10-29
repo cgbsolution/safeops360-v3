@@ -1,6 +1,5 @@
 "use client";
 
-import { httpStatusMessage } from "@/lib/client-errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload,
@@ -91,7 +90,7 @@ export function MocAttachments({ crId, canEdit = true }: { crId: string; canEdit
     setItems(null);
     setLoadError(null);
     fetch(base)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((j) => {
         if (cancelled) return;
         const rows: AttachmentRow[] = Array.isArray(j) ? j : j.items ?? [];

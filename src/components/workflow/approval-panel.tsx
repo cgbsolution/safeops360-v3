@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle2, XCircle, UserMinus, Clock, AlertCircle } from "lucide-react";
 import { daysBetween, formatDateTime, cn } from "@/lib/utils";
 import { UserPicker } from "@/components/ui/user-picker";
-import { StepName } from "@/components/workflow/step-name";
+import { stepDisplayName } from "@/lib/flra/terminology";
 import {
   EvidenceCapture,
   evidenceComplete,
@@ -17,7 +17,6 @@ import {
   useEvidenceCapture,
 } from "@/components/ptw/evidence-capture";
 import { Select, SelectItem } from "@/components/ui/select";
-import { useLabels } from "@/components/labels/label-provider";
 
 type Task = {
   id: string;
@@ -33,8 +32,7 @@ export function ApprovalPanel({
   needsResponsiblePerson,
   plantId,
   eligibleRoles,
-  ptwEvidence,
-  closingRemarkRequired
+  ptwEvidence
 }: {
   task: Task;
   recordData?: Record<string, any>;
@@ -51,8 +49,6 @@ export function ApprovalPanel({
   /** PTW closed-loop: when set, approvals must carry field evidence
       (GPS + signature + photo per policy) — validated server-side too. */
   ptwEvidence?: { permitId: string; requirePhoto: boolean };
-  /** PTW closure step: the backend refuses an empty closing remark. */
-  closingRemarkRequired?: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"idle" | "approve" | "reject" | "reassign">("idle");
@@ -74,10 +70,6 @@ export function ApprovalPanel({
   async function submit(action: "approve" | "reject") {
     if (action === "reject" && !reason.trim()) {
       setError("Rejection reason is required");
-      return;
-    }
-    if (action === "approve" && closingRemarkRequired && !comments.trim()) {
-      setError("A closing remark is required.");
       return;
     }
     if (action === "approve" && needsResponsiblePerson && !responsiblePersonId) {
@@ -131,7 +123,7 @@ export function ApprovalPanel({
               <CardTitle className="text-primary-900">⏳ Action Required</CardTitle>
               <span className={cn("chip text-xs", slaBadge.className)}>{slaBadge.label}</span>
             </div>
-            <CardDescription className="text-primary-700"><StepName name={task.stepName} /></CardDescription>
+            <CardDescription className="text-primary-700">{stepDisplayName(task.stepName)}</CardDescription>
           </div>
           {task.dueAt && (
             <div className="text-right">
@@ -163,7 +155,7 @@ export function ApprovalPanel({
           <Label>Comments {mode === "reject" && <span className="text-rose-600">*</span>}</Label>
           <Textarea
             rows={3}
-            placeholder={mode === "reject" ? "Mandatory rejection reason..." : closingRemarkRequired ? "Closing remark (required) — what was checked at handback, anything outstanding" : "Optional comments..."}
+            placeholder={mode === "reject" ? "Mandatory rejection reason..." : "Optional comments..."}
             value={mode === "reject" ? reason : comments}
             onChange={(e) => mode === "reject" ? setReason(e.target.value) : setComments(e.target.value)}
           />
@@ -243,7 +235,6 @@ function ReassignDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const L = useLabels();
   const [users, setUsers] = useState<PickableUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [toUserId, setToUserId] = useState("");
@@ -319,7 +310,7 @@ function ReassignDialog({
             ? "Loading users…"
             : users.length === 0
               ? eligibleRoles && eligibleRoles.length > 0
-                ? `No eligible users (${eligibleRoles.join(" / ")}) at this ${L("term.plant_lc", "plant")}`
+                ? `No eligible users (${eligibleRoles.join(" / ")}) at this plant`
                 : "No users available"
               : "— Select user —"}
         </SelectItem>

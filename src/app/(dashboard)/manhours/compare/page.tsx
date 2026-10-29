@@ -11,8 +11,6 @@ import { cn } from "@/lib/utils";
 import { buildScorecard } from "@/lib/manhours/scorecard";
 import { PerformanceScorecard } from "@/components/manhours/widgets/performance-scorecard";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { getServerLabels } from "@/lib/labels/server";
-import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +31,6 @@ export default async function PlantComparePage(props: {
 }) {
   const sp = await props.searchParams;
   await requirePermission("MANHOURS.READ");
-  const L = await getServerLabels();
 
   const accessibleIds = await getAccessiblePlantIds("MANHOURS.READ");
   const plants = await prisma.plant.findMany({
@@ -78,8 +75,8 @@ export default async function PlantComparePage(props: {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={L("manhours.plant_vs_plant_comparison", "Plant-vs-plant comparison")}
-        description={`Rolling 12-month (${rows[0]?.kpis[COMPARE_KPIS[0]]?.period.label ?? "—"}) across ${plants.length} ${L("term.plants_lc", "plants")}. Click any cell to drill into the KPI's audit trail.`}
+        title="Plant-vs-plant comparison"
+        description={`Rolling 12-month (${rows[0]?.kpis[COMPARE_KPIS[0]]?.period.label ?? "—"}) across ${plants.length} plants. Click any cell to drill into the KPI's audit trail.`}
         breadcrumbs={[{ label: "Manhours", href: "/manhours" }, { label: "Compare" }]}
       />
 
@@ -97,7 +94,7 @@ export default async function PlantComparePage(props: {
             <TableHeader className="border-b bg-slate-50">
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left text-[11px] uppercase tracking-wider text-slate-500">
-                  {L(TERM.plant, "Plant")}
+                  Plant
                 </TableHead>
                 {COMPARE_KPIS.map((c) => (
                   <TableHead key={c} className="px-3 py-2 text-right text-[11px] uppercase tracking-wider text-slate-500" title={KPI_REGISTRY[c].name}>
@@ -167,7 +164,7 @@ export default async function PlantComparePage(props: {
         </CardContent>
       </Card>
 
-      <PerformanceScorecard rows={scorecardRows} L={L} />
+      <PerformanceScorecard rows={scorecardRows} />
     </div>
   );
 }

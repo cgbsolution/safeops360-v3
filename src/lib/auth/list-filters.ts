@@ -91,12 +91,14 @@ export async function buildObservationListWhere(userId: string): Promise<Record<
   }
 
   if (scope === "OWN_DEPARTMENT") {
-    if (!profile?.plantId || !profile?.department) return MATCH_NOTHING;
+    const own = [{ observerId: userId }, { responsiblePersonId: userId }];
+    const pf = plantFilter(plantIds, profile?.plantId);
+    if (!pf || !profile?.department) return { OR: own };
     // Department lives on the observer (departments aren't directly on the
-    // record). So filter via the observer relation.
+    // record). So filter via the observer relation — plus the user's own
+    // records, as the backend's register does.
     return {
-      plantId: profile.plantId,
-      observer: { is: { department: profile.department } }
+      OR: [{ ...pf, observer: { is: { department: profile.department } } }, ...own]
     };
   }
 
@@ -107,6 +109,52 @@ export async function buildObservationListWhere(userId: string): Promise<Record<
       { responsiblePersonId: userId }
     ]
   };
+}
+
+// PTW register. Mirrors GET /api/ptw: the PTW.READ scope plus the named-party
+// rule (originator, issuer, receiver or crew can always see their permit).
+export async function buildPermitListWhere(userId: string): Promise<Record<string, any>> {
+  const party = {
+    OR: [
+      { originatorId: userId },
+      { issuerId: userId },
+      { receiverId: userId },
+      { workCrew: { some: { userId } } }
+    ]
+  };
+  const { scope, profile, plantIds } = await loadReadScopeAndProfile(userId, "PTW.READ");
+  if (!scope) return party;
+  if (scope === "ALL_PLANTS") return {};
+  const pf = plantFilter(plantIds, profile?.plantId);
+  if (scope === "OWN_PLANT") return pf ? { OR: [pf, party] } : party;
+  if (scope === "OWN_DEPARTMENT") {
+    if (!pf || !profile?.department) return party;
+    return { OR: [{ ...pf, department: { is: { name: profile.department } } }, party] };
+  }
+  return party;
+}
+
+// FLRA register. Mirrors GET /api/flra: the FLRA.READ scope; own records are
+// the FLRAs the user leads. FLRA.departmentId has no Prisma relation, so the
+// department is resolved to ids first.
+export async function buildFlraListWhere(userId: string): Promise<Record<string, any>> {
+  const { scope, profile, plantIds } = await loadReadScopeAndProfile(userId, "FLRA.READ");
+  if (!scope) return MATCH_NOTHING;
+  if (scope === "ALL_PLANTS") return {};
+  const own = { leaderId: userId };
+  const pf = plantFilter(plantIds, profile?.plantId);
+  if (scope === "OWN_PLANT") return pf ?? MATCH_NOTHING;
+  if (scope === "OWN_DEPARTMENT") {
+    if (!pf || !profile?.department) return own;
+    const { prisma } = await import("@/lib/prisma");
+    const depts = await prisma.department.findMany({
+      where: { ...pf, name: { equals: profile.department, mode: "insensitive" } },
+      select: { id: true }
+    });
+    const ids = depts.map((d) => d.id);
+    return ids.length ? { OR: [{ ...pf, departmentId: { in: ids } }, own] } : own;
+  }
+  return own;
 }
 
 // Returns the scope code the helper applied. Useful for showing the user

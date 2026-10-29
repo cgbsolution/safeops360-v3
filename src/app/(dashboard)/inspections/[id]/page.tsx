@@ -1,4 +1,3 @@
-import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -19,8 +18,6 @@ import { InspectionExecutionPanel } from "@/components/inspections/inspection-ex
 import { TypedExecutionPanel } from "@/components/inspections/typed-execution-panel";
 import { healStuckInspectionWorkflow } from "@/lib/inspections/workflow-cleanup";
 import { formatDate, statusColor, humanize } from "@/lib/utils";
-import { getServerLabels } from "@/lib/labels/server";
-import { TERM } from "@/lib/labels/core";
 
 export const dynamic = "force-dynamic";
 
@@ -66,10 +63,6 @@ export default async function InspectionDetailPage(props: { params: Promise<{ id
     }
   });
   if (!i) return notFound();
-  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
-  // is treated as missing.
-  if (!(await inViewerTenant((i as any).plantId ?? (i as any).plant?.id))) return notFound();
-  const L = await getServerLabels();
 
   // Opening the record clears its Inbox unread state, however the viewer got
   // here. No-op unless they're the action owner.
@@ -355,7 +348,7 @@ export default async function InspectionDetailPage(props: { params: Promise<{ id
             <CardContent className="space-y-2 text-sm">
               <Row label="Equipment Code" value={i.equipment.code} />
               <Row label="Category" value={i.equipment.category} />
-              <Row label={L(TERM.plant, "Plant")} value={i.plant.name} />
+              <Row label="Plant" value={i.plant.name} />
               <Row label="Location" value={i.equipment.location} />
               {i.inspectionType && (
                 <div className="flex items-start justify-between gap-2">

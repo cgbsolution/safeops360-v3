@@ -39,7 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Can } from "@/components/auth/can";
 import { readApiError } from "@/lib/client-errors";
-import { APP_TIME_ZONE, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   ENERGY_TYPE_CHIP,
   ENERGY_TYPE_LABEL,
@@ -258,7 +258,6 @@ export function ExecutionConsole({
                 <CheckCircle2 size={16} /> Your lock is confirmed on
                 {me.lockAppliedAt &&
                   ` (${new Date(me.lockAppliedAt).toLocaleTimeString("en-IN", {
-                    timeZone: APP_TIME_ZONE,
                     hour: "2-digit",
                     minute: "2-digit"
                   })})`}
@@ -545,7 +544,7 @@ export function ExecutionConsole({
               <>
                 Closed by {execution.closedByName ?? "—"}
                 {execution.closedAt &&
-                  ` on ${new Date(execution.closedAt).toLocaleString("en-IN", { timeZone: APP_TIME_ZONE })}`}
+                  ` on ${new Date(execution.closedAt).toLocaleString("en-IN")}`}
                 .
                 {execution.closureNotes && (
                   <p className="mt-1 whitespace-pre-line">{execution.closureNotes}</p>
@@ -554,7 +553,7 @@ export function ExecutionConsole({
             ) : (
               <>
                 {execution.abortedAt &&
-                  `Aborted on ${new Date(execution.abortedAt).toLocaleString("en-IN", { timeZone: APP_TIME_ZONE })}. `}
+                  `Aborted on ${new Date(execution.abortedAt).toLocaleString("en-IN")}. `}
                 <span className="font-medium">Reason:</span> {execution.abortReason}
               </>
             )}
@@ -676,7 +675,6 @@ function VerificationStepRow({
             <div className="mt-1 text-xs text-emerald-700">
               {record.completedByName ?? "—"} ·{" "}
               {new Date(record.completedAt).toLocaleString("en-IN", {
-                timeZone: APP_TIME_ZONE,
                 day: "2-digit",
                 month: "short",
                 hour: "2-digit",

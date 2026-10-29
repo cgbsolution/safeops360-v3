@@ -29,8 +29,6 @@ import { resolvePlantContext } from "@/lib/plant-context";
 import { INK } from "@/lib/design/midnight";
 import { PlantSwitcher } from "@/components/plant-switcher";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getServerLabels } from "@/lib/labels/server";
-import { TERM } from "@/lib/labels/core";
 
 type TopRisk = {
   id: string;
@@ -114,13 +112,13 @@ export async function RiskAggregationPane(props: {
   searchParams: Promise<{ plantId?: string }>;
 }) {
   const sp = await props.searchParams;
-  const L = await getServerLabels();
   const { plantId, plants } = await resolvePlantContext(sp.plantId);
 
   if (!plantId) {
     return (
       <div className="rounded-xl border bg-white p-8 text-sm text-slate-600">
-        {`No ${L("term.plants_lc", "plants")} are accessible. Contact your ${L(TERM.plantHead, "Plant Head")} or System Admin to ensure you have at least one ${L("term.plant_lc", "plant")} assignment.`}
+        No plants are accessible. Contact your Plant Head or System Admin to
+        ensure you have at least one plant assignment.
       </div>
     );
   }

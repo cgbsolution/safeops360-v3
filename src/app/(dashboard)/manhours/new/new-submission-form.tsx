@@ -1,6 +1,5 @@
 "use client";
 
-import { httpStatusMessage } from "@/lib/client-errors";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,8 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -21,7 +18,6 @@ export function NewSubmissionForm({
 }: {
   plants: { id: string; name: string; code: string }[];
 }) {
-  const L = useLabels();
   const router = useRouter();
   // Default to the most recently completed month — submissions are
   // filed AFTER the period closes.
@@ -47,7 +43,7 @@ export function NewSubmissionForm({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setError(body.error ?? httpStatusMessage(res.status));
+        setError(body.error ?? `HTTP ${res.status}`);
         setSubmitting(false);
         return;
       }
@@ -64,7 +60,7 @@ export function NewSubmissionForm({
       <CardContent className="p-6">
         <form onSubmit={onSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label>{L(TERM.plant, "Plant")}</Label>
+            <Label>Plant</Label>
             <Select value={plantId} onChange={(e) => setPlantId(e.target.value)} required>
               {plants.map((p) => (
                 <SelectItem key={p.id} value={p.id}>

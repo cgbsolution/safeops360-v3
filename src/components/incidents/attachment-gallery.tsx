@@ -1,6 +1,5 @@
 "use client";
 
-import { httpStatusMessage } from "@/lib/client-errors";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +55,7 @@ export function AttachmentGallery({
     setItems(null);
     setError(null);
     fetch(`/api/incidents/${incidentId}/attachments`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((j) => {
         if (cancelled) return;
         let rows: AttachmentRow[] = j.items ?? [];

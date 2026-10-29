@@ -98,7 +98,13 @@ export function IncidentIntelligencePanel({
     try {
       const r = await call("/ai/summary");
       if (!r.summary) {
-        toast({ variant: "default", title: "AI assist unavailable", description: "Summary drafting is not configured. Enter the summary manually." });
+        // `available` says whether AI is configured at all; when it is, the
+        // model call itself failed and a retry may work.
+        toast(
+          r.available
+            ? { variant: "error", title: "Could not draft a summary", description: "The AI service did not return a usable draft. Try again, or enter the summary manually." }
+            : { variant: "default", title: "AI assist unavailable", description: "Summary drafting is not configured. Enter the summary manually." },
+        );
         return;
       }
       setSummary(r.summary);
@@ -131,7 +137,11 @@ export function IncidentIntelligencePanel({
     try {
       const r = await call("/cause-analysis/suggest");
       if (!r.suggestion) {
-        toast({ variant: "default", title: "AI assist unavailable", description: "Root-cause suggestion is not configured." });
+        toast(
+          r.available
+            ? { variant: "error", title: "Could not suggest a root cause", description: "The AI service did not return a usable suggestion. Try again." }
+            : { variant: "default", title: "AI assist unavailable", description: "Root-cause suggestion is not configured." },
+        );
         return;
       }
       setSuggestion(r.suggestion);
@@ -234,11 +244,11 @@ export function IncidentIntelligencePanel({
                 <p className="text-sm text-slate-800">{suggestion.text}</p>
                 <SuggestionChip suggestion={suggestion} />
               </div>
-              {suggestion.basedOnIncidentIds && suggestion.basedOnIncidentIds.length > 0 && (
-                <p className="text-[11px] text-slate-500 mt-1.5">
-                  Computed from {suggestion.basedOnIncidentIds.length} similar closed incident(s).
-                </p>
-              )}
+              <p className="text-[11px] text-slate-500 mt-1.5">
+                {suggestion.basedOnIncidentIds && suggestion.basedOnIncidentIds.length > 0
+                  ? `Computed from ${suggestion.basedOnIncidentIds.length} similar closed incident(s).`
+                  : "No similar closed incidents you can access were found, so confidence is 0% — treat this as a starting hypothesis."}
+              </p>
               {canManage && (suggestion.status === "pending" || !suggestion.status) && (
                 <SuggestionActions
                   busy={busy === "suggest"}
@@ -264,22 +274,15 @@ export function IncidentIntelligencePanel({
           )}
         </section>
 
-        {/* ── Feature 1 — inline CAPA from root cause ──
-            Lists the incident's confirmed root causes: those recorded by the
-            investigation team (RCA canvas / investigation report) plus an AI
-            suggestion only once it has been accepted. Each row names its source
-            — unlabelled rows inside this AI panel read as unaccepted AI output
-            (INC-2026-MR-DC01-0002). */}
+        {/* ── Feature 1 — inline CAPA from root cause ── */}
         <section className="space-y-2 pt-3 border-t border-slate-100">
           <div className="text-xs uppercase tracking-wider font-semibold text-slate-500">Raise CAPA from Root Cause</div>
           {rootCauses.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">No confirmed root causes yet. Mark root causes in the RCA canvas, or accept an AI suggestion above, to raise linked CAPAs here.</p>
+            <p className="text-xs text-slate-400 italic">Identify root causes in the RCA canvas to raise linked CAPAs here.</p>
           ) : (
             <div className="space-y-1.5">
-              <p className="text-[11px] text-slate-500">Root causes confirmed for this incident. An AI suggestion is listed only after it is accepted.</p>
               {rootCauses.map((rc, i) => (
                 <RootCauseCapaRow key={i} cause={rc} plantId={plantId} canManage={canManage}
-                  fromAi={!!suggestion && (suggestion.status === "accepted" || suggestion.status === "edited") && suggestion.text === rc}
                   onCreate={async (body) => { await call("/capas", body); toast({ variant: "success", title: "CAPA raised", description: "Linked to this root cause." }); router.refresh(); }} />
               ))}
             </div>
@@ -362,10 +365,8 @@ function SuggestionActions({ text, busy, onAccept, onReject }: { text: string; b
   );
 }
 
-function RootCauseCapaRow({ cause, plantId, canManage, fromAi, onCreate }: {
+function RootCauseCapaRow({ cause, plantId, canManage, onCreate }: {
   cause: string; plantId: string; canManage: boolean;
-  /** True when this root cause is the accepted AI suggestion. */
-  fromAi: boolean;
   onCreate: (body: any) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
@@ -401,18 +402,7 @@ function RootCauseCapaRow({ cause, plantId, canManage, fromAi, onCreate }: {
   return (
     <div className="rounded-md border border-slate-200 bg-white">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <span className="flex items-center gap-2 min-w-0">
-          {fromAi ? (
-            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] whitespace-nowrap flex-shrink-0">
-              <Sparkles size={10} className="mr-0.5" /> AI · accepted
-            </Badge>
-          ) : (
-            <Badge className="bg-slate-100 text-slate-700 border-slate-200 text-[10px] whitespace-nowrap flex-shrink-0">
-              From RCA
-            </Badge>
-          )}
-          <span className="text-sm text-slate-700 truncate" title={cause}>{cause}</span>
-        </span>
+        <span className="text-sm text-slate-700 truncate">{cause}</span>
         {canManage && !open && (
           <Button size="sm" variant="outline" className="flex-shrink-0" onClick={() => setOpen(true)}>
             <Plus size={13} /> Add CAPA

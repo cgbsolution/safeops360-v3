@@ -441,9 +441,6 @@ model ContractorCompany {
   mobilizationRecords MobilizationRecord[]
 
   @@index([status])
-  /// EPC tenant partition (app/services/tenant_partition.py); DDL: apply-epc-tenant-partition-ddl.ts
-  tenantId                  String   @default("default")
-  @@index([tenantId])
   @@index([prequalificationStatus])
 }
 

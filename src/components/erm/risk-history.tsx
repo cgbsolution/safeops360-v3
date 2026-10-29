@@ -1,12 +1,9 @@
 "use client";
 
-import { httpStatusMessage } from "@/lib/client-errors";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useLabels } from "@/components/labels/label-provider";
-import { DEFAULT_LABELS, TERM, type LabelFn } from "@/lib/labels/core";
 
 // ── Risk audit-trail timeline ────────────────────────────────────────────────
 // GET /api/erm/risks/{riskId}/history → { entries: [...], total }
@@ -114,8 +111,7 @@ const FIELD_LABEL: Record<string, string> = {
   closureTargetDate: "Due date",
   primaryOwnerUserId: "Action owner",
 };
-function humanizeField(f: string, L: LabelFn = DEFAULT_LABELS): string {
-  if (f === "plantId") return `${L(TERM.plant, "Plant")} / ${L("term.site_lc", "site")}`;
+function humanizeField(f: string): string {
   if (FIELD_LABEL[f]) return FIELD_LABEL[f];
   return f
     .replace(/Id$/, "")
@@ -126,7 +122,6 @@ function humanizeField(f: string, L: LabelFn = DEFAULT_LABELS): string {
 }
 
 export function RiskHistory({ riskId, riskCode }: { riskId: string; riskCode?: string }) {
-  const L = useLabels();
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +132,7 @@ export function RiskHistory({ riskId, riskCode }: { riskId: string; riskCode?: s
     setEntries(null);
     setError(null);
     fetch(`/api/erm/risks/${riskId}/history`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(httpStatusMessage(r.status)))))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((j) => {
         if (cancelled) return;
         const rows: HistoryEntry[] = Array.isArray(j?.entries) ? j.entries : [];
@@ -197,7 +192,7 @@ export function RiskHistory({ riskId, riskCode }: { riskId: string; riskCode?: s
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {changed.map((f) => (
                       <span key={f} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                        {humanizeField(f, L)}
+                        {humanizeField(f)}
                       </span>
                     ))}
                   </div>
@@ -227,7 +222,7 @@ export function RiskHistory({ riskId, riskCode }: { riskId: string; riskCode?: s
                           <TableBody>
                             {changed.map((f) => (
                               <TableRow key={f} className="border-b border-slate-100 last:border-0 align-top">
-                                <TableCell className="px-2 py-1.5 font-medium text-slate-600">{humanizeField(f, L)}</TableCell>
+                                <TableCell className="px-2 py-1.5 font-medium text-slate-600">{humanizeField(f)}</TableCell>
                                 <TableCell className="px-2 py-1.5 text-rose-700">{fmtValue(e.before ? e.before[f] : null)}</TableCell>
                                 <TableCell className="px-2 py-1.5 text-emerald-700">{fmtValue(e.after ? e.after[f] : null)}</TableCell>
                               </TableRow>

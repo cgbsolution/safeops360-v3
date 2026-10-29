@@ -10,8 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useLabels } from "@/components/labels/label-provider";
-import { readApiError } from "@/lib/client-errors";
 
 type Site = { id: string; siteName: string; siteCode: string };
 type Worker = { id: string; fullName: string; workerCode: string; primaryTrade: string };
@@ -51,7 +49,6 @@ const CHECKLIST_ITEMS = [
 ];
 
 export default function NewInductionPage() {
-  const L = useLabels();
   const router = useRouter();
   const searchParams = useSearchParams();
   const defaultSiteId = searchParams.get("siteId") ?? "";
@@ -92,8 +89,8 @@ export default function NewInductionPage() {
 
   // Fetch sites and workers on mount
   useEffect(() => {
-    fetch("/api/epc/sites").then(r => r.json()).then(d => setSites(Array.isArray(d?.sites) ? d.sites : Array.isArray(d) ? d : []));
-    fetch("/api/epc/workers").then(r => r.json()).then(d => setWorkers(Array.isArray(d?.workers) ? d.workers : Array.isArray(d) ? d : []));
+    fetch("/api/epc/sites").then(r => r.json()).then(d => setSites(d.sites ?? d ?? []));
+    fetch("/api/epc/workers").then(r => r.json()).then(d => setWorkers(d.workers ?? d ?? []));
   }, []);
 
   // When both worker and site are selected, fetch matching mobilizations
@@ -160,7 +157,8 @@ export default function NewInductionPage() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        throw new Error(await readApiError(res));
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail ?? `Error ${res.status}`);
       }
       router.push("/epc/mobilization");
     } catch (e: any) {
@@ -188,10 +186,10 @@ export default function NewInductionPage() {
 
         {/* ── Site + Worker ── */}
         <div className="space-y-4">
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{`Worker & ${L("term.site", "Site")}`}</h2>
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Worker & Site</h2>
 
           <div>
-            <Label htmlFor="siteId">{`${L("term.construction_site", "Construction Site")} *`}</Label>
+            <Label htmlFor="siteId">Construction Site *</Label>
             <Select
               id="siteId"
               required
@@ -199,7 +197,7 @@ export default function NewInductionPage() {
               onChange={e => setForm(f => ({ ...f, siteId: e.target.value }))}
               className="mt-1"
             >
-              <SelectItem value="">{L("term.select_a_site", "Select a site...")}</SelectItem>
+              <SelectItem value="">Select a site...</SelectItem>
               {sites.map(s => (
                 <SelectItem key={s.id} value={s.id}>{s.siteName} ({s.siteCode})</SelectItem>
               ))}

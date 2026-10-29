@@ -54,7 +54,10 @@ export function AiInsightsPanel({ closureTriggers }: { closureTriggers: any }) {
     | LessonData
     | undefined;
 
-  if (!triage && !lesson) return null;
+  // Booleans, not `x && y.length`: a 0 would render as the text "0".
+  const showTriage = Boolean(triage && (triage.suggestedSeverity || (triage.firstResponse?.length ?? 0) > 0));
+  const showLesson = Boolean(lesson && lesson.lesson);
+  if (!showTriage && !showLesson) return null;
 
   return (
     <Card className="border-violet-200 bg-violet-50/30">
@@ -64,7 +67,7 @@ export function AiInsightsPanel({ closureTriggers }: { closureTriggers: any }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {triage && (triage.suggestedSeverity || triage.firstResponse?.length) && (
+        {showTriage && triage && (
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
             <div className="flex items-center gap-2 text-xs uppercase tracking-wider font-semibold text-amber-800 mb-2">
               <AlertTriangle size={12} /> Triage Agent
@@ -99,7 +102,7 @@ export function AiInsightsPanel({ closureTriggers }: { closureTriggers: any }) {
           </div>
         )}
 
-        {lesson && lesson.lesson && (
+        {showLesson && lesson && (
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
             <div className="flex items-center gap-2 text-xs uppercase tracking-wider font-semibold text-emerald-800 mb-2">
               <BookOpen size={12} /> Lessons Distribution

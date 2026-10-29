@@ -13,10 +13,11 @@
 // entry out of APPROVED into IN_REVIEW and has to be re-approved. See
 // _classify_entry_change in routers/hira.py.
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Save, ChevronDown, ShieldAlert, FileWarning } from "lucide-react";
+import { Plus, Trash2, Save, ChevronDown, ShieldAlert, FileWarning, Sparkles } from "lucide-react";
+import { useCopilot } from "@/components/copilot/copilot-provider";
 import { RiskMatrixGrid } from "@/components/hira/risk-matrix-grid";
 import { UserPicker } from "@/components/ui/user-picker";
 import { parseApiError } from "@/lib/api-error";
@@ -25,8 +26,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 type Likelihood = { id: string; score: number; label: string; description: string };
 type Severity = { id: string; score: number; label: string; description: string };
@@ -441,7 +440,6 @@ export function EntryEditor({
   trainingPrograms?: { id: string; name: string }[];
   inspectionTemplates?: { id: string; name: string }[];
 }) {
-  const L = useLabels();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -668,6 +666,157 @@ export function EntryEditor({
           ? false
           : null;
   const residualAcceptable = regionOk === null ? null : regionOk && thresholdOk;
+
+  // ── Copilot bridge ── the copilot reads the entry as edited here and can add
+  // proposed controls / a target risk; the assessor reviews and presses Save.
+  const copilot = useCopilot();
+  const { registerFormBridge, pushNotice } = copilot;
+  const hiraSnapshot = useRef<() => Record<string, unknown>>(() => ({}));
+  hiraSnapshot.current = () => ({
+    entryId: entry.id,
+    studyId: entry.studyId,
+    activity: entry.activityDescription,
+    routine: entry.routine,
+    area: entry.area?.name ?? null,
+    subLocation: entry.subLocation,
+    hazards: hazards.map((h) => ({ name: h.hazard.name, category: h.hazard.category, consequence: h.consequence })),
+    initial: {
+      likelihood: entry.initialLikelihoodScore,
+      severity: entry.initialSeverityScore,
+      score: entry.initialRiskScore,
+      level: entry.initialRiskLevel
+    },
+    residual: {
+      likelihood: effResidualL ?? null,
+      severity: effResidualS ?? null,
+      score: residualCell?.riskScore ?? null,
+      level: residualLevel ?? null,
+      region: residualRegion,
+      auto: autoResidual,
+      acceptable: residualAcceptable
+    },
+    target: { likelihood: targetL ?? null, severity: targetS ?? null, score: targetCell?.riskScore ?? null, level: targetLevel },
+    existingControls: existingControls.map((c) => ({
+      key: c.id, hierarchy: c.hierarchy, description: c.description, effectiveness: c.effectiveness
+    })),
+    recommendedControls: recommendedControls.map((c) => ({
+      key: c.id, hierarchy: c.hierarchy, description: c.description, status: c.status
+    })),
+    acceptableThreshold: acceptableThreshold ?? null
+  });
+  const hiraApply = useRef<(p: Record<string, unknown>) => void>(() => {});
+  hiraApply.current = (p) => {
+    const list = (k: string) => (Array.isArray(p[k]) ? (p[k] as Record<string, any>[]) : []);
+    const stamp = Date.now();
+    const addEx = list("addExistingControls");
+    if (addEx.length) {
+      setExistingControls((arr) => [
+        ...arr,
+        ...addEx.map((c, i) => ({
+          id: `new-${stamp}-cp${i}`,
+          controlId: null,
+          hierarchy: String(c.hierarchy ?? ""),
+          description: String(c.description ?? ""),
+          effectiveness: (c.effectiveness as string | null) ?? null,
+          verificationMethod: null,
+          verificationFreq: null,
+          responsibleRole: null,
+          evidenceAttached: false,
+          documentReference: null,
+          sortOrder: arr.length + i
+        }))
+      ]);
+    }
+    const eff = list("setControlEffectiveness");
+    if (eff.length) {
+      setExistingControls((arr) =>
+        arr.map((c) => {
+          const hit = eff.find((e) => e.key === c.id);
+          return hit ? { ...c, effectiveness: String(hit.effectiveness) } : c;
+        })
+      );
+    }
+    const addRec = list("addRecommendedControls");
+    if (addRec.length) {
+      setRecommendedControls((arr) => [
+        ...arr,
+        ...addRec.map((c, i) => ({
+          id: `new-${stamp}-cr${i}`,
+          hierarchy: String(c.hierarchy ?? ""),
+          description: String(c.description ?? ""),
+          rationale: (c.rationale as string | null) ?? null,
+          estimatedCostBand: (c.estimatedCostBand as string | null) ?? null,
+          proposedImplementationDate: null,
+          responsibleId: null,
+          status: "PROPOSED",
+          capaId: null,
+          evidenceAttached: false,
+          documentReference: null
+        }))
+      ]);
+    }
+    const t = p.target as Record<string, unknown> | undefined;
+    if (t && typeof t === "object") {
+      setTargetL(Number(t.likelihoodScore));
+      setTargetS(Number(t.severityScore));
+      if (typeof t.rationale === "string") setTargetRationale(t.rationale);
+    }
+    if (addEx.length || eff.length || addRec.length || t) setIsDirty(true);
+  };
+  useEffect(
+    () => registerFormBridge({ kind: "HIRA_ENTRY", getDraft: () => hiraSnapshot.current(), applyPatch: (p) => hiraApply.current(p) }),
+    [registerFormBridge]
+  );
+
+  // When a control change moves the residual, post a plain (non-AI) note in the
+  // open copilot chat: what changed, and the rating before → after.
+  const controlSig = existingControls.map((c) => [c.id, c.hierarchy, c.effectiveness ?? ""].join(":")).join("|");
+  const prevRisk = useRef<{ sig: string; l?: number; s?: number; score?: number; level?: string; controls: ExistingControl[] } | null>(null);
+  useEffect(() => {
+    const now = { sig: controlSig, l: effResidualL, s: effResidualS, score: residualCell?.riskScore, level: residualLevel, controls: existingControls };
+    const prev = prevRisk.current;
+    prevRisk.current = now;
+    if (!prev || prev.sig === now.sig || !copilot.open) return;
+    const word = (v: string | null | undefined) => (v ? v.toLowerCase().replace(/_/g, " ") : "not rated");
+    const name = (c: ExistingControl) => '"' + (c.description?.trim() || "new control") + '" (' + word(c.hierarchy) + ")";
+    const before = new Map(prev.controls.map((c) => [c.id, c]));
+    const changes: string[] = [];
+    for (const c of existingControls) {
+      const b = before.get(c.id);
+      if (!b) changes.push("Added " + name(c) + (c.effectiveness ? ", " + word(c.effectiveness) : "") + ".");
+      else if (b.hierarchy !== c.hierarchy) changes.push(name(c) + ": hierarchy " + word(b.hierarchy) + " → " + word(c.hierarchy) + ".");
+      else if (b.effectiveness !== c.effectiveness) changes.push(name(c) + ": " + word(b.effectiveness) + " → " + word(c.effectiveness) + ".");
+    }
+    const nowIds = new Set(existingControls.map((c) => c.id));
+    for (const b of prev.controls) if (!nowIds.has(b.id)) changes.push("Removed " + name(b) + ".");
+    const fmt = (v: number | string | undefined | null) => (v == null ? "–" : String(v));
+    if (!autoResidual) {
+      pushNotice({
+        tone: "info",
+        title: "Controls changed — residual is set by hand",
+        lines: [
+          ...changes.slice(0, 3),
+          "With these controls the auto-calculation would give L" + residualSuggestion.likelihoodScore + " × S" +
+            residualSuggestion.severityScore + '. Use "Auto-calculate from controls" in section 5 to apply it.'
+        ]
+      });
+      return;
+    }
+    const moved = prev.score !== now.score || prev.level !== now.level;
+    const lines = [...changes.slice(0, 3), "Likelihood " + fmt(prev.l) + " → " + fmt(now.l) + ", severity " + fmt(prev.s) + " → " + fmt(now.s) + "."];
+    if (!moved) lines.push("Not enough to move to another matrix cell: controls earn credit by hierarchy × effectiveness, the strongest in full and the others at half.");
+    if (residualAcceptable === false) lines.push("Still above what is acceptable for this " + entry.routine.toLowerCase().replace(/_/g, "-") + " activity.");
+    else if (residualRegion === "TOLERABLE") lines.push("Tolerable: acceptable only once the ALARP demonstration in section 5 is complete.");
+    pushNotice({
+      tone: !moved ? "same" : (now.score ?? 0) < (prev.score ?? 0) ? "down" : "up",
+      title: moved
+        ? "Residual risk " + fmt(prev.level) + " (" + fmt(prev.score) + ") → " + fmt(now.level) + " (" + fmt(now.score) + ")"
+        : "Residual risk unchanged: " + fmt(now.level) + " (" + fmt(now.score) + ")",
+      lines
+    });
+    // Only control edits should post a note; the other values are read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlSig]);
 
   // Which residual rationales are outstanding. Drives the Section 5 warning and
   // the re-approval gate; the server re-checks on submit/approve regardless.
@@ -1202,6 +1351,22 @@ export function EntryEditor({
           </Button>
         }
       >
+        {copilot.available && !copilot.unavailableReason && (
+          <div className="mb-2 flex justify-end">
+            <Button
+              variant="bare"
+              type="button"
+              disabled={copilot.sending}
+              onClick={() => {
+                copilot.setOpen(true);
+                void copilot.send("Suggest hazards and controls for this activity, and show how each control would change the residual risk.");
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded border border-primary-200 text-primary-700 hover:bg-primary-50"
+            >
+              <Sparkles size={12} /> Ask Copilot for controls
+            </Button>
+          </div>
+        )}
         {sortedExisting.length === 0 ? (
           <div className="rounded border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
             No controls recorded. Document what's in place today.
@@ -1771,7 +1936,7 @@ export function EntryEditor({
                 ) : canOverride ? (
                   <div className="mt-2 space-y-2">
                     <div className="text-xs font-medium text-rose-900">
-                      {`Elevated override (${L(TERM.plantHead, "Plant Head")} / Corporate HSE)`}
+                      Elevated override (Plant Head / Corporate HSE)
                     </div>
                     <Textarea
                       className={TEXTAREA}
@@ -1801,7 +1966,7 @@ export function EntryEditor({
                 ) : (
                   <div className="mt-2 text-xs text-rose-800">
                     You cannot authorise acceptance of an Unacceptable risk. Reduce the residual, or escalate to a{" "}
-                    <strong>{L(TERM.plantHead, "Plant Head")}</strong> or <strong>Corporate HSE</strong> for an override.
+                    <strong>Plant Head</strong> or <strong>Corporate HSE</strong> for an override.
                   </div>
                 )}
               </div>

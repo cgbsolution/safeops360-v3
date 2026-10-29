@@ -5,11 +5,9 @@ import { Building2 } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { shortPlantName } from "@/lib/utils";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
+import { CopilotLauncher } from "@/components/copilot/copilot-panel";
 
 export function Header() {
-  const L = useLabels();
   const { data: session } = useSession();
   const user = session?.user as any;
 
@@ -26,11 +24,12 @@ export function Header() {
           </div>
           <div className="flex items-center gap-1 text-xs text-[color:var(--me-ink-muted)]">
             <Building2 size={12} />
-            {shortPlantName(user?.plantName) ?? L(TERM.allPlants, "All Plants")}
+            {shortPlantName(user?.plantName) ?? "All Plants"}
           </div>
         </div>
       </div>
       <div className="flex items-center gap-3">
+        <CopilotLauncher />
         <div className="text-right hidden sm:block">
           <div className="text-sm font-medium text-[color:var(--me-ink-strong)]">{user?.name}</div>
           <div className="text-xs text-[color:var(--me-ink-muted)]">

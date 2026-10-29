@@ -1,4 +1,3 @@
-import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -19,8 +18,6 @@ import {
   User as UserIcon
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
-import { getServerLabels } from "@/lib/labels/server";
-import { TERM } from "@/lib/labels/core";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +65,6 @@ export default async function AnomalyDetailPage(props: {
   const { id } = await props.params;
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
-  const L = await getServerLabels();
 
   const anomaly = await prisma.anomaly.findUnique({
     where: { id },
@@ -79,9 +75,6 @@ export default async function AnomalyDetailPage(props: {
     }
   });
   if (!anomaly) notFound();
-  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
-  // is treated as missing.
-  if (!(await inViewerTenant((anomaly as any).plantId ?? (anomaly as any).plant?.id))) notFound();
 
   const SeverityIcon =
     anomaly.severity === "CRITICAL"
@@ -204,7 +197,7 @@ export default async function AnomalyDetailPage(props: {
                 Subject
               </div>
               <dl className="divide-y divide-slate-100">
-                <KV icon={Building2} label={L(TERM.plant, "Plant")} value={anomaly.plant ? `${anomaly.plant.code} — ${anomaly.plant.name}` : "—"} />
+                <KV icon={Building2} label="Plant" value={anomaly.plant ? `${anomaly.plant.code} — ${anomaly.plant.name}` : "—"} />
                 <KV icon={Tag} label="Category" value={anomaly.category ?? "—"} />
                 <KV icon={MapPin} label="Area" value={anomaly.area ?? "—"} />
                 <KV icon={UserIcon} label="Person" value={anomaly.person?.name ?? "—"} />

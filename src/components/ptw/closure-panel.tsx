@@ -49,8 +49,6 @@ import {
 } from "@/components/ptw/evidence-capture";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 const VERIFICATION_CHECKLIST: { code: string; label: string }[] = [
   { code: "AREA_CLEAN", label: "Work area is clean — no debris, scrap or tools left behind" },
@@ -710,7 +708,6 @@ function HandbackSection({
   checklist: any;
   onChanged: () => void;
 }) {
-  const L = useLabels();
   const [show, setShow] = useState(false);
   const [vals, setVals] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState("");
@@ -770,7 +767,8 @@ function HandbackSection({
           )}
         </CardTitle>
         <CardDescription className="text-xs">
-          {`Issuer / Safety Officer / ${L(TERM.plantHead, "Plant Head")} walks the area after the completion declaration. Closure approval needs this on record.`}
+          Issuer / Safety Officer / Plant Head walks the area after the
+          completion declaration. Closure approval needs this on record.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -807,7 +805,7 @@ function HandbackSection({
         )}
         {declared && !verified && !show && !canVerify && (
           <div className="text-xs text-slate-500">
-            {`Awaiting Issuer / Safety / ${L(TERM.plantHead, "Plant Head")} walk-through.`}
+            Awaiting Issuer / Safety / Plant Head walk-through.
           </div>
         )}
         {show && (

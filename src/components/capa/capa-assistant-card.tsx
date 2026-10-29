@@ -321,7 +321,9 @@ export function CapaAssistantCard({ capaId }: { capaId: string }) {
                 {inv.errorType ?? "Error"}: {inv.errorDetails ?? "Unknown failure"}
               </div>
             </div>
-            {(inv.errorDetails ?? "").toLowerCase().includes("anthropic") && (
+            {/* Only the "not configured" error means a missing key; other API
+                errors also mention Anthropic (e.g. docs URLs) and need other fixes. */}
+            {(inv.errorDetails ?? "").includes("ANTHROPIC_API_KEY") && (
               <p className="text-xs text-rose-800">
                 The backend has no Anthropic API key configured. Set <code>ANTHROPIC_API_KEY</code> in the
                 FastAPI environment and restart it to enable live drafting.

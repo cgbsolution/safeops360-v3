@@ -12,8 +12,6 @@ import { Check, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import { UserPicker } from "@/components/ui/user-picker";
 import { type Category, type ScoringMatrix } from "../../lib";
 import { AssessForm } from "../[id]/detail-view";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 const ORG_LEVELS = ["ENTERPRISE", "BUSINESS_UNIT", "FUNCTION", "SITE"] as const;
 const VELOCITIES = ["SLOW", "MODERATE", "FAST", "VERY_FAST"] as const;
@@ -349,7 +347,6 @@ function IdentifyStep(props: {
   tags: string[];
   touched: boolean;
 }) {
-  const L = useLabels();
   const {
     title,
     setTitle,
@@ -468,7 +465,7 @@ function IdentifyStep(props: {
           </Select>
         </Field>
 
-        <Field label={`${L(TERM.plant, "Plant")} / site id`}>
+        <Field label="Plant / site id">
           <Input
             value={plantId}
             onChange={(e) => setPlantId(e.target.value)}

@@ -7,6 +7,7 @@ import { backendFetch, BackendError } from "@/lib/backend/fetch";
 import { PageHeader } from "@/components/page-header";
 import { AccessRestricted } from "@/components/access-restricted";
 import { EntryEditor } from "./entry-editor";
+import { AgentAssistantCard } from "@/components/agents/agent-assistant-card";
 
 export const dynamic = "force-dynamic";
 
@@ -313,6 +314,19 @@ export default async function HiraEntryDetailPage(
           Study is in status <strong>{study.status}</strong>. Edits create a new version and require a change reason.
         </div>
       )}
+
+      <div className="mb-4">
+        <AgentAssistantCard
+          agentCode="HIRA_ASSISTANT"
+          sourceModule="HIRA"
+          sourceRecordId={entryId}
+          permission="AGENT.HIRA_INVOKE"
+          title="HIRA Assistant"
+          description="Suggest hazards from the hazard library, review the risk ratings and propose controls by hierarchy for this activity, grounded in incidents at the same plant and area."
+          runningLabel="Reviewing the activity, hazards and controls…"
+          expectedDuration="1–2 minutes"
+        />
+      </div>
 
       <EntryEditor
         entry={editorEntry}

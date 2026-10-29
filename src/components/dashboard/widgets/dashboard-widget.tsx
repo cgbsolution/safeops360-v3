@@ -1,6 +1,5 @@
 "use client";
 
-import { httpStatusMessage } from "@/lib/client-errors";
 import * as React from "react";
 import Link from "next/link";
 import {
@@ -92,7 +91,7 @@ export function DashboardWidget({ id, span, plant, dateFrom, dateTo, editing, lo
           if (alive) setState("restricted");
           return;
         }
-        if (!r.ok) throw new Error(httpStatusMessage(r.status));
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const j = await r.json();
         if (alive) {
           setData(j);

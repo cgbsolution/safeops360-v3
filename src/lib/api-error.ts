@@ -1,5 +1,3 @@
-import { httpStatusMessage } from "@/lib/client-errors";
-
 // Parses an error Response from /api/* into a human-readable string.
 //
 // Why this exists: the Python backend (FastAPI) returns errors as
@@ -22,7 +20,7 @@ export async function parseApiError(res: Response, fallback = "Request failed"):
       const t = await res.text();
       if (t) return `${res.status} — ${t.slice(0, 240)}`;
     } catch {}
-    return httpStatusMessage(res.status, fallback);
+    return `${fallback} (HTTP ${res.status})`;
   }
   let msg: string | undefined;
   if (typeof body.detail === "string") {
@@ -41,5 +39,5 @@ export async function parseApiError(res: Response, fallback = "Request failed"):
   } else if (typeof body.message === "string") {
     msg = body.message;
   }
-  return msg ? `${res.status} — ${msg}` : httpStatusMessage(res.status, fallback);
+  return msg ? `${res.status} — ${msg}` : `${fallback} (HTTP ${res.status})`;
 }

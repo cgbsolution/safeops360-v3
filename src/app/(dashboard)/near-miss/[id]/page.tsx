@@ -1,5 +1,5 @@
-import { inViewerTenant } from "@/lib/tenancy/server";
 import Link from "next/link";
+import { assertRecordAccess } from "@/lib/backend/record-access";
 import { redirectMissingRecord } from "@/lib/nav/missing-record";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -20,9 +20,6 @@ import { CommentsThread } from "@/components/near-miss/comments-thread";
 import PrintButtonClient from "./print-button";
 import { formatDate, formatDateTime, statusColor, severityColor, humanize } from "@/lib/utils";
 import { resolveMasterLabels, masterLabel } from "@/lib/masters/resolve-labels";
-import { getServerLabels } from "@/lib/labels/server";
-import { TERM } from "@/lib/labels/core";
-import { withStockEquivalents } from "@/lib/auth/tenant-roles";
 import {
   CalendarDays,
   MapPin,
@@ -60,9 +57,10 @@ export default async function NearMissDetail(
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const L = await getServerLabels();
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id ?? "";
+  // Same RBAC scope as the API before any Prisma read (see lib/backend/record-access).
+  await assertRecordAccess(`/api/near-miss/${encodeURIComponent(params.id)}`, "NEAR_MISS.READ");
   const role = (session?.user as any)?.role ?? "";
   const justCreated = searchParams?.["just-created"] === "1";
   const photoErrors = parseInt(searchParams?.["photo-errors"] ?? "0", 10) || 0;
@@ -86,9 +84,6 @@ export default async function NearMissDetail(
     }
   });
   if (!n) redirectMissingRecord("/near-miss", "Near-miss record");
-  // Tenant boundary (lib/tenancy/server.ts): a record at another tenant's site
-  // is treated as missing.
-  if (!(await inViewerTenant((n as any).plantId ?? (n as any).plant?.id))) redirectMissingRecord("/near-miss", "Near-miss record");
 
   // Opening the record clears its Inbox unread state, however the viewer got
   // here. No-op unless they're the action owner.
@@ -132,11 +127,8 @@ export default async function NearMissDetail(
 
   const currentStep = instance?.definition.steps.find((s: any) => s.id === instance.currentStepId);
 
-  // Permission gates. Tenant role clones count as the stock role they stand in
-  // for (RETAIL_OPS_ADMIN → HSE_MANAGER); a literal match hid the per-CAPA
-  // Verify button from the Retail HSE lead holding the verifier task.
-  const roles = withStockEquivalents(role);
-  const isHseManagerLike = roles.has("HSE_MANAGER") || roles.has("ADMIN") || roles.has("SYSTEM_ADMIN") || roles.has("CORPORATE_HSE");
+  // Permission gates
+  const isHseManagerLike = role === "HSE_MANAGER" || role === "ADMIN" || role === "SYSTEM_ADMIN" || role === "CORPORATE_HSE";
   // Only the actor who currently holds the "Review Meeting & CAPA Definition"
   // task may define CAPAs — not every HSE Manager, and not the reporter. This
   // mirrors the backend gate in near_miss.create_capa (_is_capa_definition_actor).
@@ -146,13 +138,10 @@ export default async function NearMissDetail(
     currentStep?.name === "Review Meeting & CAPA Definition" &&
     !!myTask &&
     myTask.stepId === currentStep?.id;
-  // The holder of the open verifier task may always verify — mirrors the
-  // backend's `_is_workflow_actor` fallback in near_miss.update_capa.
-  const holdsVerifierTask = !!myTask && myTask.stepId === currentStep?.id;
   const canVerifyCapa =
     !!instance &&
     instance.status === "IN_PROGRESS" &&
-    (isHseManagerLike || holdsVerifierTask) &&
+    isHseManagerLike &&
     currentStep?.stepType === "VERIFIER";
 
   // Joint Review reviewers (extracted from history — APPROVED entries on the
@@ -758,7 +747,7 @@ export default async function NearMissDetail(
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <Meta icon={CalendarDays} label="Reported" value={formatDateTime(n.date)} />
-              <Meta icon={MapPin} label={L(TERM.plant, "Plant")} value={n.plant.name} />
+              <Meta icon={MapPin} label="Plant" value={n.plant.name} />
               {n.department && <Meta icon={Building2} label="Department" value={n.department.name} />}
               <Meta icon={MapPin} label="Area" value={n.area?.name ?? "—"} />
               <Meta icon={MapPin} label="Specific location" value={n.specificLocation ?? n.location ?? "—"} />

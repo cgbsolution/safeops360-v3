@@ -24,7 +24,6 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { readApiError } from "@/lib/client-errors";
 
 type ParsedRow = {
   fullName: string;
@@ -163,7 +162,8 @@ export default function BulkImportPage() {
         }),
       });
       if (!res.ok) {
-        throw new Error(await readApiError(res));
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail ?? `Error ${res.status}`);
       }
       const data: ImportResult = await res.json();
       setResult(data);

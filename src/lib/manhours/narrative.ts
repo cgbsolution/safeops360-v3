@@ -28,7 +28,7 @@ import { KPI_REGISTRY, type KpiCode } from "./kpi-registry";
 const MODEL = "claude-opus-4-7";
 const MAX_TOKENS = 1024;
 
-const SYSTEM_PROMPT = `You are the lead safety analyst at an Indian cement manufacturing group, writing the executive summary section of a monthly safety performance report.
+const SYSTEM_PROMPT = `You are the lead safety analyst at an Indian manufacturing group, writing the executive summary section of a monthly safety performance report.
 
 Audience: Plant Head, Corporate HSE, and CFO. They read the KPI table directly — your job is to interpret the numbers, not restate them.
 
@@ -73,8 +73,11 @@ export interface NarrativeResult {
 // Cache the Anthropic client at module level — both for cold-start
 // latency and so the singleton-with-key pattern matches the rest of
 // the platform's external clients (Prisma, etc.).
+// The report page renders server-side and waits for this call, so cap it:
+// the SDK default (10 min, 2 retries) could hold a page render for half an
+// hour on a stuck connection. On timeout the template fallback renders.
 const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 45_000, maxRetries: 1 })
   : null;
 
 export async function generateMonthlyNarrative(

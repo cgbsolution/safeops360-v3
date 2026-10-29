@@ -10,7 +10,6 @@ import { percentDelta } from "@/lib/manhours/kpi-engine";
 import { PerformanceScorecard } from "@/components/manhours/widgets/performance-scorecard";
 import { KpiDrillDownPrint } from "@/app/(dashboard)/manhours/kpi/print-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DEFAULT_LABELS, type LabelFn } from "@/lib/labels/core";
 
 const HEADLINE_KPIS: KpiCode[] = ["LTIFR", "TRIFR", "DART_RATE", "SEVERITY_RATE", "NEAR_MISS_RATE", "DAYS_SINCE_LAST_LTI"];
 const SECONDARY_KPIS: KpiCode[] = ["IFR", "TRIR", "FSI", "HEINRICH_RATIO", "OBSERVATION_RATE", "TRAINING_COMPLIANCE", "INSPECTION_COMPLIANCE", "PTW_FLRA_COMPLIANCE", "CAPA_CLOSURE_RATE", "COST_OF_INCIDENTS"];
@@ -22,7 +21,7 @@ const SECONDARY_KPIS: KpiCode[] = ["IFR", "TRIR", "FSI", "HEINRICH_RATIO", "OBSE
  * ReportData carries. Designed to look right both on-screen and
  * after `window.print()`.
  */
-export function ReportRenderer({ data, L = DEFAULT_LABELS }: { data: ReportData; L?: LabelFn }) {
+export function ReportRenderer({ data }: { data: ReportData }) {
   const kindLabel =
     data.kind === "monthly" ? "Monthly Safety Performance Report"
       : data.kind === "quarterly" ? "Quarterly Board Report"
@@ -192,7 +191,7 @@ export function ReportRenderer({ data, L = DEFAULT_LABELS }: { data: ReportData;
       {/* Plant scorecard — quarterly + annual only */}
       {data.scorecard && (
         <div className="print-section">
-          <PerformanceScorecard rows={data.scorecard} L={L} />
+          <PerformanceScorecard rows={data.scorecard} />
         </div>
       )}
 

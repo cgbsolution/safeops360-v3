@@ -22,8 +22,6 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { UserPicker } from "@/components/ui/user-picker";
 import { readApiError } from "@/lib/client-errors";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; name: string; code: string };
 type Program = {
@@ -56,7 +54,6 @@ const STEPS = [
 ];
 
 export function ScheduleForm({ plants, programs }: { plants: Plant[]; programs: Program[] }) {
-  const L = useLabels();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -111,7 +108,7 @@ export function ScheduleForm({ plants, programs }: { plants: Plant[]; programs: 
   function validateStep(n: number): string | null {
     if (n === 1 && !programId) return "Pick a program.";
     if (n === 2) {
-      if (!plantId) return L("term.pick_a_plant", "Pick a plant.");
+      if (!plantId) return "Pick a plant.";
       if (!startDate) return "Pick a start date.";
       if (!endDate) return "Pick an end date.";
       if (new Date(endDate) < new Date(startDate))
@@ -265,7 +262,7 @@ export function ScheduleForm({ plants, programs }: { plants: Plant[]; programs: 
           <CardContent className="space-y-3">
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">{`${L(TERM.plant, "Plant")} *`}</Label>
+                <Label className="text-xs">Plant *</Label>
                 <Select value={plantId} onChange={(e) => setPlantId(e.target.value)}>
                   {plants.map((p) => (
                     <SelectItem key={p.id} value={p.id}>

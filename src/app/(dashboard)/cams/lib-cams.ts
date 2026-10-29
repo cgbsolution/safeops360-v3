@@ -242,7 +242,6 @@ export interface RunnerQuestion extends Question {
   value?: unknown;
   conformance?: string | null;
   note?: string;
-  ncSeverity?: string | null;
   evidenceAttachmentIds?: string[];
   findingId?: string | null;
 }

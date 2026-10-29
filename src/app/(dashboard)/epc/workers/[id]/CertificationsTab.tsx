@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { readApiError } from "@/lib/client-errors";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -144,7 +143,8 @@ function AddCertForm({
         body: JSON.stringify({ trainingCertificates: updated }),
       });
       if (!res.ok) {
-        throw new Error(await readApiError(res));
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail ?? `Error ${res.status}`);
       }
       onAdded(updated);
       setForm({ programCode: "", programName: "", issuedDate: "", validUntil: "", certificateUrl: "" });
@@ -295,7 +295,8 @@ function AddCompetencyForm({
         body: JSON.stringify({ competencyRecords: updated }),
       });
       if (!res.ok) {
-        throw new Error(await readApiError(res));
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail ?? `Error ${res.status}`);
       }
       onAdded(updated);
       setForm({ competencyCode: "", competencyName: "", validFrom: "", validUntil: "", assessor: "" });

@@ -17,8 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
-import { useLabels } from "@/components/labels/label-provider";
-import { readApiError } from "@/lib/client-errors";
 import {
   Table,
   TableHeader,
@@ -134,7 +132,6 @@ function fmtDateTime(d: string): string {
 }
 
 export default function GateClearancePage() {
-  const L = useLabels();
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [query, setQuery] = useState("");
@@ -170,22 +167,7 @@ export default function GateClearancePage() {
     setLogLoading(true);
     fetch(`/api/epc/gate/log?siteId=${selectedSiteId}`)
       .then((r) => r.json())
-      // The log endpoint returns check rows (overallResult / checkCompletedAt);
-      // normalise to the entry shape this table renders.
-      .then((d) => {
-        const rows: any[] = Array.isArray(d?.entries) ? d.entries : Array.isArray(d) ? d : [];
-        setGateLog(
-          rows.map((e) => ({
-            id: e.id,
-            workerCode: e.workerCode,
-            workerName: e.workerName,
-            result: e.result ?? e.overallResult ?? "",
-            checkedAt: e.checkedAt ?? e.checkCompletedAt ?? e.createdAt,
-            gatePassNumber: e.gatePassNumber ?? e.gatePass?.passNumber ?? null,
-            checkMethod: e.checkMethod,
-          })),
-        );
-      })
+      .then((d) => setGateLog(d.entries ?? d ?? []))
       .catch(() => setGateLog([]))
       .finally(() => setLogLoading(false));
   }, [selectedSiteId, result]);
@@ -206,11 +188,10 @@ export default function GateClearancePage() {
           checkMethod: "manual_search",
         }),
       });
-      if (!res.ok) {
-        // readApiError flattens 422 detail arrays / dict details to text.
-        throw new Error(await readApiError(res, "Gate check failed"));
-      }
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail ?? data.error ?? `Error ${res.status}`);
+      }
       setResult(data);
     } catch (e: any) {
       setCheckError(e.message ?? "Gate check failed");
@@ -252,14 +233,14 @@ export default function GateClearancePage() {
 
       {/* Site selector */}
       <div className="mb-4">
-        <Label htmlFor="site-select" className="text-xs text-slate-600 font-medium">{L("term.select_site", "Select Site")}</Label>
+        <Label htmlFor="site-select" className="text-xs text-slate-600 font-medium">Select Site</Label>
         <Select
           id="site-select"
           value={selectedSiteId}
           onChange={(e) => { setSelectedSiteId(e.target.value); handleClear(); }}
           className="mt-1 font-medium"
         >
-          <SelectItem value="">{L("term.select_a_site_option", "— Select a site —")}</SelectItem>
+          <SelectItem value="">— Select a site —</SelectItem>
           {sites.map((s) => (
             <SelectItem key={s.id} value={s.id}>{s.siteName} ({s.siteCode})</SelectItem>
           ))}
@@ -290,7 +271,7 @@ export default function GateClearancePage() {
           </Button>
         </div>
         {!selectedSiteId && (
-          <p className="mt-2 text-xs text-amber-700">{L("epc.gate.select_site_before_checking", "Please select a site before checking.")}</p>
+          <p className="mt-2 text-xs text-amber-700">Please select a site before checking.</p>
         )}
       </form>
 
@@ -439,11 +420,11 @@ export default function GateClearancePage() {
         {!selectedSiteId ? (
           <div className="p-8 text-center text-sm text-slate-500">
             <Building2 size={28} className="mx-auto mb-2 text-slate-300" />
-            {L("epc.gate.select_site_for_log", "Select a site to view today's gate log.")}
+            Select a site to view today&apos;s gate log.
           </div>
         ) : gateLog.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500">
-            {L("epc.gate.no_activity_for_site", "No gate activity today for this site.")}
+            No gate activity today for this site.
           </div>
         ) : (
           <Table className="text-sm">

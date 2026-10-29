@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Users } from "lucide-react";
-import { readApiError } from "@/lib/client-errors";
 
 const TRADES = [
   "Welder", "Rigger", "Electrician", "Mason", "Carpenter", "Painter",
@@ -105,7 +104,8 @@ export default function NewWorkerPage() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        throw new Error(await readApiError(res));
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail ?? data.error ?? `Error ${res.status}`);
       }
       router.push("/epc/workers");
     } catch (e: any) {

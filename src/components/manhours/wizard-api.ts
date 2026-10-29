@@ -2,7 +2,6 @@
 // Centralises the URL + error-handling shape so step components
 // can stay focused on UI.
 
-import { httpStatusMessage } from "@/lib/client-errors";
 import type { WizardSubmission } from "./wizard-types";
 
 export async function patchSubmission(
@@ -65,7 +64,7 @@ export async function importCategoryCsv(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const e: any = new Error(body.error ?? httpStatusMessage(res.status));
+    const e: any = new Error(body.error ?? `HTTP ${res.status}`);
     e.errors = body.errors ?? [];
     throw e;
   }
@@ -109,7 +108,7 @@ export async function submitSubmission(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const e: any = new Error(body.error ?? httpStatusMessage(res.status));
+    const e: any = new Error(body.error ?? `HTTP ${res.status}`);
     e.report = body.report;
     throw e;
   }
@@ -118,5 +117,5 @@ export async function submitSubmission(
 
 async function asError(res: Response): Promise<Error> {
   const body = await res.json().catch(() => ({}));
-  return new Error(body.error ?? httpStatusMessage(res.status));
+  return new Error(body.error ?? `HTTP ${res.status}`);
 }

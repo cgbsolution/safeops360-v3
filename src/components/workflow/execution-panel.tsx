@@ -11,7 +11,7 @@ import { Camera, Send, AlertCircle, Upload, X, Image as ImageIcon, Film, Loader2
 import { formatDateTime, cn } from "@/lib/utils";
 import { uploadObservationAttachment } from "@/components/observations/upload-helper";
 import { uploadNearMissAttachment } from "@/components/near-miss/upload-helper";
-import { StepName } from "@/components/workflow/step-name";
+import { stepDisplayName } from "@/lib/flra/terminology";
 
 type Task = {
   id: string;
@@ -106,7 +106,14 @@ export function ExecutionPanel({
         setAiDrafted(true);
         setAiEvidenceHint(j.evidenceDescription ?? "");
       } else {
-        setAiError(j.reason ?? j.error ?? j.detail ?? "Could not generate a draft. Please write it manually.");
+        // FastAPI validation errors put an array of {loc,msg} in `detail`;
+        // render text, never the raw object.
+        const detail = Array.isArray(j.detail)
+          ? j.detail.map((d: any) => d?.msg ?? String(d)).join("; ")
+          : typeof j.detail === "string"
+            ? j.detail
+            : null;
+        setAiError(j.reason ?? j.error ?? detail ?? "Could not generate a draft. Please write it manually.");
       }
     } catch {
       setAiError("Network error while drafting. Please write it manually.");
@@ -233,7 +240,7 @@ export function ExecutionPanel({
             <CardTitle className="text-amber-900 flex items-center gap-2">
               <AlertCircle size={18} /> Task Assigned to You
             </CardTitle>
-            <CardDescription className="text-amber-700"><StepName name={task.stepName} /></CardDescription>
+            <CardDescription className="text-amber-700">{stepDisplayName(task.stepName)}</CardDescription>
           </div>
           {task.dueAt && (
             <div className="text-right">
@@ -460,7 +467,7 @@ export function VerificationPanel({ task }: { task: Task }) {
     <Card className="border-blue-300 ring-2 ring-blue-100">
       <CardHeader className="bg-blue-50 rounded-t-xl">
         <CardTitle className="text-blue-900">🔍 Verification Required</CardTitle>
-        <CardDescription className="text-blue-700"><StepName name={task.stepName} /></CardDescription>
+        <CardDescription className="text-blue-700">{stepDisplayName(task.stepName)}</CardDescription>
       </CardHeader>
       <CardContent className="pt-4 space-y-3">
         <p className="text-sm text-slate-700">

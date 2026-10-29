@@ -1,24 +1,27 @@
 "use client";
 
-// PTW 8-step wizard — production-depth refactor (Commit 2).
+// New Permit to Work — 4-step wizard with SafeOps Copilot drafting.
 //
-// Steps:
-//   1. Permit Type & Validity     → type, validity window, validity hours computed
-//   2. Location & Scope           → plant, dept, area, specific location, GPS, scope, work order
-//   3. Work Crew                  → originator (auto), receiver, crew (multi), fire watch / standby
-//   4. Isolations                 → multi sub-form (skipped for Cold Work)
-//   5. PPE & Equipment            → required PPE, tools used, subject equipment
-//   6. Gas Test Plan              → for Hot Work / Confined Space — refresh freq + parameters
-//   7. Additional Controls        → rescue plan, weather, wind, MSDS hint, adjacent notifications
-//   8. Review & Submit            → preview + submit
+// Steps (consolidated from the old 9):
+//   1. Job details         → type, validity, plant / area / location, scope, contractor
+//   2. People              → issuer, receiver, crew, fire watch / standby
+//   3. Controls            → isolations + LOTO link, PPE & equipment, gas test plan,
+//                            rescue / weather / site safety check
+//   4. Checklist & submit  → hazard annexures + precaution checklists, review, submit
 //
-// State lives in one big object. Each step has its own `validate()` returning
-// {ok, errors} called before "Next". The Submit button on Step 8 calls
-// POST /api/ptw with the structured payload (Pydantic schema in
-// safeops_360_bakend/app/schemas/permit.py).
+// Every step can be opened at any time; "Next" checks the current step and
+// Submit checks them all, jumping to the first one with a problem.
+//
+// The copilot (components/copilot) reads this form through a bridge
+// (getDraft / applyPatch) and fills it live. It never answers the precaution
+// checklist and never submits. The draft is also autosaved locally so a
+// refresh doesn't lose the work.
+//
+// Submit → POST /api/ptw (Pydantic PermitCreate in safeops_360_bakend/app/schemas/permit.py).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +37,13 @@ import {
   requiredControls,
   validityCapHours
 } from "@/lib/ptw/hazards";
+import {
+  DEFAULT_GAS_PARAMS,
+  DEFAULT_GAS_REFRESH,
+  PPE_CATALOG,
+  PPE_DEFAULTS,
+  type PtwDraft
+} from "@/lib/ptw/wizard-config";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -44,13 +54,15 @@ import { useGeolocation } from "@/hooks/use-geolocation";
 import { readApiError } from "@/lib/client-errors";
 import { WizardLotoLink, type WizardLotoLinkValue } from "@/components/loto/wizard-loto-link";
 import { EXECUTION_STATUS_LABEL as LOTO_STATUS_LABEL } from "@/app/(dashboard)/loto/_meta";
+import { useCopilot } from "@/components/copilot/copilot-provider";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
+import { type PlanAdvisory, planAdvisories } from "@/lib/ptw/advisories";
 import {
-  AlertCircle, ChevronLeft, ChevronRight, Check, MapPin, Trash2, Clock, Flame, Wrench, Users, ShieldAlert, ClipboardCheck, Zap, HardHat, Pickaxe, Hammer, Anchor, ListChecks
+  AlertCircle, ChevronLeft, ChevronRight, Check, Trash2, Clock, Flame, Wrench, Users, ShieldAlert, Zap, HardHat,
+  Pickaxe, Hammer, Anchor, ListChecks, ClipboardList, Sparkles, History, AlertTriangle, Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; name: string; areas: { id: string; name: string }[] };
 type Department = { id: string; name: string };
@@ -68,48 +80,6 @@ const TYPES = [
 
 type TypeMeta = typeof TYPES[number];
 
-const PPE_DEFAULTS: Record<string, string[]> = {
-  HOT_WORK: ["helmet", "shoes", "goggles", "fr_coverall", "welding_gloves", "face_shield"],
-  CONFINED_SPACE: ["helmet", "shoes", "harness", "scba", "gas_monitor"],
-  WORK_AT_HEIGHT: ["helmet", "shoes", "harness", "lanyard"],
-  EXCAVATION: ["helmet", "shoes", "high_vis"],
-  ELECTRICAL_LOTO: ["helmet", "shoes", "insulated_gloves", "arc_flash_suit"],
-  LIFTING: ["helmet", "shoes", "high_vis", "gloves"],
-  GENERAL_COLD: ["helmet", "shoes"]
-};
-
-const PPE_CATALOG: { code: string; label: string }[] = [
-  { code: "helmet", label: "Safety Helmet" },
-  { code: "shoes", label: "Safety Shoes" },
-  { code: "goggles", label: "Safety Goggles" },
-  { code: "gloves", label: "Safety Gloves" },
-  { code: "welding_gloves", label: "Welding Gloves" },
-  { code: "insulated_gloves", label: "Insulated Gloves" },
-  { code: "fr_coverall", label: "Fire-Retardant Coverall" },
-  { code: "face_shield", label: "Face Shield" },
-  { code: "arc_flash_suit", label: "Arc Flash Suit" },
-  { code: "harness", label: "Full-body Harness" },
-  { code: "lanyard", label: "Energy-absorbing Lanyard" },
-  { code: "scba", label: "SCBA / Air Line" },
-  { code: "gas_monitor", label: "Personal Gas Monitor" },
-  { code: "high_vis", label: "High-vis Vest" },
-  { code: "ear_plugs", label: "Ear Plugs" },
-  { code: "respirator", label: "Respirator" }
-];
-
-const DEFAULT_GAS_PARAMS = {
-  HOT_WORK: [
-    { parameter: "LEL", lowLimit: 0, highLimit: 10, unit: "%" },
-    { parameter: "O2", lowLimit: 19.5, highLimit: 23.5, unit: "%" }
-  ],
-  CONFINED_SPACE: [
-    { parameter: "O2", lowLimit: 19.5, highLimit: 23.5, unit: "%" },
-    { parameter: "LEL", lowLimit: 0, highLimit: 10, unit: "%" },
-    { parameter: "CO", lowLimit: 0, highLimit: 35, unit: "ppm" },
-    { parameter: "H2S", lowLimit: 0, highLimit: 10, unit: "ppm" }
-  ]
-} as const;
-
 type CrewRow = { tempId: string; userId: string; role: string };
 type IsolationRow = { tempId: string; isolationType: string; description: string; isolationPointTag: string; lotoTagNumber: string };
 type ToolRow = { tempId: string; equipmentId: string; freeTextDescription: string };
@@ -118,23 +88,28 @@ type GasParam = { parameter: string; lowLimit: string; highLimit: string; unit: 
 
 function tempId() { return `tmp-${Math.random().toString(36).slice(2, 11)}`; }
 
-// NB: the annexure step is APPENDED at 8 rather than inserted mid-list. The
-// step navigation below hard-codes its skip targets (4 for cold work, 6 for
-// non-gas-test types), so inserting would have shifted those constants and
-// silently broken the skips.
-const STEPS = [
-  { id: 1, label: "Type & Validity", icon: Clock },
-  { id: 2, label: "Location & Scope", icon: MapPin },
-  { id: 3, label: "Work Crew", icon: Users },
-  { id: 4, label: "Isolations", icon: ShieldAlert },
-  { id: 5, label: "PPE & Equipment", icon: Wrench },
-  { id: 6, label: "Gas Test Plan", icon: Flame },
-  { id: 7, label: "Controls", icon: AlertCircle },
-  { id: 8, label: "Hazards & Precautions", icon: ListChecks },
-  { id: 9, label: "Review", icon: ClipboardCheck }
-];
+/** Placeholder isolation tag the copilot writes until the user types the real one. */
+function isTbc(tag: string) { return /^\s*tbc/i.test(tag); }
 
-const LAST_STEP = 9;
+function gasDefaults(type: string): GasParam[] {
+  return (DEFAULT_GAS_PARAMS[type] ?? []).map((d) => ({
+    parameter: d.parameter,
+    lowLimit: d.lowLimit?.toString() ?? "",
+    highLimit: d.highLimit?.toString() ?? "",
+    unit: d.unit
+  }));
+}
+
+const STEPS = [
+  { id: 1, label: "Job details", hint: "Type · timing · location · scope", icon: ClipboardList },
+  { id: 2, label: "People", hint: "Issuer · receiver · crew", icon: Users },
+  { id: 3, label: "Controls", hint: "Isolations · PPE · gas test · rescue", icon: ShieldAlert },
+  { id: 4, label: "Checklist & submit", hint: "Precautions · review", icon: ListChecks }
+] as const;
+const LAST_STEP = 4;
+
+const AUTOSAVE_PREFIX = "safeops.ptwDraft.v1.";
+const AUTOSAVE_MAX_AGE_MS = 3 * 24 * 3_600_000;
 
 /** Context handed over when the wizard is opened from a HIRA hazard row that
  *  the hazard library flags as permit-requiring. Everything here is a starting
@@ -153,75 +128,30 @@ export type HiraPrefill = {
   residualRiskLevel: string | null;
 };
 
-/** Per-plant permit-type curation from /api/ptw-type-config. A plant absent
- *  from the map uses every type and opens on Hot Work, as before. */
-export type PermitTypeConfigs = Record<
-  string,
-  { enabledTypes: string[]; defaultType: string; blockedHazards: string[] }
->;
-
-function gasDefaultsFor(t: string): GasParam[] {
-  if (t !== "HOT_WORK" && t !== "CONFINED_SPACE") return [];
-  return DEFAULT_GAS_PARAMS[t].map((d) => ({
-    parameter: d.parameter,
-    lowLimit: d.lowLimit?.toString() ?? "",
-    highLimit: d.highLimit?.toString() ?? "",
-    unit: d.unit
-  }));
-}
-
 export function PermitForm({
   plants,
   defaultPlantId,
-  hiraPrefill,
-  typeConfigs
+  hiraPrefill
 }: {
   plants: Plant[];
   defaultPlantId?: string | null;
   hiraPrefill?: HiraPrefill | null;
-  typeConfigs?: PermitTypeConfigs;
 }) {
-  const L = useLabels();
   const router = useRouter();
   const { toast } = useToast();
+  const { data: session } = useSession();
+  const copilot = useCopilot();
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Plant is picked on step 2 but decided up-front: it drives which permit
-  // types (and which default card) step 1 offers.
-  // Default to the originator's own plant — that's where the issuers, crew and
-  // equipment that match the permit actually live. Falling back to plants[0]
-  // (alphabetical) used to land the wizard on a plant with no PERMIT_ISSUER /
-  // equipment, leaving the Step-3 pickers empty and the user unable to proceed.
-  // A HIRA prefill wins over the session plant: the permit has to be raised
-  // against the plant the assessed activity actually sits in.
-  const initialPlantId =
-    (hiraPrefill?.plantId && plants.some((p) => p.id === hiraPrefill.plantId)
-      ? hiraPrefill.plantId
-      : null) ??
-    (defaultPlantId && plants.some((p) => p.id === defaultPlantId) ? defaultPlantId : null) ??
-    plants[0]?.id ??
-    "";
-
-  // ─── Step 1 — type + validity ───
-  // The plant's curation narrows the cards and picks the default (e.g. a
-  // retail site has no Confined Space / Excavation and opens on Electrical /
-  // LOTO). A HIRA-driven permit opens on the type the hazard implies, if the
-  // plant uses it. Otherwise the generic Hot Work default.
-  const typesFor = (pid: string) => {
-    const cfg = typeConfigs?.[pid];
-    return cfg ? TYPES.filter((t) => cfg.enabledTypes.includes(t.value)) : [...TYPES];
-  };
-  const defaultTypeFor = (pid: string) => {
-    const cfg = typeConfigs?.[pid];
-    return cfg && cfg.enabledTypes.includes(cfg.defaultType) ? cfg.defaultType : "HOT_WORK";
-  };
-  const [initialType] = useState<string>(() =>
-    hiraPrefill?.suggestedPermitType && typesFor(initialPlantId).some((t) => t.value === hiraPrefill.suggestedPermitType)
+  // ─── Job — type + validity ───
+  // A HIRA-driven permit opens on the type the hazard implies rather than the
+  // generic Hot Work default — and with THAT type's PPE / gas defaults.
+  const initialType =
+    hiraPrefill?.suggestedPermitType && TYPES.some((t) => t.value === hiraPrefill.suggestedPermitType)
       ? hiraPrefill.suggestedPermitType
-      : defaultTypeFor(initialPlantId)
-  );
+      : "HOT_WORK";
   const [type, setType] = useState<string>(initialType);
   const typeMeta = useMemo<TypeMeta>(() => TYPES.find((t) => t.value === type) ?? TYPES[0], [type]);
   const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -235,13 +165,18 @@ export function PermitForm({
     return Math.max(0, Math.round((b - a) / 3_600_000));
   }, [validFrom, validTo]);
 
-  // ─── Step 2 — location ───
+  // ─── Job — location ───
   // Default to the originator's own plant — that's where the issuers, crew and
-  // equipment that match the permit actually live. Falling back to plants[0]
-  // (alphabetical) used to land the wizard on a plant with no PERMIT_ISSUER /
-  // equipment, leaving the Step-3 pickers empty and the user unable to proceed.
-  // A HIRA prefill wins over the session plant: the permit has to be raised
-  // against the plant the assessed activity actually sits in.
+  // equipment that match the permit actually live. A HIRA prefill wins over the
+  // session plant: the permit has to be raised against the plant the assessed
+  // activity actually sits in.
+  const initialPlantId =
+    (hiraPrefill?.plantId && plants.some((p) => p.id === hiraPrefill.plantId)
+      ? hiraPrefill.plantId
+      : null) ??
+    (defaultPlantId && plants.some((p) => p.id === defaultPlantId) ? defaultPlantId : null) ??
+    plants[0]?.id ??
+    "";
   const [plantId, setPlantId] = useState(initialPlantId);
   const [departmentId, setDepartmentId] = useState("");
   const [areaId, setAreaId] = useState(hiraPrefill?.areaId ?? "");
@@ -256,53 +191,48 @@ export function PermitForm({
   const [loadingMasters, setLoadingMasters] = useState(false);
   const selectedPlant = useMemo(() => plants.find((p) => p.id === plantId), [plants, plantId]);
 
-  // ─── Step 3 — crew ───
+  // ─── People ───
   const [issuerId, setIssuerId] = useState<string | null>(null);
   const [receiverId, setReceiverId] = useState<string | null>(null);
   const [crew, setCrew] = useState<CrewRow[]>([]);
   const [fireWatchPersonId, setFireWatchPersonId] = useState<string | null>(null);
   const [standbyPersonId, setStandbyPersonId] = useState<string | null>(null);
 
-  // ─── Step 4 — isolations ───
+  // ─── Controls ───
   const [isolations, setIsolations] = useState<IsolationRow[]>([]);
-
-  // ─── Step 5 — PPE + tools + subject equipment ───
   const [ppe, setPpe] = useState<string[]>(PPE_DEFAULTS[initialType] ?? ["helmet", "shoes"]);
   const [tools, setTools] = useState<ToolRow[]>([]);
   const [subjectEq, setSubjectEq] = useState<SubjectEqRow[]>([]);
-  // LOTO cross-reference (LOTO spec §6 / Part A). Optional at every permit type
-  // — nothing in this wizard's validation depends on it.
+  // LOTO cross-reference (LOTO spec §6 / Part A). Optional at every permit type.
   const [lotoLink, setLotoLink] = useState<WizardLotoLinkValue | null>(null);
-
-  // ─── Step 6 — gas test plan ───
-  const [gasRefreshMinutes, setGasRefreshMinutes] = useState(initialType === "HOT_WORK" ? "240" : "120");
-  const [gasParams, setGasParams] = useState<GasParam[]>(() => gasDefaultsFor(initialType));
+  const [gasRefreshMinutes, setGasRefreshMinutes] = useState(String(DEFAULT_GAS_REFRESH[initialType] ?? 120));
+  const [gasParams, setGasParams] = useState<GasParam[]>(gasDefaults(initialType));
   const [gasInstrumentSerial, setGasInstrumentSerial] = useState("");
   const [gasInstrumentCalibrated, setGasInstrumentCalibrated] = useState("");
+  const [rescuePlan, setRescuePlan] = useState("");
+  const [weatherConditions, setWeatherConditions] = useState("");
+  const [windSpeedKmh, setWindSpeedKmh] = useState("");
+  // FLRA policy override (closed-loop rebuild): "" = follow site policy,
+  // "yes"/"no" send an explicit boolean the backend snapshots per permit.
+  const [flraOverride, setFlraOverride] = useState<"" | "yes" | "no">("");
 
-  // ─── Step 8 — hazard annexures + precaution checklists ───
+  // ─── Checklist — hazard annexures + precaution checklists ───
   // `hazards` holds the EXTRA hazards attached on top of the base type; the
   // base type's own annexure is implicit and cannot be removed.
   const [hazards, setHazards] = useState<HazardType[]>([]);
   const [precautionCatalog, setPrecautionCatalog] = useState<Record<string, PrecautionItem[]>>({});
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [answers, setAnswers] = useState<Record<string, AnswerMap>>({});
-  const [activeHazard, setActiveHazard] = useState<HazardType>(hazardForBaseType(type));
-
-  // ─── Step 7 — additional controls ───
-  const [rescuePlan, setRescuePlan] = useState("");
-  const [weatherConditions, setWeatherConditions] = useState("");
-  const [windSpeedKmh, setWindSpeedKmh] = useState("");
-  const [adjacentNotificationIds, setAdjacentNotificationIds] = useState<string[]>([]);
-  // FLRA policy override (closed-loop rebuild): "" = follow site policy,
-  // "yes"/"no" send an explicit boolean the backend snapshots per permit.
-  const [flraOverride, setFlraOverride] = useState<"" | "yes" | "no">("");
+  const [activeHazard, setActiveHazard] = useState<HazardType>(hazardForBaseType(initialType));
+  // Precaution answers the copilot pre-filled (per hazard), and whether the
+  // user has confirmed them on site. Unconfirmed suggestions block submit.
+  const [aiSuggested, setAiSuggested] = useState<Record<string, string[]>>({});
+  const [aiConfirmed, setAiConfirmed] = useState<Record<string, boolean>>({});
 
   // ─── Union rules across every hazard in force ───
-  // These replace the single-type `typeMeta.*` rules everywhere a requirement
-  // is decided. A cold-work permit carrying a hot-work annexure needs a fire
-  // watch, and a 72h height job that also involves hot work is a 24h permit.
-  // The server recomputes all of this at create time — this is UX only.
+  // A cold-work permit carrying a hot-work annexure needs a fire watch, and a
+  // 72h height job that also involves hot work is a 24h permit. The server
+  // recomputes all of this at create time — this is UX only.
   const hazardsInForce = useMemo(() => effectiveHazards(type, hazards), [type, hazards]);
   const unionControls = useMemo(() => requiredControls(type, hazards), [type, hazards]);
   const unionMaxHours = useMemo(() => validityCapHours(type, hazards), [type, hazards]);
@@ -310,9 +240,18 @@ export function PermitForm({
   const needsFireWatch = unionControls.has("FIRE_WATCH");
   const needsStandby = unionControls.has("STANDBY");
   const needsRescue = unionControls.has("RESCUE_PLAN");
+  // "Does this plan make sense?" — e.g. a 10-minute hot work permit. Advisory,
+  // not a hard rule; recomputed every render so "starts in N min" stays current.
+  const advisories = planAdvisories({ type, extraHazards: hazards, validFrom, validTo });
+  const advisoryWarnings = advisories.filter((a) => a.level === "warning");
 
-  // Precaution catalog — fetched once; the wizard needs it before a permit
-  // exists, so it is keyed on nothing.
+  // Latest values for callbacks handed to the copilot bridge.
+  const typeRef = useRef(type);
+  typeRef.current = type;
+  const hazardsRef = useRef(hazards);
+  hazardsRef.current = hazards;
+
+  // Precaution catalog — fetched once; the wizard needs it before a permit exists.
   useEffect(() => {
     let alive = true;
     setCatalogLoading(true);
@@ -331,39 +270,23 @@ export function PermitForm({
     // the OLD base hazard are dropped unless that hazard is still attached —
     // otherwise a type change would silently carry ticks nobody re-read.
     const nextBase = hazardForBaseType(newType);
-    setHazards((prev) => prev.filter((h) => h !== nextBase));
+    const remaining = hazardsRef.current.filter((h) => h !== nextBase);
+    setHazards(remaining);
     setActiveHazard(nextBase);
     setAnswers((prev) => {
-      const keep = new Set<string>([nextBase, ...hazards.filter((h) => h !== nextBase)]);
+      const keep = new Set<string>([nextBase, ...remaining]);
       return Object.fromEntries(Object.entries(prev).filter(([k]) => keep.has(k)));
     });
     setPpe(PPE_DEFAULTS[newType] ?? ["helmet", "shoes"]);
-    setGasParams(gasDefaultsFor(newType));
-    if (newType === "HOT_WORK" || newType === "CONFINED_SPACE") {
-      setGasRefreshMinutes(newType === "HOT_WORK" ? "240" : "120");
+    if (DEFAULT_GAS_PARAMS[newType]) {
+      setGasParams(gasDefaults(newType));
+      setGasRefreshMinutes(String(DEFAULT_GAS_REFRESH[newType] ?? 120));
+    } else {
+      setGasParams([]);
     }
   }
 
-  const availableTypes = useMemo(() => typesFor(plantId), [plantId, typeConfigs]); // eslint-disable-line react-hooks/exhaustive-deps
-  const blockedHazards = typeConfigs?.[plantId]?.blockedHazards;
-
-  // Switching to a plant that doesn't use the chosen type (or an attached
-  // annexure) resets to that plant's default rather than carrying it over.
-  function onPlantChange(nextPlantId: string) {
-    setPlantId(nextPlantId);
-    setAreaId("");
-    setDepartmentId("");
-    if (!typesFor(nextPlantId).some((t) => t.value === type)) onTypeChange(defaultTypeFor(nextPlantId));
-    const blocked = typeConfigs?.[nextPlantId]?.blockedHazards;
-    if (blocked?.length) setHazards((prev) => prev.filter((h) => !blocked.includes(h)));
-  }
-
   // Load departments + equipment when plant changes.
-  // NB: this MUST be an effect, not a useMemo — fetching is a side-effect.
-  // useMemo is for derived values; React may skip it or discard the cleanup
-  // it returns, so the old useMemo version could silently fail to refresh the
-  // masters (and never run its cleanup), which is part of why the dropdowns
-  // looked stuck/empty.
   useEffect(() => {
     if (!plantId) {
       setDepartments([]); setEquipmentList([]);
@@ -374,10 +297,8 @@ export function PermitForm({
     (async () => {
       try {
         const [d, e] = await Promise.all([
-          // PTW's own department master, NOT near-miss's. The near-miss endpoint
-          // narrows the list to the user's own department (a record-visibility
-          // rule); a permit's Department is the department the *work* is in, so
-          // borrowing it left originators with a single selectable option.
+          // PTW's own department master — a permit's department is where the
+          // WORK is, not a record-visibility filter.
           fetch(`/api/ptw/masters/departments?plant_id=${encodeURIComponent(plantId)}`).then((r) => r.json()).catch(() => []),
           fetch(`/api/near-miss/masters/equipment?plant_id=${encodeURIComponent(plantId)}`).then((r) => r.json()).catch(() => [])
         ]);
@@ -402,97 +323,339 @@ export function PermitForm({
     return () => { alive = false; };
   }, []);
 
-  // ─── Step validation ─────────────────────────────────────────────
-  function validateStep(n: number): string | null {
-    if (n === 1) {
-      if (!type) return "Pick a permit type.";
-      if (!validFrom || !validTo) return "Set validity window.";
-      if (new Date(validTo) <= new Date(validFrom)) return "Valid To must be after Valid From.";
-      if (validityHours !== null && validityHours > unionMaxHours) {
-        // Union cap — the tightest across every hazard, which may be a hazard
-        // attached on Step 8 rather than the base type.
-        return `Validity exceeds the ${unionMaxHours}h cap for this permit's hazards.`;
-      }
+  // ─── Validation ──────────────────────────────────────────────────
+  function checkJob(): string | null {
+    if (!type) return "Pick a permit type.";
+    if (!validFrom || !validTo) return "Set the validity window.";
+    if (new Date(validTo) <= new Date(validFrom)) return "Valid To must be after Valid From.";
+    if (validityHours !== null && validityHours > unionMaxHours) {
+      // Union cap — the tightest across every hazard, which may be an extra
+      // hazard attached on the checklist step rather than the base type.
+      return `Validity exceeds the ${unionMaxHours}h cap for this permit's hazards.`;
     }
-    if (n === 2) {
-      if (!plantId) return L("term.plant_required_short", "Plant required.");
-      if (!areaId) return "Area required.";
-      if (!specificLocation && !selectedPlant?.areas.find((a) => a.id === areaId)?.name) return "Specific location required.";
-      if (!scopeOfWork || scopeOfWork.trim().length < 10) return "Scope of work must be at least 10 characters.";
+    if (!plantId) return "Plant required.";
+    if (!areaId) return "Area required.";
+    if (!specificLocation && !selectedPlant?.areas.find((a) => a.id === areaId)?.name) return "Specific location required.";
+    if (!scopeOfWork || scopeOfWork.trim().length < 10) return "Scope of work must be at least 10 characters.";
+    return null;
+  }
+  function checkPeople(): string | null {
+    if (!issuerId) return "Issuer required.";
+    if (!receiverId) return "Receiver required.";
+    if (issuerId === receiverId) return "Issuer and receiver cannot be the same person.";
+    if (needsFireWatch && !fireWatchPersonId) return "Fire watch person required for the hazards on this permit.";
+    if (needsStandby && !standbyPersonId) return "Standby person required for the hazards on this permit.";
+    if (needsStandby && standbyPersonId && crew.some((c) => c.userId === standbyPersonId)) {
+      return "Standby person cannot also be a crew member.";
     }
-    if (n === 3) {
-      if (!issuerId) return "Issuer required.";
-      if (!receiverId) return "Receiver required.";
-      if (issuerId === receiverId) return "Issuer and receiver cannot be the same person.";
-      if (needsFireWatch && !fireWatchPersonId) return "Fire watch person required for the hazards on this permit.";
-      if (needsStandby && !standbyPersonId) return "Standby person required for the hazards on this permit.";
-      if (needsStandby && standbyPersonId && crew.some((c) => c.userId === standbyPersonId)) {
-        return "Standby person cannot also be a crew member.";
-      }
+    return null;
+  }
+  function checkControls(): string | null {
+    if (typeMeta.value !== "GENERAL_COLD" && isolations.some((i) => !i.isolationType || !i.description || !i.isolationPointTag)) {
+      return "Each isolation needs type, description, and a physical tag.";
     }
-    if (n === 4) {
-      // Cold Work skips this step entirely
-      if (typeMeta.value !== "GENERAL_COLD") {
-        if (isolations.length > 0 && isolations.some((i) => !i.isolationType || !i.description || !i.isolationPointTag)) {
-          return "Each isolation needs type, description, and a physical tag.";
-        }
-      }
+    if (typeMeta.value !== "GENERAL_COLD" && isolations.some((i) => isTbc(i.isolationPointTag))) {
+      return "Replace the TBC isolation tags with the real point tags.";
     }
-    if (n === 5) {
-      if (ppe.length === 0) return "At least one PPE item is required.";
-      if (subjectEq.some((s) => !s.equipmentId || !s.workNature)) {
-        return "Each subject equipment row needs both equipment and work nature.";
-      }
+    if (ppe.length === 0) return "At least one PPE item is required.";
+    if (subjectEq.some((s) => !s.equipmentId || !s.workNature)) {
+      return "Each subject equipment row needs both equipment and work nature.";
     }
-    if (n === 6) {
-      if (needsGasTest) {
-        if (gasParams.length === 0) return "Gas test plan must include at least one parameter.";
-        if (gasParams.some((p) => !p.parameter || !p.unit)) return "Each gas parameter needs a name and unit.";
-        const refreshNum = Number(gasRefreshMinutes);
-        if (!refreshNum || refreshNum < 15 || refreshNum > 480) return "Refresh frequency must be between 15 and 480 minutes.";
-      }
+    if (needsGasTest) {
+      if (gasParams.length === 0) return "Gas test plan must include at least one parameter.";
+      if (gasParams.some((p) => !p.parameter || !p.unit)) return "Each gas parameter needs a name and unit.";
+      const refreshNum = Number(gasRefreshMinutes);
+      if (!refreshNum || refreshNum < 15 || refreshNum > 480) return "Gas re-test frequency must be between 15 and 480 minutes.";
     }
-    if (n === 7) {
-      if (needsRescue && !rescuePlan.trim()) return "Rescue plan required for the hazards on this permit.";
-    }
-    if (n === 8) {
-      // Same rule the server enforces (ptw_annexures.evaluate): every
-      // mandatory precaution answered, no NO, and every NA justified.
-      for (const h of hazardsInForce) {
-        const err = checklistBlocker(
-          precautionCatalog[h] ?? [],
-          answers[h] ?? {},
-          HAZARD_LABELS[h]
-        );
-        if (err) return err;
+    if (needsRescue && !rescuePlan.trim()) return "Rescue plan required for the hazards on this permit.";
+    return null;
+  }
+  function checkChecklist(): string | null {
+    // Same rule the server enforces (ptw_annexures.evaluate): every mandatory
+    // precaution answered, no NO, and every NA justified.
+    for (const h of hazardsInForce) {
+      const err = checklistBlocker(precautionCatalog[h] ?? [], answers[h] ?? {}, HAZARD_LABELS[h]);
+      if (err) return err;
+      const pending = unconfirmedSuggestions(h);
+      if (pending) {
+        return `${HAZARD_LABELS[h]}: check the ${pending} answer${pending === 1 ? "" : "s"} Copilot suggested and confirm you've verified them on site.`;
       }
     }
     return null;
   }
+  function unconfirmedSuggestions(h: string): number {
+    return aiConfirmed[h] ? 0 : (aiSuggested[h]?.length ?? 0);
+  }
+  function validateStep(n: number): string | null {
+    if (n === 1) return checkJob();
+    if (n === 2) return checkPeople();
+    if (n === 3) return checkControls();
+    if (n === 4) return checkChecklist();
+    return null;
+  }
+  const stepErrors = [1, 2, 3, 4].map((n) => validateStep(n));
 
+  function goTo(n: number) {
+    setError("");
+    setStep(Math.min(LAST_STEP, Math.max(1, n)));
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
   function next() {
     const err = validateStep(step);
     if (err) { setError(err); return; }
-    setError("");
-    // Skip Step 4 for cold work, Step 6 when no hazard requires a gas test.
-    let target = step + 1;
-    if (target === 4 && typeMeta.value === "GENERAL_COLD") target = 5;
-    if (target === 6 && !needsGasTest) target = 7;
-    setStep(target);
+    goTo(step + 1);
   }
-  function back() {
-    setError("");
-    let target = step - 1;
-    if (target === 6 && !needsGasTest) target = 5;
-    if (target === 4 && typeMeta.value === "GENERAL_COLD") target = 3;
-    setStep(Math.max(1, target));
+
+  // ─── Copilot bridge ─────────────────────────────────────────────
+  function currentDraft(): PtwDraft {
+    return {
+      type,
+      extraHazards: hazards,
+      validFrom,
+      validTo,
+      plantId: plantId || null,
+      departmentId: departmentId || null,
+      areaId: areaId || null,
+      specificLocation: specificLocation || null,
+      scopeOfWork: scopeOfWork || null,
+      workOrderNumber: workOrderNumber || null,
+      contractorCompanyId: contractorCompanyId || null,
+      issuerId,
+      receiverId,
+      workCrew: crew.filter((c) => c.userId).map((c) => ({ userId: c.userId, role: c.role })),
+      fireWatchPersonId,
+      standbyPersonId,
+      isolations: isolations.map((i) => ({
+        isolationType: i.isolationType, description: i.description, isolationPointTag: i.isolationPointTag,
+        lotoTagNumber: i.lotoTagNumber || null
+      })),
+      requiredPpe: ppe,
+      toolsEquipment: tools.filter((t) => t.equipmentId || t.freeTextDescription).map((t) => ({
+        equipmentId: t.equipmentId || null, freeTextDescription: t.freeTextDescription || null
+      })),
+      subjectEquipment: subjectEq.map((s) => ({ equipmentId: s.equipmentId, workNature: s.workNature })),
+      gasTestPlan: gasParams.length || needsGasTest ? {
+        refreshFrequencyMinutes: Number(gasRefreshMinutes) || undefined,
+        parametersToTest: gasParams.map((p) => ({
+          parameter: p.parameter,
+          lowLimit: p.lowLimit === "" ? null : Number(p.lowLimit),
+          highLimit: p.highLimit === "" ? null : Number(p.highLimit),
+          unit: p.unit
+        })),
+        instrumentSerial: gasInstrumentSerial || null,
+        instrumentLastCalibrated: gasInstrumentCalibrated || null
+      } : null,
+      rescuePlan: rescuePlan || null,
+      weatherConditionsAtIssue: weatherConditions || null,
+      windSpeedKmh: windSpeedKmh ? Number(windSpeedKmh) : null,
+      flraRequired: flraOverride === "" ? null : flraOverride === "yes",
+      checklist: Object.fromEntries(hazardsInForce.map((h) => {
+        const items = precautionCatalog[h] ?? [];
+        const a = answers[h] ?? {};
+        const pending = unconfirmedSuggestions(h);
+        return [h, {
+          total: items.length,
+          answered: items.filter((i) => a[i.id]?.response).length,
+          suggestedUnconfirmed: pending,
+          blocker: checklistBlocker(items, a, HAZARD_LABELS[h])
+            ?? (pending ? `${HAZARD_LABELS[h]}: ${pending} suggested answers awaiting the user's on-site confirmation` : null)
+        }];
+      })),
+      lotoLinked: !!lotoLink,
+      hiraLinked: !!hiraPrefill
+    };
+  }
+
+  /** Apply a validated copilot (or autosave) patch. Only keys present in the
+   *  patch change; null clears; lists replace. Mirrors the server's merge. */
+  function applyDraftPatch(p: Partial<PtwDraft>) {
+    const has = (k: keyof PtwDraft) => Object.prototype.hasOwnProperty.call(p, k);
+    const nextType = has("type") && p.type && TYPES.some((t) => t.value === p.type) ? p.type : typeRef.current;
+    if (nextType !== typeRef.current) onTypeChange(nextType);
+    if (has("extraHazards")) {
+      const base = hazardForBaseType(nextType);
+      setHazards(((p.extraHazards ?? []) as HazardType[]).filter((h) => h !== base && h in HAZARD_LABELS));
+    }
+    if (has("validFrom")) setValidFrom(p.validFrom ?? "");
+    if (has("validTo")) setValidTo(p.validTo ?? "");
+    if (has("plantId")) {
+      setPlantId(p.plantId ?? "");
+      if (!has("areaId")) setAreaId("");
+      if (!has("departmentId")) setDepartmentId("");
+    }
+    if (has("departmentId")) setDepartmentId(p.departmentId ?? "");
+    if (has("areaId")) setAreaId(p.areaId ?? "");
+    if (has("specificLocation")) setSpecificLocation(p.specificLocation ?? "");
+    if (has("scopeOfWork")) setScopeOfWork(p.scopeOfWork ?? "");
+    if (has("workOrderNumber")) setWorkOrderNumber(p.workOrderNumber ?? "");
+    if (has("contractorCompanyId")) setContractorCompanyId(p.contractorCompanyId ?? "");
+    if (has("issuerId")) setIssuerId(p.issuerId ?? null);
+    if (has("receiverId")) setReceiverId(p.receiverId ?? null);
+    if (has("workCrew")) setCrew((p.workCrew ?? []).map((c) => ({ tempId: tempId(), userId: c.userId, role: c.role || "WORKER" })));
+    if (has("fireWatchPersonId")) setFireWatchPersonId(p.fireWatchPersonId ?? null);
+    if (has("standbyPersonId")) setStandbyPersonId(p.standbyPersonId ?? null);
+    if (has("isolations")) {
+      setIsolations((p.isolations ?? []).map((i) => ({
+        tempId: tempId(), isolationType: i.isolationType, description: i.description,
+        isolationPointTag: i.isolationPointTag, lotoTagNumber: i.lotoTagNumber ?? ""
+      })));
+    }
+    if (has("requiredPpe")) setPpe(p.requiredPpe ?? []);
+    if (has("toolsEquipment")) {
+      setTools((p.toolsEquipment ?? []).map((t) => ({
+        tempId: tempId(), equipmentId: t.equipmentId ?? "", freeTextDescription: t.freeTextDescription ?? ""
+      })));
+    }
+    if (has("subjectEquipment")) {
+      setSubjectEq((p.subjectEquipment ?? []).map((s) => ({ tempId: tempId(), equipmentId: s.equipmentId, workNature: s.workNature || "REPAIR" })));
+    }
+    if (has("gasTestPlan")) {
+      const g = p.gasTestPlan;
+      if (!g) {
+        setGasParams([]);
+      } else {
+        if (g.refreshFrequencyMinutes) setGasRefreshMinutes(String(g.refreshFrequencyMinutes));
+        if (g.parametersToTest) {
+          setGasParams(g.parametersToTest.map((x) => ({
+            parameter: x.parameter, unit: x.unit,
+            lowLimit: x.lowLimit == null ? "" : String(x.lowLimit),
+            highLimit: x.highLimit == null ? "" : String(x.highLimit)
+          })));
+        }
+        if ("instrumentSerial" in g) setGasInstrumentSerial(g.instrumentSerial ?? "");
+        if ("instrumentLastCalibrated" in g) setGasInstrumentCalibrated(g.instrumentLastCalibrated ?? "");
+      }
+    }
+    if (has("rescuePlan")) setRescuePlan(p.rescuePlan ?? "");
+    if (has("weatherConditionsAtIssue")) setWeatherConditions(p.weatherConditionsAtIssue ?? "");
+    if (has("windSpeedKmh")) setWindSpeedKmh(p.windSpeedKmh == null ? "" : String(p.windSpeedKmh));
+    if (has("flraRequired")) setFlraOverride(p.flraRequired == null ? "" : p.flraRequired ? "yes" : "no");
+    if (has("checklistSuggestions") && p.checklistSuggestions) {
+      const sugg = p.checklistSuggestions;
+      setAnswers((prev) => {
+        const next = { ...prev };
+        for (const [h, rows] of Object.entries(sugg)) {
+          const forHazard = { ...(next[h] ?? {}) };
+          for (const r of rows) forHazard[r.itemId] = { response: r.response, remark: r.remark ?? "" };
+          next[h] = forHazard;
+        }
+        return next;
+      });
+      setAiSuggested((prev) => {
+        const next = { ...prev };
+        for (const [h, rows] of Object.entries(sugg)) next[h] = rows.map((r) => r.itemId);
+        return next;
+      });
+      setAiConfirmed((prev) => {
+        const next = { ...prev };
+        for (const h of Object.keys(sugg)) next[h] = false;
+        return next;
+      });
+    }
+  }
+
+  /** Answers changed in the checklist UI. An item the user answers or edits
+   *  themselves is no longer a copilot suggestion. */
+  function handleAnswersChange(next: Record<string, AnswerMap>) {
+    setAiSuggested((prev) => {
+      let changed = false;
+      const out: Record<string, string[]> = {};
+      for (const [h, ids] of Object.entries(prev)) {
+        const kept = ids.filter((id) => {
+          const before = answers[h]?.[id];
+          const after = next[h]?.[id];
+          return !!after && before?.response === after.response && before?.remark === after.remark;
+        });
+        if (kept.length !== ids.length) changed = true;
+        out[h] = kept;
+      }
+      return changed ? out : prev;
+    });
+    setAnswers(next);
+  }
+
+  const draftRef = useRef(currentDraft);
+  draftRef.current = currentDraft;
+  const applyRef = useRef(applyDraftPatch);
+  applyRef.current = applyDraftPatch;
+
+  const { registerPtwBridge, available: copilotAvailable, open: copilotOpen, setOpen: setCopilotOpen } = copilot;
+  useEffect(
+    () => registerPtwBridge({ getDraft: () => draftRef.current(), applyPatch: (patch) => applyRef.current(patch) }),
+    [registerPtwBridge]
+  );
+
+  // Open the copilot beside the form the first time per tab on wide screens —
+  // drafting by conversation is the fast path; the form stays fully editable.
+  useEffect(() => {
+    if (!copilotAvailable || typeof window === "undefined" || window.innerWidth < 1024) return;
+    try {
+      if (sessionStorage.getItem("safeops.copilot.ptwAutoOpened")) return;
+      sessionStorage.setItem("safeops.copilot.ptwAutoOpened", "1");
+    } catch { /* storage blocked — still open once */ }
+    setCopilotOpen(true);
+  }, [copilotAvailable, setCopilotOpen]);
+
+  // ─── Local autosave (refresh no longer loses the draft) ─────────
+  const userId = (session?.user as any)?.id as string | undefined;
+  const autosaveKey = userId ? `${AUTOSAVE_PREFIX}${userId}` : null;
+  const [restoreOffer, setRestoreOffer] = useState<{ savedAt: number; draft: PtwDraft } | null>(null);
+  const [autosaveReady, setAutosaveReady] = useState(false);
+
+  useEffect(() => {
+    if (!autosaveKey || autosaveReady) return;
+    try {
+      const raw = localStorage.getItem(autosaveKey);
+      const saved = raw ? JSON.parse(raw) : null;
+      if (!hiraPrefill && saved?.draft && Date.now() - (saved.savedAt ?? 0) < AUTOSAVE_MAX_AGE_MS) {
+        setRestoreOffer(saved);
+        return; // hold autosave until the user restores or discards
+      }
+    } catch { /* corrupt / blocked storage — ignore */ }
+    setAutosaveReady(true);
+  }, [autosaveKey, autosaveReady, hiraPrefill]);
+
+  const { checklist: _checklist, ...savable } = currentDraft();
+  const fingerprint = JSON.stringify(savable);
+  // The untouched form is not worth saving (or offering back next time).
+  const pristine = useRef<string | null>(null);
+  if (pristine.current === null) pristine.current = fingerprint;
+  useEffect(() => {
+    if (!autosaveKey || !autosaveReady || fingerprint === pristine.current) return;
+    const t = setTimeout(() => {
+      try { localStorage.setItem(autosaveKey, JSON.stringify({ savedAt: Date.now(), draft: JSON.parse(fingerprint) })); }
+      catch { /* quota / private mode */ }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [fingerprint, autosaveKey, autosaveReady]);
+
+  function restoreSaved() {
+    if (restoreOffer) applyDraftPatch(restoreOffer.draft);
+    setRestoreOffer(null);
+    setAutosaveReady(true);
+  }
+  function discardSaved() {
+    try { if (autosaveKey) localStorage.removeItem(autosaveKey); } catch { /* ignore */ }
+    setRestoreOffer(null);
+    setAutosaveReady(true);
   }
 
   // ─── Submit ──────────────────────────────────────────────────────
   async function submit() {
-    for (let s = 1; s <= LAST_STEP - 1; s++) {
+    for (let s = 1; s <= LAST_STEP; s++) {
       const err = validateStep(s);
-      if (err) { setError(`Step ${s}: ${err}`); setStep(s); return; }
+      if (err) { setError(`${STEPS[s - 1].label}: ${err}`); setStep(s); return; }
+    }
+    if (advisoryWarnings.length > 0) {
+      const ok = await confirmDialog({
+        title: `${advisoryWarnings.length} alert${advisoryWarnings.length === 1 ? "" : "s"} on this permit`,
+        description:
+          `${advisoryWarnings.map((a) => a.title).join(" · ")}. ` +
+          "The issuer will see the same plan. Submit anyway, or go back and adjust it?",
+        confirmLabel: "Submit anyway",
+        cancelLabel: "Go back"
+      });
+      if (!ok) { setStep(1); return; }
     }
     setSubmitting(true);
     setError("");
@@ -516,12 +679,11 @@ export function PermitForm({
       gpsLatitude: gps?.lat ?? null,
       gpsLongitude: gps?.lng ?? null,
       workOrderNumber: workOrderNumber || null,
-      // HIRA provenance — present only when this wizard was opened from a
-      // hazard row's Create-PTW prompt. Carried through so the finished permit
-      // is traceable back to the assessment that called for it.
+      // HIRA provenance — present only when opened from a hazard row's
+      // Create-PTW prompt, so the permit stays traceable to the assessment.
       hiraEntryId: hiraPrefill?.hiraEntryId ?? null,
       hiraEntryHazardId: hiraPrefill?.hiraEntryHazardId ?? null,
-      workCrew: crew.map((c) => ({ userId: c.userId, role: c.role })),
+      workCrew: crew.filter((c) => c.userId).map((c) => ({ userId: c.userId, role: c.role })),
       fireWatchPersonId: fireWatchPersonId || null,
       standbyPersonId: standbyPersonId || null,
       isolations: typeMeta.value === "GENERAL_COLD" ? [] : isolations.map((i) => ({
@@ -537,15 +699,14 @@ export function PermitForm({
         freeTextDescription: t.freeTextDescription || null
       })),
       subjectEquipment: subjectEq.map((s) => ({ equipmentId: s.equipmentId, workNature: s.workNature })),
-      // The backend re-validates this id (exists / same site / not already
-      // claimed) and binds the execution back to the new permit.
+      // The backend re-validates this id (exists / same site / not already claimed).
       lotoExecutionId: lotoLink?.executionId ?? null,
       gasTestPlan: needsGasTest ? {
         refreshFrequencyMinutes: Number(gasRefreshMinutes),
         parametersToTest: gasParams.map((p) => ({
           parameter: p.parameter,
-          lowLimit: p.lowLimit ? Number(p.lowLimit) : null,
-          highLimit: p.highLimit ? Number(p.highLimit) : null,
+          lowLimit: p.lowLimit !== "" ? Number(p.lowLimit) : null,
+          highLimit: p.highLimit !== "" ? Number(p.highLimit) : null,
           unit: p.unit
         })),
         instrumentSerial: gasInstrumentSerial || null,
@@ -566,7 +727,7 @@ export function PermitForm({
       })),
       weatherConditionsAtIssue: weatherConditions || null,
       windSpeedKmh: windSpeedKmh ? Number(windSpeedKmh) : null,
-      adjacentAreaNotifications: adjacentNotificationIds.length > 0 ? { userIds: adjacentNotificationIds } : null,
+      adjacentAreaNotifications: null,
       // null → backend resolves from PTW_FLRA_REQUIRED_* site policy.
       flraRequired: flraOverride === "" ? null : flraOverride === "yes"
     };
@@ -582,6 +743,7 @@ export function PermitForm({
         return;
       }
       const j = await res.json();
+      try { if (autosaveKey) localStorage.removeItem(autosaveKey); } catch { /* ignore */ }
       toast({ variant: "success", title: "Permit submitted", description: j.number ?? "Awaiting approval" });
       router.push(`/ptw/${j.id}`);
       router.refresh();
@@ -591,70 +753,40 @@ export function PermitForm({
     }
   }
 
-  // ─── Step strip ───
-  const visibleSteps = STEPS.filter((s) =>
-    !(s.id === 4 && typeMeta.value === "GENERAL_COLD") &&
-    !(s.id === 6 && !needsGasTest)
-  );
+  const areaName = selectedPlant?.areas.find((a) => a.id === areaId)?.name;
 
   return (
     <div className="max-w-4xl space-y-4">
-      {/* Step indicator — circles + connecting lines */}
+      {/* Step indicator — every step is reachable; the badge shows whether it
+          has anything blocking submission. */}
       <Card>
-        <CardContent className="p-4">
-          <ol className="flex items-start w-full">
-            {visibleSteps.map((s, idx) => {
+        <CardContent className="p-3 sm:p-4">
+          <ol className="grid grid-cols-4 gap-2">
+            {STEPS.map((s, idx) => {
               const active = step === s.id;
-              const done = step > s.id;
+              const ok = stepErrors[idx] === null;
               const Icon = s.icon;
-              const clickable = done;
-              const isLast = idx === visibleSteps.length - 1;
               return (
-                <li
-                  key={s.id}
-                  className={cn(
-                    "flex items-start relative",
-                    !isLast && "flex-1"
-                  )}
-                >
-                  <div className="flex flex-col items-center min-w-[2.25rem]">
-                    <Button variant="bare"
-                      type="button"
-                      onClick={() => clickable && setStep(s.id)}
-                      disabled={!clickable}
-                      aria-current={active ? "step" : undefined}
-                      className={cn(
-                        "h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-colors",
-                        active && "border-primary-600 bg-primary-600 text-white shadow-sm ring-4 ring-primary-100",
-                        done && "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer",
-                        !active && !done && "border-slate-200 bg-white text-slate-400"
-                      )}
-                    >
-                      {done ? <Check size={16} strokeWidth={3} /> : <Icon size={15} />}
-                    </Button>
-                    <span
-                      className={cn(
-                        "mt-1.5 text-[11px] font-medium text-center leading-tight max-w-[5.5rem] hidden sm:block",
-                        active ? "text-primary-700" : done ? "text-emerald-700" : "text-slate-500"
-                      )}
-                    >
-                      {s.label}
-                    </span>
-                    <span className={cn(
-                      "mt-1 text-[10px] font-semibold sm:hidden",
-                      active ? "text-primary-700" : done ? "text-emerald-700" : "text-slate-500"
+                <li key={s.id}>
+                  <Button variant="bare" type="button" onClick={() => goTo(s.id)}
+                    aria-current={active ? "step" : undefined}
+                    className={cn(
+                      "flex h-auto w-full items-center gap-2 rounded-lg border px-2 py-2 text-left transition-colors sm:px-3",
+                      active ? "border-primary-600 bg-primary-50 ring-2 ring-primary-100" : "border-slate-200 hover:border-primary-300 hover:bg-slate-50"
                     )}>
-                      {s.id}
+                    <span className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                      active ? "bg-primary-600 text-white" : ok ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                    )}>
+                      {ok && !active ? <Check size={14} strokeWidth={3} /> : <Icon size={14} />}
                     </span>
-                  </div>
-                  {!isLast && (
-                    <div className="flex-1 h-0.5 mt-4 mx-1 rounded-full bg-slate-200 overflow-hidden">
-                      <div className={cn(
-                        "h-full transition-all",
-                        done ? "w-full bg-emerald-500" : "w-0"
-                      )} />
-                    </div>
-                  )}
+                    <span className="hidden min-w-0 sm:block">
+                      <span className={cn("block truncate text-xs font-semibold", active ? "text-primary-800" : "text-slate-800")}>
+                        {s.id}. {s.label}
+                      </span>
+                      <span className="block truncate text-[10px] text-slate-500">{s.hint}</span>
+                    </span>
+                  </Button>
                 </li>
               );
             })}
@@ -662,8 +794,38 @@ export function PermitForm({
         </CardContent>
       </Card>
 
-      {/* Provenance banner — this permit was called for by a HIRA hazard row.
-          Shown on every step so the originator keeps the context in view. */}
+      {/* Copilot invitation */}
+      {copilotAvailable && !copilotOpen && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-900">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="shrink-0 text-primary-700" />
+            <span>Describe the job in plain words and SafeOps Copilot will draft this permit with you.</span>
+          </div>
+          <Button type="button" size="sm" onClick={() => setCopilotOpen(true)}>
+            <Sparkles size={14} /> Draft with Copilot
+          </Button>
+        </div>
+      )}
+
+      {/* Unsaved draft from an earlier visit */}
+      {restoreOffer && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="flex items-center gap-2">
+            <History size={16} className="shrink-0" />
+            <span>
+              You have an unsubmitted permit draft from{" "}
+              {new Date(restoreOffer.savedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.
+              Checklist answers are not kept.
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={discardSaved}>Discard</Button>
+            <Button type="button" size="sm" onClick={restoreSaved}>Restore draft</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Provenance banner — this permit was called for by a HIRA hazard row. */}
       {hiraPrefill && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="font-medium">
@@ -674,97 +836,63 @@ export function PermitForm({
             The hazard library flags this hazard as permit-requiring. Type, plant, area and scope
             are pre-filled from the assessment — adjust anything that does not match the actual
             job. The finished permit stays linked to the HIRA entry.
-            {hiraPrefill.residualRiskLevel
-              ? ` Assessed residual risk: ${hiraPrefill.residualRiskLevel}.`
-              : ""}
+            {hiraPrefill.residualRiskLevel ? ` Assessed residual risk: ${hiraPrefill.residualRiskLevel}.` : ""}
           </div>
         </div>
       )}
 
-      {/* Step content */}
+      {/* ─── Step 1 — Job details ─── */}
       {step === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>1. Permit Type & Validity</CardTitle>
-            <CardDescription>Type drives required controls (gas test, fire watch, etc.) and the approval chain.</CardDescription>
+            <CardTitle>1. Job details</CardTitle>
+            <CardDescription>What the work is, when it happens and where. The type drives the controls and the approval chain.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div
-              role="radiogroup"
-              aria-label="Permit type"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
-            >
-              {availableTypes.map((t) => {
-                const selected = type === t.value;
-                const TypeIcon = t.icon;
-                return (
-                  <Button variant="bare"
-                    key={t.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => onTypeChange(t.value)}
-                    className={cn(
-                      "group relative rounded-xl border bg-card text-left p-4 shadow-sm transition-all",
-                      "hover:border-primary-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
-                      selected
-                        ? "border-primary-600 ring-2 ring-primary-100 bg-primary-50/40"
-                        : "border-slate-200"
-                    )}
-                  >
-                    {selected && (
-                      <span className="absolute top-2.5 right-2.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-white">
-                        <Check size={12} strokeWidth={3} />
-                      </span>
-                    )}
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={cn(
-                          "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg transition-colors",
-                          selected
-                            ? "bg-primary-600 text-white"
-                            : "bg-slate-100 text-slate-600 group-hover:bg-primary-100 group-hover:text-primary-700"
-                        )}
-                      >
-                        <TypeIcon size={18} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-slate-900 leading-tight">
-                          {t.label}
+          <CardContent className="space-y-6">
+            <section className="space-y-2">
+              <Label className="!mb-0">Permit type <span className="text-rose-600">*</span></Label>
+              <div role="radiogroup" aria-label="Permit type" className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {TYPES.map((t) => {
+                  const selected = type === t.value;
+                  const TypeIcon = t.icon;
+                  return (
+                    <Button variant="bare" key={t.value} type="button" role="radio" aria-checked={selected}
+                      onClick={() => onTypeChange(t.value)}
+                      className={cn(
+                        "group relative h-auto rounded-lg border bg-card p-2.5 text-left shadow-sm transition-all",
+                        "hover:border-primary-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
+                        selected ? "border-primary-600 ring-2 ring-primary-100 bg-primary-50/40" : "border-slate-200"
+                      )}>
+                      <div className="flex items-start gap-2">
+                        <div className={cn(
+                          "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md",
+                          selected ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-primary-100 group-hover:text-primary-700"
+                        )}>
+                          {selected ? <Check size={14} strokeWidth={3} /> : <TypeIcon size={15} />}
                         </div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                            Max {t.maxHours}h
-                          </span>
-                          {t.requiresGasTest && (
-                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
-                              gas test
-                            </span>
-                          )}
-                          {t.requiresFireWatch && (
-                            <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-700 ring-1 ring-inset ring-rose-200">
-                              fire watch
-                            </span>
-                          )}
-                          {t.requiresStandby && (
-                            <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700 ring-1 ring-inset ring-sky-200">
-                              standby
-                            </span>
-                          )}
-                          {t.requiresRescue && (
-                            <span className="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200">
-                              rescue
-                            </span>
-                          )}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold leading-tight text-slate-900">{t.label}</div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Max {t.maxHours}h</span>
+                            {t.requiresGasTest && <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200">gas test</span>}
+                            {t.requiresFireWatch && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 ring-1 ring-inset ring-rose-200">fire watch</span>}
+                            {t.requiresStandby && <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 ring-1 ring-inset ring-sky-200">standby</span>}
+                            {t.requiresRescue && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200">rescue</span>}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Button>
-                );
-              })}
-            </div>
+                    </Button>
+                  );
+                })}
+              </div>
+              {hazards.length > 0 && (
+                <p className="text-xs text-slate-600">
+                  Extra hazards attached: <strong>{hazards.map((h) => HAZARD_LABELS[h]).join(", ")}</strong> (manage on step 4).
+                </p>
+              )}
+            </section>
 
-            <div className="grid sm:grid-cols-2 gap-3">
+            <section className="grid gap-3 sm:grid-cols-3">
               <div>
                 <Label>Valid From <span className="text-rose-600">*</span></Label>
                 <Input type="datetime-local" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} required />
@@ -773,41 +901,26 @@ export function PermitForm({
                 <Label>Valid To <span className="text-rose-600">*</span></Label>
                 <Input type="datetime-local" value={validTo} onChange={(e) => setValidTo(e.target.value)} required />
               </div>
-            </div>
-            {validityHours !== null && (
-              <div className={cn(
-                "rounded-md border px-3 py-2 text-sm flex items-center gap-2",
-                validityHours > unionMaxHours
-                  ? "border-rose-300 bg-rose-50 text-rose-900"
-                  : "border-slate-200 bg-slate-50 text-slate-700"
-              )}>
-                <Clock size={14} />
-                <span>
-                  Validity: <strong>{validityHours}h</strong>
-                  {validityHours > unionMaxHours && ` — exceeds ${unionMaxHours}h cap`}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {validityHours !== null && (
+                <div className={cn(
+                  "flex items-center gap-2 self-end rounded-md border px-3 py-2 text-sm",
+                  validityHours > unionMaxHours ? "border-rose-300 bg-rose-50 text-rose-900" : "border-slate-200 bg-slate-50 text-slate-700"
+                )}>
+                  <Clock size={14} />
+                  <span>
+                    <strong>{validityHours}h</strong> of {unionMaxHours}h max
+                  </span>
+                </div>
+              )}
+            </section>
 
-      {step === 2 && (
-        <Card>
-          <CardHeader><CardTitle>2. Location & Scope</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid sm:grid-cols-2 gap-3">
+            {advisories.length > 0 && <PlanAlerts items={advisories} />}
+
+            <section className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label>{`${L(TERM.plant, "Plant")} `}<span className="text-rose-600">*</span></Label>
-                <Select value={plantId} onChange={(e) => onPlantChange(e.target.value)} required>
+                <Label>Plant <span className="text-rose-600">*</span></Label>
+                <Select value={plantId} onChange={(e) => { setPlantId(e.target.value); setAreaId(""); setDepartmentId(""); }} required>
                   {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </Select>
-              </div>
-              <div>
-                <Label>Department</Label>
-                <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} disabled={loadingMasters}>
-                  <SelectItem value="">{loadingMasters ? "Loading…" : "— Select —"}</SelectItem>
-                  {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                 </Select>
               </div>
               <div>
@@ -819,8 +932,19 @@ export function PermitForm({
               </div>
               <div>
                 <Label>Specific Location</Label>
-                <Input value={specificLocation} onChange={(e) => setSpecificLocation(e.target.value)}
-                  placeholder="e.g. Cement Mill #2 gearbox bay" />
+                <Input value={specificLocation} onChange={(e) => setSpecificLocation(e.target.value)} placeholder="e.g. Cement Mill #2 gearbox bay" />
+              </div>
+              <div>
+                <Label>Department</Label>
+                <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} disabled={loadingMasters}>
+                  <SelectItem value="">{loadingMasters ? "Loading…" : "— Select —"}</SelectItem>
+                  {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </Select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Scope of Work <span className="text-rose-600">*</span></Label>
+                <Textarea rows={3} value={scopeOfWork} onChange={(e) => setScopeOfWork(e.target.value)}
+                  placeholder="What will be done, where, how, and on which equipment (10+ chars)" minLength={10} required />
               </div>
               <div>
                 <Label>Contractor (if applicable)</Label>
@@ -829,32 +953,22 @@ export function PermitForm({
                   {contractors.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </Select>
               </div>
-              <div className="sm:col-span-2">
-                <Label>Scope of Work <span className="text-rose-600">*</span></Label>
-                <Textarea rows={3} value={scopeOfWork} onChange={(e) => setScopeOfWork(e.target.value)}
-                  placeholder="Detailed description of work to be performed (10+ chars)" minLength={10} required />
-              </div>
               <div>
                 <Label>Work Order Number</Label>
-                <Input value={workOrderNumber} onChange={(e) => setWorkOrderNumber(e.target.value)}
-                  placeholder="If linked to maintenance system" />
+                <Input value={workOrderNumber} onChange={(e) => setWorkOrderNumber(e.target.value)} placeholder="If linked to maintenance system" />
               </div>
-            </div>
-            <GpsCaptureStatus
-              status={gpsStatus}
-              coords={gps}
-              error={gpsError}
-              onRetry={requestGps}
-            />
+            </section>
+            <GpsCaptureStatus status={gpsStatus} coords={gps} error={gpsError} onRetry={requestGps} />
           </CardContent>
         </Card>
       )}
 
-      {step === 3 && (
+      {/* ─── Step 2 — People ─── */}
+      {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>3. Work Crew</CardTitle>
-            <CardDescription>Issuer and Receiver must differ. Crew added here is checked for training validity at submission.</CardDescription>
+            <CardTitle>2. People</CardTitle>
+            <CardDescription>Issuer and receiver must differ. Receiver and crew training is checked for every hazard on the permit at submission.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -863,7 +977,7 @@ export function PermitForm({
                 <UserPicker value={issuerId} onChange={(id) => setIssuerId(id)}
                   filter={{ plantId, role: "PERMIT_ISSUER", roleFallback: true }} placeholder="Search & select issuer…" required />
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {L("ptw.issuer_picker_help", "Lists this plant's designated Permit Issuers. If none are configured, any plant user can be picked.")}
+                  Lists this plant&apos;s designated Permit Issuers. If none are configured, any plant user can be picked.
                 </p>
               </div>
               <div>
@@ -871,9 +985,25 @@ export function PermitForm({
                 <UserPicker value={receiverId} onChange={(id) => setReceiverId(id)}
                   filter={{ plantId }} placeholder="Search & select receiver…" required />
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Receiver's training certification ({typeMeta.label}) is checked at server submission.
+                  Must be certified for {hazardsInForce.map((h) => HAZARD_LABELS[h]).join(" + ")}.
                 </p>
               </div>
+              {needsFireWatch && (
+                <div>
+                  <Label>Fire Watch Person <span className="text-rose-600">*</span></Label>
+                  <UserPicker value={fireWatchPersonId} onChange={(id) => setFireWatchPersonId(id)}
+                    filter={{ plantId }} placeholder="Search & select fire watch…" required />
+                  <p className="text-xs text-slate-500 mt-0.5">Required because this permit includes hot work.</p>
+                </div>
+              )}
+              {needsStandby && (
+                <div>
+                  <Label>Standby Person <span className="text-rose-600">*</span></Label>
+                  <UserPicker value={standbyPersonId} onChange={(id) => setStandbyPersonId(id)}
+                    filter={{ plantId }} placeholder="Search & select standby…" required />
+                  <p className="text-xs text-slate-500 mt-0.5">Required for confined space / lifting. Cannot be on the work crew.</p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -897,354 +1027,323 @@ export function PermitForm({
                     <SelectItem value="TECHNICIAN">Technician</SelectItem>
                     <SelectItem value="CONTRACTOR">Contractor</SelectItem>
                   </Select>
-                  <Button variant="bare" type="button" onClick={() => setCrew((p) => p.filter((r) => r.tempId !== c.tempId))} className="text-slate-400 hover:text-rose-600">
+                  <Button variant="bare" type="button" aria-label="Remove crew member" onClick={() => setCrew((p) => p.filter((r) => r.tempId !== c.tempId))} className="text-slate-400 hover:text-rose-600">
                     <Trash2 size={14} />
                   </Button>
                 </div>
               ))}
             </div>
-
-            {needsFireWatch && (
-              <div>
-                <Label>Fire Watch Person <span className="text-rose-600">*</span></Label>
-                <UserPicker value={fireWatchPersonId} onChange={(id) => setFireWatchPersonId(id)}
-                  filter={{ plantId }} placeholder="Search & select fire watch…" required />
-                <p className="text-xs text-slate-500 mt-0.5">Mandatory for Hot Work. Must hold valid fire watch training.</p>
-              </div>
-            )}
-            {needsStandby && (
-              <div>
-                <Label>Standby Person <span className="text-rose-600">*</span></Label>
-                <UserPicker value={standbyPersonId} onChange={(id) => setStandbyPersonId(id)}
-                  filter={{ plantId }} placeholder="Search & select standby…" required />
-                <p className="text-xs text-slate-500 mt-0.5">Mandatory for Confined Space. Cannot be on the work crew.</p>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
 
-      {step === 4 && typeMeta.value !== "GENERAL_COLD" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>4. Isolations</CardTitle>
-            <CardDescription>Energy sources to be isolated before work begins. Issuer verifies each one pre-activation.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {isolations.length === 0 && <div className="text-sm text-slate-500 italic">No isolations added. Work that doesn't need isolations can skip this step.</div>}
-            {isolations.map((iso) => (
-              <div key={iso.tempId} className="rounded-md border border-slate-200 p-2.5 grid sm:grid-cols-[1fr_2fr_1fr_1fr_auto] gap-2 items-end">
-                <div>
-                  <Label>Type</Label>
-                  <Select value={iso.isolationType} onChange={(e) => setIsolations((p) => p.map((r) => r.tempId === iso.tempId ? { ...r, isolationType: e.target.value } : r))}>
-                    <SelectItem value="">—</SelectItem>
-                    <SelectItem value="ELECTRICAL">Electrical</SelectItem>
-                    <SelectItem value="MECHANICAL">Mechanical</SelectItem>
-                    <SelectItem value="FLUID">Fluid</SelectItem>
-                    <SelectItem value="PNEUMATIC">Pneumatic</SelectItem>
-                    <SelectItem value="HYDRAULIC">Hydraulic</SelectItem>
-                    <SelectItem value="STEAM">Steam</SelectItem>
-                  </Select>
+      {/* ─── Step 3 — Controls ─── */}
+      {step === 3 && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+            <span>Required for this permit:</span>
+            {unionControls.size === 0 && <span className="rounded-full bg-slate-100 px-2 py-0.5">no extra controls</span>}
+            {needsGasTest && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-800 ring-1 ring-inset ring-amber-200">gas test</span>}
+            {needsFireWatch && <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-800 ring-1 ring-inset ring-rose-200">fire watch (step 2)</span>}
+            {needsStandby && <span className="rounded-full bg-sky-50 px-2 py-0.5 text-sky-800 ring-1 ring-inset ring-sky-200">standby (step 2)</span>}
+            {needsRescue && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-violet-800 ring-1 ring-inset ring-violet-200">rescue plan</span>}
+          </div>
+
+          {typeMeta.value !== "GENERAL_COLD" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Isolations & LOTO</CardTitle>
+                <CardDescription>Energy sources to isolate before work begins. The issuer verifies each one before activation.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {isolations.length === 0 && <div className="text-sm text-slate-500 italic">No isolations added. Leave empty if the work needs none.</div>}
+                {isolations.map((iso) => (
+                  <div key={iso.tempId} className="rounded-md border border-slate-200 p-2.5 grid sm:grid-cols-[1fr_2fr_1fr_1fr_auto] gap-2 items-end">
+                    <div>
+                      <Label>Type</Label>
+                      <Select value={iso.isolationType} onChange={(e) => setIsolations((p) => p.map((r) => r.tempId === iso.tempId ? { ...r, isolationType: e.target.value } : r))}>
+                        <SelectItem value="">—</SelectItem>
+                        <SelectItem value="ELECTRICAL">Electrical</SelectItem>
+                        <SelectItem value="MECHANICAL">Mechanical</SelectItem>
+                        <SelectItem value="FLUID">Fluid</SelectItem>
+                        <SelectItem value="PNEUMATIC">Pneumatic</SelectItem>
+                        <SelectItem value="HYDRAULIC">Hydraulic</SelectItem>
+                        <SelectItem value="STEAM">Steam</SelectItem>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <Input value={iso.description} onChange={(e) => setIsolations((p) => p.map((r) => r.tempId === iso.tempId ? { ...r, description: e.target.value } : r))} placeholder="e.g. Mill main motor breaker" />
+                    </div>
+                    <div>
+                      <Label>Point Tag</Label>
+                      <Input value={iso.isolationPointTag} onChange={(e) => setIsolations((p) => p.map((r) => r.tempId === iso.tempId ? { ...r, isolationPointTag: e.target.value } : r))} placeholder="MCC-04-A1" />
+                    </div>
+                    <div>
+                      <Label>LOTO Tag #</Label>
+                      <Input value={iso.lotoTagNumber} onChange={(e) => setIsolations((p) => p.map((r) => r.tempId === iso.tempId ? { ...r, lotoTagNumber: e.target.value } : r))} placeholder="optional" />
+                    </div>
+                    <Button variant="bare" type="button" aria-label="Remove isolation" onClick={() => setIsolations((p) => p.filter((r) => r.tempId !== iso.tempId))} className="text-slate-400 hover:text-rose-600 mb-1.5">
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                ))}
+                <Button type="button" size="sm" variant="outline" onClick={() => setIsolations((p) => [...p, { tempId: tempId(), isolationType: "", description: "", isolationPointTag: "", lotoTagNumber: "" }])}>+ Add Isolation</Button>
+                {/* Links the permit to a LOTO module lockout, where individual
+                    lock confirmation actually happens. */}
+                <div className="pt-2">
+                  <WizardLotoLink
+                    plantId={plantId}
+                    subjectEquipmentIds={subjectEq.map((s) => s.equipmentId).filter(Boolean)}
+                    value={lotoLink}
+                    onChange={setLotoLink}
+                  />
                 </div>
-                <div>
-                  <Label>Description</Label>
-                  <Input value={iso.description} onChange={(e) => setIsolations((p) => p.map((r) => r.tempId === iso.tempId ? { ...r, description: e.target.value } : r))} placeholder="e.g. Mill main motor breaker" />
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">PPE & equipment</CardTitle>
+              <CardDescription>PPE starts from the permit type&apos;s defaults. Tools and subject equipment have their inspection currency checked at issuance.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Required PPE</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-1">
+                  {PPE_CATALOG.map((p) => (
+                    <Label key={p.code} className={cn(
+                      "flex items-center gap-2 text-sm font-normal text-inherit rounded-md border px-2.5 py-1.5 cursor-pointer",
+                      ppe.includes(p.code) ? "border-primary-300 bg-primary-50/50" : "border-slate-200 bg-white"
+                    )}>
+                      <Checkbox checked={ppe.includes(p.code)}
+                        onChange={() => setPpe((cur) => cur.includes(p.code) ? cur.filter((x) => x !== p.code) : [...cur, p.code])} />
+                      <span>{p.label}</span>
+                    </Label>
+                  ))}
                 </div>
-                <div>
-                  <Label>Point Tag</Label>
-                  <Input value={iso.isolationPointTag} onChange={(e) => setIsolations((p) => p.map((r) => r.tempId === iso.tempId ? { ...r, isolationPointTag: e.target.value } : r))} placeholder="MCC-04-A1" />
-                </div>
-                <div>
-                  <Label>LOTO Tag #</Label>
-                  <Input value={iso.lotoTagNumber} onChange={(e) => setIsolations((p) => p.map((r) => r.tempId === iso.tempId ? { ...r, lotoTagNumber: e.target.value } : r))} placeholder="optional" />
-                </div>
-                <Button variant="bare" type="button" onClick={() => setIsolations((p) => p.filter((r) => r.tempId !== iso.tempId))} className="text-slate-400 hover:text-rose-600 mb-1.5">
-                  <Trash2 size={14} />
-                </Button>
               </div>
-            ))}
-            <Button type="button" size="sm" variant="outline" onClick={() => setIsolations((p) => [...p, { tempId: tempId(), isolationType: "", description: "", isolationPointTag: "", lotoTagNumber: "" }])}>+ Add Isolation</Button>
 
-            {/* LOTO cross-reference — a section INSIDE this existing step, not a
-                ninth step. The rows above are this permit's own free-text
-                isolation list; this links the permit to a LOTO module lockout,
-                which is where individual lock confirmation actually happens. */}
-            <div className="pt-2">
-              <WizardLotoLink
-                plantId={plantId}
-                subjectEquipmentIds={subjectEq.map((s) => s.equipmentId).filter(Boolean)}
-                value={lotoLink}
-                onChange={setLotoLink}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 5 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>5. PPE & Equipment</CardTitle>
-            <CardDescription>PPE auto-selected from permit type defaults. Tools and subject equipment have their inspection currency checked at issuance.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Required PPE</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-1">
-                {PPE_CATALOG.map((p) => (
-                  <Label key={p.code} className={cn(
-                    "flex items-center gap-2 text-sm font-normal text-inherit rounded-md border px-2.5 py-1.5 cursor-pointer",
-                    ppe.includes(p.code) ? "border-primary-300 bg-primary-50/50" : "border-slate-200 bg-white"
-                  )}>
-                    <Checkbox checked={ppe.includes(p.code)}
-                      onChange={() => setPpe((cur) => cur.includes(p.code) ? cur.filter((x) => x !== p.code) : [...cur, p.code])} />
-                    <span>{p.label}</span>
-                  </Label>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="!mb-0">Tools / Equipment Used by Crew</Label>
+                  <Button type="button" size="sm" variant="outline"
+                    onClick={() => setTools((p) => [...p, { tempId: tempId(), equipmentId: "", freeTextDescription: "" }])}>+ Add Tool</Button>
+                </div>
+                {tools.length === 0 && <div className="text-sm text-slate-500 italic">None added.</div>}
+                {tools.map((t) => (
+                  <div key={t.tempId} className="rounded-md border border-slate-200 p-2 grid sm:grid-cols-[2fr_2fr_auto] gap-2 mb-2 items-end">
+                    <div>
+                      <Label>Equipment from Master</Label>
+                      <Select value={t.equipmentId} onChange={(e) => setTools((p) => p.map((r) => r.tempId === t.tempId ? { ...r, equipmentId: e.target.value } : r))}>
+                        <SelectItem value="">— or use free text —</SelectItem>
+                        {equipmentList.map((eq) => <SelectItem key={eq.id} value={eq.id}>{eq.name} ({eq.code})</SelectItem>)}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Free-text description</Label>
+                      <Input value={t.freeTextDescription} onChange={(e) => setTools((p) => p.map((r) => r.tempId === t.tempId ? { ...r, freeTextDescription: e.target.value } : r))} placeholder="for tools not in master" />
+                    </div>
+                    <Button variant="bare" type="button" aria-label="Remove tool" onClick={() => setTools((p) => p.filter((r) => r.tempId !== t.tempId))} className="text-slate-400 hover:text-rose-600 mb-1.5">
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
                 ))}
               </div>
-            </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <Label className="!mb-0">Tools / Equipment Used by Crew</Label>
-                {/* Never gated on the master: a tool row takes a free-text
-                    description, so an empty site master must not block it. */}
-                <Button type="button" size="sm" variant="outline"
-                  onClick={() => setTools((p) => [...p, { tempId: tempId(), equipmentId: "", freeTextDescription: "" }])}>+ Add Tool</Button>
-              </div>
-              {tools.length === 0 && <div className="text-sm text-slate-500 italic">None added.</div>}
-              {tools.map((t) => (
-                <div key={t.tempId} className="rounded-md border border-slate-200 p-2 grid sm:grid-cols-[2fr_2fr_auto] gap-2 mb-2 items-end">
-                  <div>
-                    <Label>Equipment from Master</Label>
-                    <Select value={t.equipmentId} onChange={(e) => setTools((p) => p.map((r) => r.tempId === t.tempId ? { ...r, equipmentId: e.target.value } : r))}>
-                      <SelectItem value="">— or use free text —</SelectItem>
-                      {equipmentList.map((eq) => <SelectItem key={eq.id} value={eq.id}>{eq.name} ({eq.code})</SelectItem>)}
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Free-text description</Label>
-                    <Input value={t.freeTextDescription} onChange={(e) => setTools((p) => p.map((r) => r.tempId === t.tempId ? { ...r, freeTextDescription: e.target.value } : r))} placeholder="for tools not in master" />
-                  </div>
-                  <Button variant="bare" type="button" onClick={() => setTools((p) => p.filter((r) => r.tempId !== t.tempId))} className="text-slate-400 hover:text-rose-600 mb-1.5">
-                    <Trash2 size={14} />
-                  </Button>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="!mb-0">Subject Equipment (being worked on)</Label>
+                  <Button type="button" size="sm" variant="outline" disabled={equipmentList.length === 0}
+                    onClick={() => setSubjectEq((p) => [...p, { tempId: tempId(), equipmentId: "", workNature: "REPAIR" }])}>+ Add Subject</Button>
                 </div>
-              ))}
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <Label className="!mb-0">Subject Equipment (being worked on)</Label>
-                <Button type="button" size="sm" variant="outline" disabled={loadingMasters || equipmentList.length === 0}
-                  onClick={() => setSubjectEq((p) => [...p, { tempId: tempId(), equipmentId: "", workNature: "REPAIR" }])}>+ Add Subject</Button>
+                {subjectEq.length === 0 && <div className="text-sm text-slate-500 italic">None added.</div>}
+                {subjectEq.map((s) => (
+                  <div key={s.tempId} className="rounded-md border border-slate-200 p-2 grid sm:grid-cols-[2fr_1fr_auto] gap-2 mb-2 items-end">
+                    <div>
+                      <Label>Equipment <span className="text-rose-600">*</span></Label>
+                      <Select value={s.equipmentId} onChange={(e) => setSubjectEq((p) => p.map((r) => r.tempId === s.tempId ? { ...r, equipmentId: e.target.value } : r))}>
+                        <SelectItem value="">— Select —</SelectItem>
+                        {equipmentList.map((eq) => <SelectItem key={eq.id} value={eq.id}>{eq.name} ({eq.code})</SelectItem>)}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Work Nature</Label>
+                      <Select value={s.workNature} onChange={(e) => setSubjectEq((p) => p.map((r) => r.tempId === s.tempId ? { ...r, workNature: e.target.value } : r))}>
+                        <SelectItem value="INSPECTION">Inspection</SelectItem>
+                        <SelectItem value="REPAIR">Repair</SelectItem>
+                        <SelectItem value="REPLACEMENT">Replacement</SelectItem>
+                        <SelectItem value="MODIFICATION">Modification</SelectItem>
+                      </Select>
+                    </div>
+                    <Button variant="bare" type="button" aria-label="Remove subject equipment" onClick={() => setSubjectEq((p) => p.filter((r) => r.tempId !== s.tempId))} className="text-slate-400 hover:text-rose-600 mb-1.5">
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                ))}
               </div>
-              {/* Subject equipment must reference the site's Equipment master
-                  (the API drops rows that don't) — say why the button is off
-                  rather than leaving a silently disabled control. */}
-              {!loadingMasters && equipmentList.length === 0 && (
-                <div className="text-xs text-amber-700 mb-1">No equipment is registered for this site yet — ask an admin to add it to the Equipment master.</div>
+            </CardContent>
+          </Card>
+
+          {needsGasTest && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Gas test plan</CardTitle>
+                <CardDescription>Parameters monitored, re-test frequency and the instrument used. The pre-entry reading is captured at activation.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label>Re-test every (minutes)</Label>
+                    <Input type="number" min={15} max={480} value={gasRefreshMinutes} onChange={(e) => setGasRefreshMinutes(e.target.value)} />
+                    <p className="text-xs text-slate-500 mt-0.5">15–480 min. Default 240 (Hot Work) / 120 (Confined Space).</p>
+                  </div>
+                  <div>
+                    <Label>Instrument Serial</Label>
+                    <Input value={gasInstrumentSerial} onChange={(e) => setGasInstrumentSerial(e.target.value)} placeholder="e.g. GM-04-001" />
+                  </div>
+                  <div>
+                    <Label>Last Calibrated</Label>
+                    <Input type="date" value={gasInstrumentCalibrated} onChange={(e) => setGasInstrumentCalibrated(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="!mb-0">Parameters to Test</Label>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setGasParams((p) => [...p, { parameter: "OTHER", lowLimit: "", highLimit: "", unit: "" }])}>+ Add Parameter</Button>
+                  </div>
+                  {gasParams.map((p, i) => (
+                    <div key={i} className="rounded-md border border-slate-200 p-2 grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 mb-2 items-end">
+                      <div>
+                        <Label>Parameter</Label>
+                        <Input value={p.parameter} onChange={(e) => setGasParams((arr) => arr.map((x, idx) => idx === i ? { ...x, parameter: e.target.value } : x))} />
+                      </div>
+                      <div>
+                        <Label>Low Limit</Label>
+                        <Input type="number" value={p.lowLimit} onChange={(e) => setGasParams((arr) => arr.map((x, idx) => idx === i ? { ...x, lowLimit: e.target.value } : x))} />
+                      </div>
+                      <div>
+                        <Label>High Limit</Label>
+                        <Input type="number" value={p.highLimit} onChange={(e) => setGasParams((arr) => arr.map((x, idx) => idx === i ? { ...x, highLimit: e.target.value } : x))} />
+                      </div>
+                      <div>
+                        <Label>Unit</Label>
+                        <Input value={p.unit} onChange={(e) => setGasParams((arr) => arr.map((x, idx) => idx === i ? { ...x, unit: e.target.value } : x))} placeholder="%, ppm" />
+                      </div>
+                      <Button variant="bare" type="button" aria-label="Remove parameter" onClick={() => setGasParams((arr) => arr.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-600 mb-1.5">
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">Rescue, weather & site safety check</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              {needsRescue && (
+                <div>
+                  <Label>Rescue Plan <span className="text-rose-600">*</span></Label>
+                  <Textarea rows={3} value={rescuePlan} onChange={(e) => setRescuePlan(e.target.value)}
+                    placeholder="Step-by-step rescue procedure, equipment available, escape routes…" />
+                  <p className="text-xs text-slate-500 mt-0.5">Required for confined space and work at height.</p>
+                </div>
               )}
-              {subjectEq.length === 0 && <div className="text-sm text-slate-500 italic">None added.</div>}
-              {subjectEq.map((s) => (
-                <div key={s.tempId} className="rounded-md border border-slate-200 p-2 grid sm:grid-cols-[2fr_1fr_auto] gap-2 mb-2 items-end">
-                  <div>
-                    <Label>Equipment <span className="text-rose-600">*</span></Label>
-                    <Select value={s.equipmentId} onChange={(e) => setSubjectEq((p) => p.map((r) => r.tempId === s.tempId ? { ...r, equipmentId: e.target.value } : r))}>
-                      <SelectItem value="">— Select —</SelectItem>
-                      {equipmentList.map((eq) => <SelectItem key={eq.id} value={eq.id}>{eq.name} ({eq.code})</SelectItem>)}
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Work Nature</Label>
-                    <Select value={s.workNature} onChange={(e) => setSubjectEq((p) => p.map((r) => r.tempId === s.tempId ? { ...r, workNature: e.target.value } : r))}>
-                      <SelectItem value="INSPECTION">Inspection</SelectItem>
-                      <SelectItem value="REPAIR">Repair</SelectItem>
-                      <SelectItem value="REPLACEMENT">Replacement</SelectItem>
-                      <SelectItem value="MODIFICATION">Modification</SelectItem>
-                    </Select>
-                  </div>
-                  <Button variant="bare" type="button" onClick={() => setSubjectEq((p) => p.filter((r) => r.tempId !== s.tempId))} className="text-slate-400 hover:text-rose-600 mb-1.5">
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 6 && needsGasTest && (
-        <Card>
-          <CardHeader>
-            <CardTitle>6. Gas Test Plan</CardTitle>
-            <CardDescription>Parameters monitored, test refresh frequency, and the instrument used. Pre-entry reading captured at activation.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid sm:grid-cols-3 gap-3">
-              <div>
-                <Label>Refresh Frequency (minutes)</Label>
-                <Input type="number" min={15} max={480} value={gasRefreshMinutes} onChange={(e) => setGasRefreshMinutes(e.target.value)} />
-                <p className="text-xs text-slate-500 mt-0.5">15–480 min. Default 240 (Hot Work) / 120 (Confined Space).</p>
-              </div>
-              <div className="sm:col-span-2 grid grid-cols-2 gap-3">
+              <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <Label>Instrument Serial</Label>
-                  <Input value={gasInstrumentSerial} onChange={(e) => setGasInstrumentSerial(e.target.value)} placeholder="e.g. GM-04-001" />
+                  <Label>Weather Conditions</Label>
+                  <Input value={weatherConditions} onChange={(e) => setWeatherConditions(e.target.value)} placeholder="e.g. Clear, 28°C" />
                 </div>
                 <div>
-                  <Label>Last Calibrated</Label>
-                  <Input type="date" value={gasInstrumentCalibrated} onChange={(e) => setGasInstrumentCalibrated(e.target.value)} />
+                  <Label>Wind Speed (km/h)</Label>
+                  <Input type="number" value={windSpeedKmh} onChange={(e) => setWindSpeedKmh(e.target.value)} placeholder="for outdoor hot work" />
+                  {hazardsInForce.includes("HOT_WORK" as HazardType) && Number(windSpeedKmh) > 25 && (
+                    <p className="text-xs text-rose-700 mt-0.5">⚠ Wind &gt; 25 km/h — outdoor hot work not recommended.</p>
+                  )}
                 </div>
               </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <Label className="!mb-0">Parameters to Test</Label>
-                <Button type="button" size="sm" variant="outline" onClick={() => setGasParams((p) => [...p, { parameter: "OTHER", lowLimit: "", highLimit: "", unit: "" }])}>+ Add Parameter</Button>
+              <div>
+                <Label title="Also known as FLRA — Field Level Risk Assessment">Site Safety Check</Label>
+                <Select value={flraOverride} onChange={(e) => setFlraOverride(e.target.value as "" | "yes" | "no")}
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm">
+                  <SelectItem value="">Follow site policy (default)</SelectItem>
+                  <SelectItem value="yes">Required — crew must complete &amp; sign a site safety check before activation</SelectItem>
+                  <SelectItem value="no">Not required for this permit</SelectItem>
+                </Select>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Controls whether the site safety check gates the receiver&apos;s acceptance. The choice is snapshotted on the permit for audit.
+                </p>
               </div>
-              {gasParams.map((p, i) => (
-                <div key={i} className="rounded-md border border-slate-200 p-2 grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 mb-2 items-end">
-                  <div>
-                    <Label>Parameter</Label>
-                    <Input value={p.parameter} onChange={(e) => setGasParams((arr) => arr.map((x, idx) => idx === i ? { ...x, parameter: e.target.value } : x))} />
-                  </div>
-                  <div>
-                    <Label>Low Limit</Label>
-                    <Input type="number" value={p.lowLimit} onChange={(e) => setGasParams((arr) => arr.map((x, idx) => idx === i ? { ...x, lowLimit: e.target.value } : x))} />
-                  </div>
-                  <div>
-                    <Label>High Limit</Label>
-                    <Input type="number" value={p.highLimit} onChange={(e) => setGasParams((arr) => arr.map((x, idx) => idx === i ? { ...x, highLimit: e.target.value } : x))} />
-                  </div>
-                  <div>
-                    <Label>Unit</Label>
-                    <Input value={p.unit} onChange={(e) => setGasParams((arr) => arr.map((x, idx) => idx === i ? { ...x, unit: e.target.value } : x))} placeholder="%, ppm" />
-                  </div>
-                  <Button variant="bare" type="button" onClick={() => setGasParams((arr) => arr.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-600 mb-1.5">
-                    <Trash2 size={14} />
-                  </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ─── Step 4 — Checklist & submit ─── */}
+      {step === 4 && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>4. Hazards & precautions</CardTitle>
+              <CardDescription>
+                Every hazard this job involves, and the precaution checklist each one brings. Answer each item for
+                the actual site conditions — one permit covers them all.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <HazardAnnexuresStep
+                baseType={type}
+                hazards={hazards}
+                onHazardsChange={setHazards}
+                catalog={precautionCatalog}
+                answers={answers}
+                onAnswersChange={handleAnswersChange}
+                suggested={aiSuggested}
+                confirmed={aiConfirmed}
+                onConfirmedChange={(h, v) => setAiConfirmed((prev) => ({ ...prev, [h]: v }))}
+                activeHazard={activeHazard}
+                onActiveHazardChange={setActiveHazard}
+                catalogLoading={catalogLoading}
+                validityHours={validityHours}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Review</CardTitle>
+              <CardDescription>After submission the permit enters the approval workflow.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {STEPS.map((s, idx) => stepErrors[idx] && (
+                <div key={s.id} className="mb-2 flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+                  <span><strong>{s.label}:</strong> {stepErrors[idx]}</span>
+                  {s.id !== 4 && <Button type="button" size="sm" variant="outline" onClick={() => goTo(s.id)}>Fix</Button>}
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 7 && (
-        <Card>
-          <CardHeader><CardTitle>7. Additional Controls</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            {needsRescue && (
-              <div>
-                <Label>Rescue Plan <span className="text-rose-600">*</span></Label>
-                <Textarea rows={3} value={rescuePlan} onChange={(e) => setRescuePlan(e.target.value)}
-                  placeholder="Step-by-step rescue procedure, equipment available, escape routes…" />
-                <p className="text-xs text-slate-500 mt-0.5">Required for Confined Space and Work at Height.</p>
-              </div>
-            )}
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div>
-                <Label>Weather Conditions</Label>
-                <Input value={weatherConditions} onChange={(e) => setWeatherConditions(e.target.value)}
-                  placeholder="e.g. Clear, 28°C" />
-              </div>
-              <div>
-                <Label>Wind Speed (km/h)</Label>
-                <Input type="number" value={windSpeedKmh} onChange={(e) => setWindSpeedKmh(e.target.value)}
-                  placeholder="for outdoor hot work" />
-                {typeMeta.value === "HOT_WORK" && Number(windSpeedKmh) > 25 && (
-                  <p className="text-xs text-rose-700 mt-0.5">⚠ Wind &gt; 25 km/h — outdoor hot work not recommended.</p>
-                )}
-              </div>
-            </div>
-            <div>
-              <Label title="Also known as FLRA — Field Level Risk Assessment">Site Safety Check</Label>
-              <Select
-                value={flraOverride}
-                onChange={(e) => setFlraOverride(e.target.value as "" | "yes" | "no")}
-                className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
-              >
-                <SelectItem value="">Follow site policy (default)</SelectItem>
-                <SelectItem value="yes">Required — crew must complete &amp; sign a site safety check before activation</SelectItem>
-                <SelectItem value="no">Not required for this permit</SelectItem>
-              </Select>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Controls whether the site safety check gates the receiver's acceptance.
-                The choice is snapshotted on the permit for audit.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 8 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>8. Hazards & Precautions</CardTitle>
-            <CardDescription>
-              Every hazard this job involves, and the precaution checklist each one
-              brings. One permit covers them all.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <HazardAnnexuresStep
-              baseType={type}
-              hazards={hazards}
-              onHazardsChange={setHazards}
-              catalog={precautionCatalog}
-              answers={answers}
-              onAnswersChange={setAnswers}
-              activeHazard={activeHazard}
-              onActiveHazardChange={setActiveHazard}
-              catalogLoading={catalogLoading}
-              validityHours={validityHours}
-              blockedHazards={blockedHazards}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 9 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>9. Review & Submit</CardTitle>
-            <CardDescription>Confirm everything below. After submission the permit enters approval workflow.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <ReviewRow label="Type" value={typeMeta.label} />
-            <ReviewRow
-              label="Hazards"
-              value={hazardsInForce.map((h) => HAZARD_LABELS[h]).join(", ")}
-            />
-            <ReviewRow label="Validity" value={`${validFrom.replace("T", " ")} → ${validTo.replace("T", " ")} (${validityHours}h)`} />
-            <ReviewRow label={L(TERM.plant, "Plant")} value={selectedPlant?.name ?? "—"} />
-            <ReviewRow label="Area" value={selectedPlant?.areas.find((a) => a.id === areaId)?.name ?? "—"} />
-            {specificLocation && <ReviewRow label="Specific Location" value={specificLocation} />}
-            <ReviewRow label="Scope" value={scopeOfWork} />
-            <ReviewRow label="Crew" value={`Issuer + Receiver + ${crew.length} crew member${crew.length === 1 ? "" : "s"}${needsFireWatch ? " + Fire Watch" : ""}${needsStandby ? " + Standby" : ""}`} />
-            {typeMeta.value !== "GENERAL_COLD" && <ReviewRow label="Isolations" value={`${isolations.length} isolation${isolations.length === 1 ? "" : "s"}`} />}
-            {/* Shown for every permit type, including Cold Work — a Cold Work
-                permit skips the Isolations step, so this row is the only place
-                its LOTO state is visible before submitting. */}
-            <ReviewRow
-              label="LOTO"
-              value={
-                lotoLink
-                  ? `Linked — ${lotoLink.number}${
-                      lotoLink.equipmentName ? `, ${lotoLink.equipmentName}` : ""
-                    } · ${LOTO_STATUS_LABEL[lotoLink.status] ?? lotoLink.status}`
-                  : "Not linked"
-              }
-            />
-            <ReviewRow label="PPE" value={`${ppe.length} item${ppe.length === 1 ? "" : "s"}`} />
-            <ReviewRow label="Tools" value={`${tools.length} tool${tools.length === 1 ? "" : "s"}`} />
-            <ReviewRow label="Subject Equipment" value={`${subjectEq.length} item${subjectEq.length === 1 ? "" : "s"}`} />
-            {needsGasTest && <ReviewRow label="Gas Test" value={`${gasParams.length} parameter${gasParams.length === 1 ? "" : "s"}, refresh every ${gasRefreshMinutes}min`} />}
-            {needsRescue && <ReviewRow label="Rescue Plan" value={rescuePlan ? "✓ provided" : "—"} />}
-          </CardContent>
-        </Card>
+              {advisories.length > 0 && <div className="mb-2"><PlanAlerts items={advisories} /></div>}
+              <ReviewRow label="Type" value={typeMeta.label} />
+              <ReviewRow label="Hazards" value={hazardsInForce.map((h) => HAZARD_LABELS[h]).join(", ")} />
+              <ReviewRow label="Validity" value={`${validFrom.replace("T", " ")} → ${validTo.replace("T", " ")} (${validityHours}h)`} />
+              <ReviewRow label="Location" value={[selectedPlant?.name, areaName, specificLocation].filter(Boolean).join(" · ") || "—"} />
+              <ReviewRow label="Scope" value={scopeOfWork || "—"} />
+              <ReviewRow label="People" value={`Issuer ${issuerId ? "✓" : "—"} · Receiver ${receiverId ? "✓" : "—"} · ${crew.length} crew${needsFireWatch ? ` · Fire watch ${fireWatchPersonId ? "✓" : "—"}` : ""}${needsStandby ? ` · Standby ${standbyPersonId ? "✓" : "—"}` : ""}`} />
+              {typeMeta.value !== "GENERAL_COLD" && <ReviewRow label="Isolations" value={`${isolations.length} isolation${isolations.length === 1 ? "" : "s"}`} />}
+              <ReviewRow
+                label="LOTO"
+                value={lotoLink
+                  ? `Linked — ${lotoLink.number}${lotoLink.equipmentName ? `, ${lotoLink.equipmentName}` : ""} · ${LOTO_STATUS_LABEL[lotoLink.status] ?? lotoLink.status}`
+                  : "Not linked"}
+              />
+              <ReviewRow label="PPE & equipment" value={`${ppe.length} PPE · ${tools.length} tool${tools.length === 1 ? "" : "s"} · ${subjectEq.length} subject item${subjectEq.length === 1 ? "" : "s"}`} />
+              {needsGasTest && <ReviewRow label="Gas Test" value={`${gasParams.length} parameter${gasParams.length === 1 ? "" : "s"}, re-test every ${gasRefreshMinutes} min`} />}
+              {needsRescue && <ReviewRow label="Rescue Plan" value={rescuePlan ? "✓ provided" : "—"} />}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {error && (
@@ -1256,14 +1355,11 @@ export function PermitForm({
 
       {/* Navigation */}
       <div className="flex items-center justify-between sticky bottom-0 bg-white/95 backdrop-blur border-t border-slate-200 -mx-6 px-6 py-3">
-        <Button type="button" variant="outline" onClick={back} disabled={step === 1 || submitting}>
+        <Button type="button" variant="outline" onClick={() => goTo(step - 1)} disabled={step === 1 || submitting}>
           <ChevronLeft size={14} /> Back
         </Button>
         <div className="text-xs text-slate-500">
-          {/* `step` is the absolute step id (skipped steps keep their number),
-              so count the position among the visible ones — "Step 9 of 7"
-              appeared on Cold Work, where steps 4 and 6 are skipped. */}
-          Step {Math.max(1, visibleSteps.findIndex((s) => s.id === step) + 1)} of {visibleSteps.length} ({typeMeta.label})
+          Step {step} of {LAST_STEP} · {typeMeta.label}
         </div>
         {step < LAST_STEP ? (
           <Button type="button" onClick={next} disabled={submitting}>
@@ -1279,10 +1375,29 @@ export function PermitForm({
   );
 }
 
+function PlanAlerts({ items }: { items: PlanAdvisory[] }) {
+  return (
+    <div className="space-y-2" role="status" aria-live="polite">
+      {items.map((a) => (
+        <div key={a.id} className={cn(
+          "flex items-start gap-2 rounded-md border px-3 py-2 text-sm",
+          a.level === "warning" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-sky-200 bg-sky-50 text-sky-900"
+        )}>
+          {a.level === "warning" ? <AlertTriangle size={15} className="mt-0.5 shrink-0" /> : <Info size={15} className="mt-0.5 shrink-0" />}
+          <div>
+            <div className="font-medium">{a.title}</div>
+            <div className="text-xs leading-relaxed">{a.message}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start gap-3 py-1.5 border-b border-slate-100 last:border-b-0">
-      <div className="text-[11px] uppercase tracking-wider text-slate-500 w-40 flex-shrink-0">{label}</div>
+      <div className="text-[11px] uppercase tracking-wider text-slate-500 w-36 flex-shrink-0">{label}</div>
       <div className="text-sm text-slate-800 flex-1 min-w-0 whitespace-pre-wrap">{value}</div>
     </div>
   );

@@ -58,6 +58,10 @@ export interface WeeklyView {
   row: WeeklyInsight[];
   moreCount: number;
   empty: WeeklyEmpty | null;
+  /** "all" = persisted platform-wide week; "plants" = computed over the
+   *  reader's plants (no week-over-week history); "restricted" = the reader
+   *  has no plant-level read, so no rollup is shown; "error" = engine failed. */
+  scope?: "all" | "plants" | "restricted" | "error";
 }
 
 const EMPTY: WeeklyView = { module: "", weekOf: null, hero: null, row: [], moreCount: 0, empty: null };
@@ -77,6 +81,7 @@ export async function fetchWeeklyInsights(module: string, opts: { plant?: string
       row: res.row ?? [],
       moreCount: res.moreCount ?? 0,
       empty: res.empty ?? null,
+      scope: res.scope,
     };
   } catch {
     return EMPTY;

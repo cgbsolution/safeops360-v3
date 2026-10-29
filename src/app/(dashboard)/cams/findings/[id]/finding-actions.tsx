@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectItem } from "@/components/ui/select";
 import { EvidenceAttachment } from "@/components/evidence/EvidenceAttachment";
-import { useLabels } from "@/components/labels/label-provider";
 import { SEVERITY_CHIP, FINDING_STATUS_CHIP, fmtDate, labelize, type Finding } from "../../lib-cams";
 
 const RCA_METHODS = ["5_WHY", "FISHBONE", "FAULT_TREE", "BOWTIE", "TAP_ROOT", "CAUSE_MAP", "EIGHT_D", "NONE_REQUIRED"];
@@ -26,7 +25,6 @@ const FINDING_EVIDENCE_CATEGORIES = [
 ];
 
 export function FindingDetailView({ finding, canManage }: { finding: Finding; canManage: boolean }) {
-  const L = useLabels();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -124,7 +122,7 @@ export function FindingDetailView({ finding, canManage }: { finding: Finding; ca
           <dl className="space-y-1.5">
             <Row label="Engagement" value={<Link href={`/cams/engagements/${finding.engagementId}`} className="text-primary-700 hover:underline">{finding.engagementCode}</Link>} />
             <Row label="Owner" value={finding.ownerName ?? "—"} />
-            <Row label={L("term.site", "Site")} value={finding.siteName ?? "—"} />
+            <Row label="Site" value={finding.siteName ?? "—"} />
             <Row label="Area / asset" value={finding.areaOrAssetRef ?? "—"} />
             <Row label="Due" value={fmtDate(finding.dueDate)} />
             <Row label="Age" value={`${finding.ageDays} days`} />

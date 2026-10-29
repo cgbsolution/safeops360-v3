@@ -36,8 +36,6 @@ import { Badge } from "@/components/ui/badge";
 import { UserPicker } from "@/components/ui/user-picker";
 import { readApiError } from "@/lib/client-errors";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 // ─── Constants ────────────────────────────────────────────────────────
 
@@ -599,7 +597,6 @@ function TabIndicator({ current, setTab }: { current: number; setTab: (n: number
 // ─── Tab 1: Identity ─────────────────────────────────────────────────
 
 function Tab1Identity(props: any) {
-  const L = useLabels();
   return (
     <Card>
       <CardHeader>
@@ -674,9 +671,9 @@ function Tab1Identity(props: any) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">{`${L(TERM.plant, "Plant")} Scope`}</Label>
+            <Label className="text-xs">Plant Scope</Label>
             <Select value={props.plantId} onChange={(e) => props.setPlantId(e.target.value)}>
-              <SelectItem value="">{L("training.all_plants_cross_plant", "— All plants (cross-plant program) —")}</SelectItem>
+              <SelectItem value="">— All plants (cross-plant program) —</SelectItem>
               {props.plants.map((p: Plant) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name}

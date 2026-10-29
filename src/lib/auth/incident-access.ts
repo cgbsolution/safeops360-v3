@@ -53,13 +53,15 @@ export async function incidentReadScopeWhere(userId: string): Promise<IncidentRe
     }
   }
 
-  // OWN_DEPARTMENT — incidents at the user's plant(s) in their department.
-  if (scopes.includes("OWN_DEPARTMENT") && me?.plantId) {
-    ors.push(
-      me.department
-        ? { plantId: me.plantId, department: { is: { name: me.department } } }
-        : { plantId: me.plantId }
-    );
+  // OWN_DEPARTMENT — incidents at the user's plant(s) in their department,
+  // plus the ones they reported (same rule as the backend's can()). A user
+  // with no department gets only their own reports, never the whole plant.
+  if (scopes.includes("OWN_DEPARTMENT")) {
+    const plantIds = (await getAccessiblePlantIds("INCIDENT.READ")) ?? (me?.plantId ? [me.plantId] : []);
+    if (me?.department && plantIds.length > 0) {
+      ors.push({ plantId: { in: plantIds }, department: { is: { name: me.department } } });
+    }
+    ors.push({ reporterId: userId });
   }
 
   // OWN_RECORDS — only incidents the user reported themselves.

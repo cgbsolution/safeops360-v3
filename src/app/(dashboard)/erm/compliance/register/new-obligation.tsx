@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectItem } from "@/components/ui/select";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 const OBLIGATION_TYPES = [
   "LICENSE",
@@ -43,7 +41,6 @@ export function NewObligationButton() {
 }
 
 function NewObligationModal({ onClose }: { onClose: () => void }) {
-  const L = useLabels();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -165,11 +162,11 @@ function NewObligationModal({ onClose }: { onClose: () => void }) {
           </Field>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label={L("term.site_id_optional", "Site ID (optional)")}>
+            <Field label="Site ID (optional)">
               <Input
                 value={siteId}
                 onChange={(e) => setSiteId(e.target.value)}
-                placeholder={`${L(TERM.plant, "Plant")} / site id`}
+                placeholder="Plant / site id"
               />
             </Field>
             <Field label="Valid from">

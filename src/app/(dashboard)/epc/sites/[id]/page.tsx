@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { useLabels } from "@/components/labels/label-provider";
 import {
   Building2,
   Users,
@@ -165,7 +164,6 @@ function LifecycleProgress({ status }: { status: string }) {
 
 // ─── Main page component (client) ────────────────────────────────────────────
 export default function SiteDetailPage() {
-  const L = useLabels();
   const params = useParams<{ id: string }>();
   const id = params.id;
 
@@ -208,17 +206,7 @@ export default function SiteDetailPage() {
         }
         if (gateRes.ok) {
           const gateData = await gateRes.json();
-          // The log endpoint returns check rows (overallResult / checkCompletedAt);
-          // normalise to the entry shape this page renders.
-          const rows: any[] = Array.isArray(gateData?.entries) ? gateData.entries : Array.isArray(gateData) ? gateData : [];
-          setGateLog(
-            rows.map((e) => ({
-              ...e,
-              result: e.result ?? e.overallResult ?? "",
-              checkedAt: e.checkedAt ?? e.checkCompletedAt ?? e.createdAt,
-              gatePassNumber: e.gatePassNumber ?? e.gatePass?.passNumber ?? null,
-            })),
-          );
+          setGateLog(gateData.entries ?? gateData ?? []);
           if (gateData.complianceConfig) setComplianceConfig(gateData.complianceConfig);
         }
         if (inductionRes.ok) {
@@ -245,7 +233,7 @@ export default function SiteDetailPage() {
   if (error || !site) {
     return (
       <div className="rounded-xl border bg-white p-10 text-center text-sm text-rose-600">
-        {error ?? L("epc.site_not_found", "Site not found.")}
+        {error ?? "Site not found."}
       </div>
     );
   }
@@ -261,7 +249,7 @@ export default function SiteDetailPage() {
         <div className="flex items-center text-xs text-slate-500 mb-2 gap-1">
           <Link href="/epc" className="hover:text-cyan-700">EPC</Link>
           <span>/</span>
-          <Link href="/epc/sites" className="hover:text-cyan-700">{L("term.sites", "Sites")}</Link>
+          <Link href="/epc/sites" className="hover:text-cyan-700">Sites</Link>
           <span>/</span>
           <span className="text-slate-700 font-medium">{site.siteCode}</span>
         </div>
@@ -307,10 +295,10 @@ export default function SiteDetailPage() {
             {/* Site identity */}
             <div className="rounded-xl border bg-white shadow-sm p-5">
               <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                <Building2 size={15} />{` ${L("term.site", "Site")} Identity`}
+                <Building2 size={15} /> Site Identity
               </h3>
               <dl className="space-y-2.5 text-sm">
-                <InfoRow label={`${L("term.site", "Site")} Code`} value={site.siteCode} />
+                <InfoRow label="Site Code" value={site.siteCode} />
                 <InfoRow label="Project Number" value={site.projectNumber} />
                 <InfoRow label="Project Type" value={humanizeStatus(site.projectType)} />
                 <InfoRow label="Contract Value" value={fmtCurrency(site.contractValue)} />
@@ -381,7 +369,7 @@ export default function SiteDetailPage() {
             {mobilizations.length === 0 ? (
               <div className="p-10 text-center text-sm text-slate-500">
                 <Users size={32} className="mx-auto mb-2 text-slate-300" />
-                {L("epc.no_mobilizations_for_site", "No mobilizations found for this site.")}
+                No mobilizations found for this site.
               </div>
             ) : (
               <Table>
@@ -487,13 +475,13 @@ export default function SiteDetailPage() {
         <TabsContent value="contractors">
           <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-700">{`Contractor Companies at This ${L("term.site", "Site")}`}</h3>
+              <h3 className="text-sm font-semibold text-slate-700">Contractor Companies at This Site</h3>
               <Link href="/epc/contractors" className="text-xs text-cyan-700 hover:underline">View All</Link>
             </div>
             {contractors.length === 0 ? (
               <div className="p-10 text-center text-sm text-slate-500">
                 <HardHat size={32} className="mx-auto mb-2 text-slate-300" />
-                <p>{L("epc.no_contractors_at_site", "No contractor companies are active at this site.")}</p>
+                <p>No contractor companies are active at this site.</p>
                 <p className="text-xs text-slate-400 mt-1">Companies appear here when their workers are mobilized.</p>
               </div>
             ) : (

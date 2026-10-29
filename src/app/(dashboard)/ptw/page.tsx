@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { buildPermitListWhere } from "@/lib/auth/list-filters";
 import { PageHeader } from "@/components/page-header";
 import { RegisterTabs, RegisterWorkspacePane } from "@/components/analytics/register-workspace";
 import { resolveTab } from "@/lib/registers";
@@ -90,9 +93,14 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
   // Archived permits (closed-loop retention flag) are hidden from the default
   // register; ?archived=1 shows only the archived ones.
   const showArchived = searchParams.archived === "1";
-  const where: any = { isDeleted: false, isArchived: showArchived };
-  if (searchParams.type) where.type = searchParams.type;
-  if (searchParams.status) where.status = searchParams.status;
+  // RBAC: the same rows GET /api/ptw would return (PTW.READ scope + the
+  // named-party rule). Without this every user saw every permit.
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as any)?.id ?? "";
+  const scopeWhere = await buildPermitListWhere(userId);
+  const where: any = { AND: [scopeWhere, { isDeleted: false, isArchived: showArchived }] };
+  if (searchParams.type) where.AND.push({ type: searchParams.type });
+  if (searchParams.status) where.AND.push({ status: searchParams.status });
 
   // Three independent reads — run them in parallel.
   const [items, typeCounts, statusCounts] = await Promise.all([
@@ -112,8 +120,8 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
       orderBy: { createdAt: "desc" },
       take: 80
     }),
-    prisma.permit.groupBy({ by: ["type"], where: { isDeleted: false }, _count: true }),
-    prisma.permit.groupBy({ by: ["status"], where: { isDeleted: false }, _count: true })
+    prisma.permit.groupBy({ by: ["type"], where: { AND: [scopeWhere, { isDeleted: false }] }, _count: true }),
+    prisma.permit.groupBy({ by: ["status"], where: { AND: [scopeWhere, { isDeleted: false }] }, _count: true })
   ]);
 
   const typeCountMap: Record<string, number> = {};

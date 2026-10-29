@@ -31,7 +31,6 @@ import {
   type CertificationRegisterResponse,
   type CertificationRegisterRow,
 } from "../lib";
-import { useLabels } from "@/components/labels/label-provider";
 
 // Expiry bands are derived from daysToExpiry (independent of each cert's
 // renewalLeadDays) so the filter means the same thing across the whole estate.
@@ -120,7 +119,6 @@ function DaysCell({ r }: { r: CertificationRegisterRow }) {
 }
 
 export function CertificationsRegisterView({ data }: { data: CertificationRegisterResponse }) {
-  const L = useLabels();
   const canExport = usePermission("FACILITY.EXPORT");
   const allRows = data.items;
 
@@ -249,7 +247,7 @@ export function CertificationsRegisterView({ data }: { data: CertificationRegist
       expiredCount: rows.filter(isExpired).length,
     };
     const scope = facility ? `${facility.toLowerCase()}_` : "";
-    downloadCsv(`certifications-register_${scope}${stamp()}.csv`, certificationRegisterCsv(res, L));
+    downloadCsv(`certifications-register_${scope}${stamp()}.csv`, certificationRegisterCsv(res));
   }
 
   const hasFilters = !!facility || !!stateSel.size || !!typeSel.size || band !== "all" || !!q.trim();
@@ -398,7 +396,7 @@ export function CertificationsRegisterView({ data }: { data: CertificationRegist
             <Input
               value={q}
               onChange={(e) => setParam("q", e.target.value || null)}
-              placeholder={`Search ${L("term.factory_lc", "factory")}, cert no., issuer…`}
+              placeholder="Search factory, cert no., issuer…"
               className="w-64 pl-8 pr-3"
             />
           </div>
@@ -524,7 +522,6 @@ function PanelRow({ label, children }: { label: string; children: React.ReactNod
 }
 
 function DetailPanel({ row, onClose }: { row: CertificationRegisterRow; onClose: () => void }) {
-  const L = useLabels();
   const daysLine =
     row.daysToExpiry == null
       ? "No expiry recorded"
@@ -600,7 +597,7 @@ function DetailPanel({ row, onClose }: { row: CertificationRegisterRow; onClose:
             href={`/facilities/${row.factoryProfileId}?tab=Certifications&editCert=${encodeURIComponent(row.certId)}`}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
           >
-            {`${L("facilities.edit_in_factory_profile", "Edit in Factory Profile")} `}<ExternalLink size={15} />
+            Edit in Factory Profile <ExternalLink size={15} />
           </Link>
         </div>
       </aside>

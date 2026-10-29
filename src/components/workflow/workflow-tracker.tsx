@@ -5,7 +5,7 @@ import { CheckCircle2, Clock, AlertTriangle, ChevronDown, ChevronUp, User as Use
 import { cn, formatDateTime, humanize } from "@/lib/utils";
 import { formatPartyMeta, formatPartyMetaOrHint, formatPartyName } from "@/lib/users/user-ref";
 
-import { StepName } from "@/components/workflow/step-name";
+import { stepDisplayName } from "@/lib/flra/terminology";
 import { Button } from "@/components/ui/button";
 type Step = {
   id: string;
@@ -47,10 +47,6 @@ type Task = {
   dueAt?: Date | string | null;
   assignedTo: Party;
 };
-
-// Task states that still owe an action. OVERDUE / ESCALATED are stamped on top
-// of an unfinished task by the SLA layer — the assignee still has to act.
-const OPEN_TASK_STATUSES = ["PENDING", "OVERDUE", "ESCALATED"];
 
 export function WorkflowTracker({
   steps,
@@ -136,7 +132,7 @@ export function WorkflowTracker({
                     "text-xs font-medium leading-tight mt-0.5",
                     done || active ? "text-slate-900" : "text-slate-400"
                   )}>
-                    <StepName name={step.name} />
+                    {stepDisplayName(step.name)}
                   </div>
                 </div>
               </div>
@@ -150,22 +146,15 @@ export function WorkflowTracker({
         })}
       </div>
 
-      {/* Pending tasks — only OPEN ones at the CURRENT active step. Stale
+      {/* Pending tasks — only those at the CURRENT active step. Stale
           pending tasks at earlier steps (from older code paths that
           didn't mark them COMPLETED when the workflow advanced) are
           filtered out so the UI shows only who is actually expected to
-          act next, not the full history of orphaned tasks.
-          Callers often pass the Prisma `pendingTasks` back-relation, which is
-          really every WorkflowTask on the instance (COMPLETED included). Once
-          the instance completes, currentStepId is cleared, so without the
-          status filter every finished step re-appeared as "Awaiting Action". */}
+          act next, not the full history of orphaned tasks. */}
       {(() => {
-        const openTasks = isComplete
-          ? []
-          : pendingTasks.filter((t) => OPEN_TASK_STATUSES.includes(t.status));
         const visiblePendingTasks = currentStepId
-          ? openTasks.filter((t) => t.stepId === currentStepId)
-          : openTasks;
+          ? pendingTasks.filter((t) => t.stepId === currentStepId)
+          : pendingTasks;
         if (visiblePendingTasks.length === 0) return null;
         return (
         <div className="rounded-lg border bg-amber-50 border-amber-200 p-3">
@@ -184,7 +173,7 @@ export function WorkflowTracker({
                     <span className="block">
                       <span className="font-semibold">{formatPartyName(t.assignedTo)}</span>
                       <span className="text-amber-400"> · </span>
-                      <span className="text-amber-700"><StepName name={t.stepName} /></span>
+                      <span className="text-amber-700">{stepDisplayName(t.stepName)}</span>
                     </span>
                     <span className="block text-xs text-amber-700/90 mt-0.5">
                       {formatPartyMetaOrHint(t.assignedTo)}
@@ -233,7 +222,7 @@ export function WorkflowTracker({
                   <div className="text-slate-900">
                     <span className="font-medium">{formatPartyName(h.performedBy)}</span>
                     <span className="text-slate-500"> — {humanize(h.action)}</span>
-                    <span className="text-slate-500"> · <StepName name={h.stepName} /></span>
+                    <span className="text-slate-500"> · {stepDisplayName(h.stepName)}</span>
                   </div>
                   {h.comments && <div className="text-slate-600 mt-0.5 italic">"{h.comments}"</div>}
                   <div className="text-xs text-slate-400 mt-0.5">

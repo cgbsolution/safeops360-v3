@@ -8,8 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; code: string; name: string };
 
@@ -30,7 +28,6 @@ export function EquipmentForm({
   plants: Plant[];
   categories: string[];
 }) {
-  const L = useLabels();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +57,7 @@ export function EquipmentForm({
     if (!code.trim()) return setError("Code is required.");
     if (!name.trim()) return setError("Name is required.");
     if (!category.trim()) return setError("Category is required.");
-    if (!plantId) return setError(L("term.plant_required", "Plant is required."));
+    if (!plantId) return setError("Plant is required.");
     if (!location.trim()) return setError("Location is required.");
 
     const body = {
@@ -175,9 +172,9 @@ export function EquipmentForm({
 
       <Section title="Location & criticality">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label={L(TERM.plant, "Plant")} required>
+          <Field label="Plant" required>
             <Select value={plantId} onChange={(e) => setPlantId(e.target.value)} className="form-input">
-              <SelectItem value="">{L("term.select_plant", "Select plant…")}</SelectItem>
+              <SelectItem value="">Select plant…</SelectItem>
               {plants.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.code} — {p.name}

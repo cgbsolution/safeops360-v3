@@ -33,8 +33,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { SignatureModal } from "@/components/ui/signature-pad";
 import { readApiError } from "@/lib/client-errors";
 import { fmtDateTime } from "@/app/(dashboard)/cams/lib-assurance";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM, type LabelFn } from "@/lib/labels/core";
 
 export type SignOffEntry = {
   role: string;
@@ -68,12 +66,6 @@ const ROLE_LABEL: Record<string, string> = {
   EXTERNAL_OBSERVER: "External observer",
 };
 
-/** ROLE_LABEL with the plant-manager vocabulary routed through display labels. */
-function roleLabel(L: LabelFn, role: string): string {
-  if (role === "PLANT_MANAGER") return L(TERM.plantManager, "Plant manager");
-  return ROLE_LABEL[role] ?? role;
-}
-
 export function SignOffPanel({
   auditId,
   status,
@@ -83,7 +75,6 @@ export function SignOffPanel({
   status: SignOffStatus | null;
   locked: boolean;
 }) {
-  const L = useLabels();
   const [signing, setSigning] = useState(false);
 
   if (!status) return null;
@@ -148,7 +139,7 @@ export function SignOffPanel({
               .filter((s) => !["LEAD_AUDITOR", "AUDITEE_OWNER"].includes(s.role))
               .map((s, i) => (
                 <li key={i} className="text-[11px] text-slate-600">
-                  {roleLabel(L, s.role)}
+                  {ROLE_LABEL[s.role] ?? s.role}
                   {s.disciplineCode ? ` (${s.disciplineCode})` : ""}: {s.name} —{" "}
                   {fmtDateTime(s.signedAt)}
                 </li>
@@ -177,7 +168,6 @@ function RoleCard({
 }: {
   role: string; entry?: SignOffEntry; auditId: string; locked: boolean;
 }) {
-  const L = useLabels();
   const router = useRouter();
   const { data: session } = useSession();
   const me = (session?.user as any)?.id as string | undefined;
@@ -198,7 +188,7 @@ function RoleCard({
       <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 p-2.5">
         <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
           <CircleDashed size={13} className="text-slate-400" />
-          {roleLabel(L, role)}
+          {ROLE_LABEL[role] ?? role}
         </div>
         <p className="mt-0.5 text-[11px] text-slate-500">Not yet signed.</p>
       </div>
@@ -209,7 +199,7 @@ function RoleCard({
     <div className="rounded-lg border border-slate-200 bg-white p-2.5">
       <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
         <CheckCircle2 size={13} className="text-emerald-600" />
-        {roleLabel(L, role)}
+        {ROLE_LABEL[role] ?? role}
         {/* Only the signer may withdraw their own signature. */}
         {!locked && entry.userId === me && (
           <Button
@@ -254,7 +244,6 @@ function SignDialog({
 }: {
   auditId: string; status: SignOffStatus; onClose: () => void;
 }) {
-  const L = useLabels();
   const router = useRouter();
   const [role, setRole] = useState(status.missingRequiredRoles[0] ?? "LEAD_AUDITOR");
   const [kind, setKind] = useState<"DRAWN" | "TYPED">("DRAWN");
@@ -308,8 +297,8 @@ function SignDialog({
             <div>
               <Label htmlFor="so-role" className="text-xs">Signing as</Label>
               <Select id="so-role" value={role} onChange={(e) => setRole(e.target.value)} className="mt-1">
-                {Object.keys(ROLE_LABEL).map((v) => (
-                  <SelectItem key={v} value={v}>{roleLabel(L, v)}</SelectItem>
+                {Object.entries(ROLE_LABEL).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>{l}</SelectItem>
                 ))}
               </Select>
             </div>

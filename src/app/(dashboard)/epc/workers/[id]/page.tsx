@@ -17,7 +17,6 @@ import {
   Stethoscope,
 } from "lucide-react";
 import CertificationsTab from "./CertificationsTab";
-import { getServerLabels } from "@/lib/labels/server";
 
 export const dynamic = "force-dynamic";
 
@@ -105,12 +104,12 @@ type GateEntry = {
   gatePassNumber: string | null;
 };
 
-function humanizeStatus(s: string | null | undefined): string {
-  return (s ?? "—").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+function humanizeStatus(s: string): string {
+  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function statusBadgeClass(status: string | null | undefined): string {
-  const s = (status ?? "").toLowerCase();
+function statusBadgeClass(status: string): string {
+  const s = status.toLowerCase();
   if (s === "active") return "bg-emerald-100 text-emerald-800 border-emerald-200";
   if (s === "suspended") return "bg-amber-100 text-amber-800 border-amber-200";
   if (s === "blacklisted") return "bg-rose-100 text-rose-800 border-rose-200";
@@ -146,7 +145,6 @@ function fmtDateTime(d: string): string {
 }
 
 export default async function WorkerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const L = await getServerLabels();
   const { id } = await params;
 
   const [workerData, mobData, inductionData, gateData] = await Promise.all([
@@ -156,34 +154,12 @@ export default async function WorkerDetailPage({ params }: { params: Promise<{ i
     backendFetch<{ entries: GateEntry[] }>(`/api/epc/gate/log?workerId=${id}`).catch(() => null),
   ]);
 
-  const rawWorker = workerData
+  const worker = workerData
     ? ("worker" in workerData ? workerData.worker : workerData)
     : null;
-  // The API names the employment state `overallStatus`; this page reads `status`.
-  const worker = rawWorker
-    ? { ...rawWorker, status: rawWorker.status ?? (rawWorker as any).overallStatus ?? "active" }
-    : null;
   const mobilizations = mobData?.mobilizations ?? [];
-  // The induction API returns conductedAt / validUntil and no status; derive
-  // the row shape this table renders.
-  const inductions: InductionRecord[] = ((inductionData?.inductions ?? []) as any[]).map((ind) => {
-    const validUpto = ind.validUpto ?? ind.validUntil ?? null;
-    const expired = ind.isExpired || (validUpto && new Date(validUpto).getTime() < Date.now());
-    return {
-      ...ind,
-      siteName: ind.siteName ?? mobilizations.find((m: any) => m.siteId === ind.siteId)?.siteName ?? "—",
-      inductionDate: ind.inductionDate ?? ind.conductedAt,
-      validUpto,
-      status: ind.status ?? (ind.assessmentPassed === false ? "failed" : expired ? "expired" : "valid"),
-    };
-  });
-  // The log endpoint returns check rows (overallResult / checkCompletedAt);
-  // normalise to the entry shape this page renders.
-  const gateHistory: GateEntry[] = ((gateData?.entries ?? []) as any[]).map((e) => ({
-    ...e,
-    result: e.result ?? e.overallResult ?? "",
-    checkedAt: e.checkedAt ?? e.checkCompletedAt ?? e.createdAt,
-  }));
+  const inductions = inductionData?.inductions ?? [];
+  const gateHistory = gateData?.entries ?? [];
 
   if (!worker) {
     return (
@@ -328,7 +304,7 @@ export default async function WorkerDetailPage({ params }: { params: Promise<{ i
                 <TableHeader>
                   <TableRow>
                     <TableHead>Mob. No.</TableHead>
-                    <TableHead>{L("term.site", "Site")}</TableHead>
+                    <TableHead>Site</TableHead>
                     <TableHead>Trade</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Start</TableHead>
@@ -383,7 +359,7 @@ export default async function WorkerDetailPage({ params }: { params: Promise<{ i
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{L("term.site", "Site")}</TableHead>
+                    <TableHead>Site</TableHead>
                     <TableHead>Induction Date</TableHead>
                     <TableHead>Valid Until</TableHead>
                     <TableHead>Status</TableHead>
@@ -424,7 +400,7 @@ export default async function WorkerDetailPage({ params }: { params: Promise<{ i
                 <TableHeader>
                   <TableRow>
                     <TableHead>Time</TableHead>
-                    <TableHead>{L("term.site", "Site")}</TableHead>
+                    <TableHead>Site</TableHead>
                     <TableHead>Result</TableHead>
                     <TableHead>Gate Pass</TableHead>
                   </TableRow>

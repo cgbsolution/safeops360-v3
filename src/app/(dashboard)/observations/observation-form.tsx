@@ -29,11 +29,10 @@ import {
   useSeveritySuggestion,
   severityLabel
 } from "@/components/observations/severity-suggestion";
-import { Camera, Upload, X, Image as ImageIcon, Film, FileText, AlertCircle, Loader2 } from "lucide-react";
+import { Camera, Upload, X, Image as ImageIcon, Film, FileText, AlertCircle, Loader2, Sparkles } from "lucide-react";
+import { useCopilot } from "@/components/copilot/copilot-provider";
 import { cn } from "@/lib/utils";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
-import { useLabels } from "@/components/labels/label-provider";
-import { TERM } from "@/lib/labels/core";
 
 type Plant = { id: string; name: string; areas: { id: string; name: string }[] };
 
@@ -63,7 +62,6 @@ type LocalPhoto = {
 };
 
 export function ObservationForm({ plants }: { plants: Plant[] }) {
-  const L = useLabels();
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState<"" | "creating" | "uploading">("");
@@ -94,6 +92,13 @@ export function ObservationForm({ plants }: { plants: Plant[] }) {
   const [obsDate, setObsDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [targetDateOverride, setTargetDateOverride] = useState("");
   const [targetDateReason, setTargetDateReason] = useState("");
+  // Description and immediate action stay uncontrolled (FormData builds the
+  // payload); refs let the copilot read and, when asked, fill them.
+  const descRef = useRef<HTMLTextAreaElement>(null);
+  const actionRef = useRef<HTMLTextAreaElement>(null);
+  // A copilot severity sent together with a new classification, waiting for the
+  // matrix suggestion for that classification to land (see the effect below).
+  const pendingSeverity = useRef<{ severity: string; reason: string; cat: string; sub: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -179,6 +184,68 @@ export function ObservationForm({ plants }: { plants: Plant[] }) {
     areaId,
     enabled: isAtRisk(type)
   });
+
+  // ── Copilot bridge ── the copilot reads this form and proposes field values;
+  // the observer reviews them and submits as usual.
+  const copilot = useCopilot();
+  const { registerFormBridge } = copilot;
+  const snapshotRef = useRef<() => Record<string, unknown>>(() => ({}));
+  snapshotRef.current = () => ({
+    plantId,
+    areaId,
+    areaName: selectedPlant?.areas.find((a) => a.id === areaId)?.name ?? null,
+    type,
+    categoryCode: taxonomy.categoryCode || null,
+    subCategoryCode: taxonomy.subCategoryCode || null,
+    severity,
+    severityReason,
+    suggestedSeverity: severitySuggestion?.suggested ?? null,
+    description: descRef.current?.value ?? "",
+    immediateAction: actionRef.current?.value ?? "",
+    contractorInvolved: !!contractorCompanyId,
+    workersNamed: workersInvolved.length,
+    areas: (selectedPlant?.areas ?? []).map((a) => ({ areaId: a.id, name: a.name }))
+  });
+  const applyRef = useRef<(p: Record<string, unknown>) => void>(() => {});
+  applyRef.current = (p) => {
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(p, k);
+    const str = (k: string) => (typeof p[k] === "string" ? (p[k] as string) : "");
+    if (has("type") && str("type")) setType(str("type"));
+    if (has("areaId") && selectedPlant?.areas.some((a) => a.id === p.areaId)) setAreaId(str("areaId"));
+    const nextTax = has("categoryCode")
+      ? { categoryCode: str("categoryCode"), subCategoryCode: str("subCategoryCode") }
+      : taxonomy;
+    if (has("categoryCode")) setTaxonomy(nextTax);
+    if (has("severity") && str("severity")) {
+      const reason = has("severityReason") ? str("severityReason") : "";
+      setSeverity(str("severity"));
+      setSeverityReason(reason);
+      const reclassified = has("type") || has("categoryCode") || has("areaId");
+      pendingSeverity.current = reclassified
+        ? { severity: str("severity"), reason, cat: nextTax.categoryCode, sub: nextTax.subCategoryCode }
+        : null;
+    } else if (has("severityReason")) {
+      setSeverityReason(str("severityReason"));
+    }
+    if (has("description") && descRef.current) descRef.current.value = str("description");
+    if (has("immediateAction") && actionRef.current) actionRef.current.value = str("immediateAction");
+  };
+  useEffect(
+    () => registerFormBridge({ kind: "OBSERVATION", getDraft: () => snapshotRef.current(), applyPatch: (p) => applyRef.current(p) }),
+    [registerFormBridge]
+  );
+  // The severity field re-prefills the matrix suggestion whenever the
+  // classification changes. A copilot severity that came with a new
+  // classification is re-applied once that suggestion lands (this parent effect
+  // runs after the field's own prefill effect in the same commit).
+  useEffect(() => {
+    const pend = pendingSeverity.current;
+    if (!pend || !severitySuggestion) return;
+    if (severitySuggestion.categoryCode !== pend.cat || severitySuggestion.subCategoryCode !== pend.sub) return;
+    pendingSeverity.current = null;
+    setSeverity(pend.severity);
+    setSeverityReason(pend.severity === severitySuggestion.suggested ? "" : pend.reason);
+  }, [severitySuggestion]);
 
   const { preview: slaPreview, loading: slaLoading } = useSlaPreview(
     plantId,
@@ -377,7 +444,7 @@ export function ObservationForm({ plants }: { plants: Plant[] }) {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label={L(TERM.plant, "Plant")} name="plantId" required>
+            <Field label="Plant" name="plantId" required>
               <Select name="plantId" value={plantId} onChange={onPlantChange} required>
                 {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </Select>
@@ -456,11 +523,32 @@ export function ObservationForm({ plants }: { plants: Plant[] }) {
           </Field>
 
           <Field label="Description" name="description" required>
-            <Textarea name="description" required minLength={10} placeholder="Describe what was observed, where, and any context (10 chars min)..." rows={4} />
+            <Textarea ref={descRef} name="description" required minLength={10} placeholder="Describe what was observed, where, and any context (10 chars min)..." rows={4} />
+            {copilot.available && !copilot.unavailableReason && isAtRisk(type) && (
+              <div className="mt-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={copilot.sending}
+                  onClick={() => {
+                    if ((descRef.current?.value ?? "").trim().length < 10) {
+                      setError("Write what you observed first (at least 10 characters), then ask the copilot.");
+                      return;
+                    }
+                    copilot.setOpen(true);
+                    void copilot.send("Suggest the category, severity and corrective action for this observation, and fill them on the form.");
+                  }}
+                  className="gap-1.5"
+                >
+                  <Sparkles size={14} /> Suggest category, severity &amp; action
+                </Button>
+              </div>
+            )}
           </Field>
 
           <Field label="Immediate Action Taken" name="immediateAction">
-            <Textarea name="immediateAction" placeholder="Action taken on the spot, if any..." rows={2} />
+            <Textarea ref={actionRef} name="immediateAction" placeholder="Action taken on the spot, if any..." rows={2} />
           </Field>
 
           {/* Photos & Evidence — collected locally, uploaded after the

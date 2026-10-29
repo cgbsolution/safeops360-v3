@@ -9,8 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectItem } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Building2 } from "lucide-react";
-import { useLabels } from "@/components/labels/label-provider";
-import { readApiError } from "@/lib/client-errors";
 
 const PROJECT_TYPES = [
   "Power Plant",
@@ -69,7 +67,6 @@ const initial: FormData = {
 };
 
 export default function NewSitePage() {
-  const L = useLabels();
   const router = useRouter();
   const [form, setForm] = useState<FormData>(initial);
   const [submitting, setSubmitting] = useState(false);
@@ -95,14 +92,12 @@ export default function NewSitePage() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        // readApiError flattens every error shape (422 detail arrays, dict
-        // details) to text; `new Error(data.detail)` with an array rendered
-        // "[object Object]" in the banner.
-        throw new Error(await readApiError(res, L("epc.failed_create_site", "Failed to create site")));
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail ?? data.error ?? `Error ${res.status}`);
       }
       router.push("/epc/sites");
     } catch (e: any) {
-      setError(e.message ?? L("epc.failed_create_site", "Failed to create site"));
+      setError(e.message ?? "Failed to create site");
     } finally {
       setSubmitting(false);
     }
@@ -114,16 +109,16 @@ export default function NewSitePage() {
         <div className="flex items-center text-xs text-slate-500 mb-2 gap-1">
           <Link href="/epc" className="hover:text-cyan-700">EPC</Link>
           <span>/</span>
-          <Link href="/epc/sites" className="hover:text-cyan-700">{L("term.sites", "Sites")}</Link>
+          <Link href="/epc/sites" className="hover:text-cyan-700">Sites</Link>
           <span>/</span>
-          <span className="text-slate-700 font-medium">{`New ${L("term.site", "Site")}`}</span>
+          <span className="text-slate-700 font-medium">New Site</span>
         </div>
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Building2 size={22} className="text-cyan-700" />{` Register New ${L("term.site", "Site")}`}
+            <Building2 size={22} className="text-cyan-700" /> Register New Site
           </h1>
           <Link href="/epc/sites" className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
-            <ArrowLeft size={14} />{` Back to ${L("term.sites", "Sites")}`}
+            <ArrowLeft size={14} /> Back to Sites
           </Link>
         </div>
       </div>
@@ -137,15 +132,15 @@ export default function NewSitePage() {
 
         {/* Section: Site Identity */}
         <div className="rounded-xl border bg-white shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-slate-700 mb-4">{`${L("term.site", "Site")} Identity`}</h2>
+          <h2 className="text-sm font-semibold text-slate-700 mb-4">Site Identity</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <Label htmlFor="siteName">{`${L("term.site", "Site")} Name *`}</Label>
+              <Label htmlFor="siteName">Site Name *</Label>
               <Input
                 id="siteName"
                 value={form.siteName}
                 onChange={(e) => set("siteName", e.target.value)}
-                placeholder={L("epc.site_name_example", "e.g. Sipat Phase II Power Plant")}
+                placeholder="e.g. Sipat Phase II Power Plant"
                 required
                 className="mt-1"
               />
@@ -222,7 +217,7 @@ export default function NewSitePage() {
                 id="address"
                 value={form.address}
                 onChange={(e) => set("address", e.target.value)}
-                placeholder={L("epc.site_address_placeholder", "Full address of the construction site")}
+                placeholder="Full address of the construction site"
                 required
                 className="mt-1"
               />
@@ -248,7 +243,7 @@ export default function NewSitePage() {
                 id="district"
                 value={form.district}
                 onChange={(e) => set("district", e.target.value)}
-                placeholder={L("epc.district_example", "e.g. Korba")}
+                placeholder="e.g. Korba"
                 className="mt-1"
               />
             </div>
@@ -265,7 +260,7 @@ export default function NewSitePage() {
                 id="clientName"
                 value={form.clientName}
                 onChange={(e) => set("clientName", e.target.value)}
-                placeholder={L("epc.client_example", "e.g. NTPC Limited")}
+                placeholder="e.g. NTPC Limited"
                 required
                 className="mt-1"
               />
@@ -325,7 +320,7 @@ export default function NewSitePage() {
 
         <div className="flex gap-3">
           <Button type="submit" disabled={submitting} className="min-w-32">
-            {submitting ? <><Loader2 size={14} className="animate-spin mr-2" /> Registering...</> : `Register ${L("term.site", "Site")}`}
+            {submitting ? <><Loader2 size={14} className="animate-spin mr-2" /> Registering...</> : "Register Site"}
           </Button>
           <Button type="button" variant="outline" asChild>
             <Link href="/epc/sites">Cancel</Link>

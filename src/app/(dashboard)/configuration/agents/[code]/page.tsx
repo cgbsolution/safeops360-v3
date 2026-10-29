@@ -135,6 +135,9 @@ export default async function AgentDetailPage(props: {
     can(userId, "AGENT.AUDIT_VIEW", {})
   ]);
   const canConfigure = configCheck.allowed;
+  // Agent config applies to every plant, so editing it needs the grant at
+  // ALL_PLANTS (the server enforces the same rule on PATCH / promote).
+  const canEditConfig = configCheck.allowed && configCheck.matchedScope === "ALL_PLANTS";
   const canViewAudit = auditCheck.allowed;
 
   // Parallel fetches — failures are non-fatal for the read path; the
@@ -201,7 +204,7 @@ export default async function AgentDetailPage(props: {
               availableTools: agent.availableTools,
               module: agent.module
             }}
-            canEdit={canConfigure}
+            canEdit={canEditConfig}
           />
         </section>
 

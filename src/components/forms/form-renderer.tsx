@@ -38,7 +38,6 @@ import type { FormColumn, FormField, FormSchema } from "./types";
 import { visibleFieldKeys } from "./visibility";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { useLabels } from "@/components/labels/label-provider";
 
 export type FormRendererProps = {
   schema: FormSchema | null | undefined;
@@ -165,7 +164,6 @@ function Control({
   disabled,
   preview
 }: Omit<InnerProps, "shown">) {
-  const L = useLabels();
   const value = values[field.key];
   const set = (v: unknown) => onChange(field.key, v);
   const invalid = !!errors?.[field.key];
@@ -358,7 +356,7 @@ function Control({
           value={(value as string) ?? ""}
           onChange={(e) => set(e.target.value || null)}
           disabled={disabled}
-          placeholder={`${L("term.site", "Site")} / area`}
+          placeholder="Site / area"
           className={ring}
         />
       );
