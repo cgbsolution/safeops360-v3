@@ -9,6 +9,7 @@ import { AccessRestricted } from "@/components/access-restricted";
 import { EntryEditor } from "./entry-editor";
 import { AgentAssistantCard } from "@/components/agents/agent-assistant-card";
 import { CopilotRefreshOnChange } from "@/components/copilot/copilot-refresh";
+import { HiraCopilotReview, type HiraReview } from "@/components/copilot/hira-copilot-review";
 
 export const dynamic = "force-dynamic";
 
@@ -203,6 +204,10 @@ export default async function HiraEntryDetailPage(
     throw new Error("Failed to load study configuration");
   }
 
+  // Copilot review of this activity (what is wrong, residual risk, improvements).
+  // Best-effort: the page still works if the review can't be computed.
+  const review = await backendFetch<HiraReview>(`/api/copilot/hira-review/${entryId}`).catch(() => null);
+
   let areaName = "";
   if (entry.areaId) {
     try {
@@ -316,6 +321,8 @@ export default async function HiraEntryDetailPage(
           Study is in status <strong>{study.status}</strong>. Edits create a new version and require a change reason.
         </div>
       )}
+
+      <HiraCopilotReview review={review} />
 
       <div className="mb-4">
         <AgentAssistantCard
