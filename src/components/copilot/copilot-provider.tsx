@@ -16,13 +16,15 @@
 //     (e.g. the HIRA editor when a control change moves the residual risk).
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { PtwDraft, PtwDraftCheck } from "@/lib/ptw/wizard-config";
 
 export type ToolChip = { id: string; name: string; label: string; status: "pending" | "running" | "done" | "error"; error?: string | null };
 export type CopilotAction =
   | { type: "navigate"; path: string; label: string }
-  | { type: "specialist"; invocationId: string; invocationNumber: string; agentCode: string; label: string; module: string; recordId: string; href: string | null };
+  | { type: "specialist"; invocationId: string; invocationNumber: string; agentCode: string; label: string; module: string; recordId: string; href: string | null }
+  /** A record the copilot saved for the user (HIRA study / entry). */
+  | { type: "record"; verb: "created" | "updated" | "submitted"; module: string; kind: "study" | "entry"; recordId: string; number: string | null; title: string | null; href: string };
 export type RiskNotice = { tone: "down" | "up" | "same" | "info"; title: string; lines: string[] };
 export type ChatItem = {
   id: string;
@@ -48,7 +50,14 @@ export type FormBridge = {
   applyPatch: (patch: Record<string, unknown>) => void;
 };
 
-export type PageContext = { path: string; module: string | null; recordId: string | null; recordLabel: string | null };
+export type PageContext = {
+  path: string;
+  module: string | null;
+  recordId: string | null;
+  recordLabel: string | null;
+  /** The HIRA study open on screen (its page or one of its entries). */
+  studyId?: string | null;
+};
 
 type CopilotContextValue = {
   available: boolean;
@@ -70,6 +79,8 @@ type CopilotContextValue = {
   registerFormBridge: (bridge: FormBridge) => () => void;
   /** Post a non-AI notice card into the chat (never sent to the model). */
   pushNotice: (notice: RiskNotice) => void;
+  /** How many times the copilot has saved each record (by id) in this tab. */
+  recordRevisions: Record<string, number>;
   lastCheck: PtwDraftCheck | null;
   conversationTooLong: boolean;
 };
@@ -89,10 +100,12 @@ export function pageFromPath(path: string): PageContext {
   };
   if (seg[0] === "ptw" && seg[1] === "new") return { ...base, module: "PTW", recordLabel: "New permit form" };
   if (map[seg[0]]) return { ...base, module: map[seg[0]], recordId: seg.length === 2 && isId(seg[1]) ? seg[1] : null };
-  // /hira/{studyId}/entries/{entryId} — the HIRA agent works on the entry.
+  // /hira/{studyId}/entries/{entryId} — the HIRA agent works on the entry;
+  // /hira/{studyId} is the study the copilot adds entries to.
   if (seg[0] === "hira") {
-    if (seg[2] === "entries" && isId(seg[3])) return { ...base, module: "HIRA", recordId: seg[3] };
-    return { ...base, module: "HIRA" };
+    const studyId = isId(seg[1]) && !["reviews", "entries"].includes(seg[1]) ? seg[1] : null;
+    if (studyId && seg[2] === "entries" && isId(seg[3])) return { ...base, module: "HIRA", recordId: seg[3], studyId };
+    return { ...base, module: "HIRA", studyId };
   }
   return base;
 }
@@ -158,7 +171,9 @@ async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<{ even
 
 export function CopilotProvider({ children, enabled }: { children: React.ReactNode; enabled: boolean }) {
   const pathname = usePathname() ?? "/";
+  const router = useRouter();
   const page = useMemo(() => pageFromPath(pathname), [pathname]);
+  const [recordRevisions, setRecordRevisions] = useState<Record<string, number>>({});
   const [available, setAvailable] = useState(false);
   const [unavailableReason, setUnavailableReason] = useState<string | null>(null);
   const [open, setOpenState] = useState(false);
@@ -299,7 +314,7 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
           conversationId: conversationId.current,
           message,
           messages: apiMessages.current,
-          page: { path: page.path, module: page.module, recordId: page.recordId, recordLabel: page.recordLabel },
+          page: { path: page.path, module: page.module, recordId: page.recordId, recordLabel: page.recordLabel, studyId: page.studyId ?? null },
           ptwDraft: bridge.current ? bridge.current.getDraft() : null,
           formDraft: formBridge.current ? { kind: formBridge.current.kind, draft: formBridge.current.getDraft() } : null,
           nowLocal: localNow(),
@@ -335,6 +350,12 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
           if (data.check) setLastCheck(data.check);
         } else if (event === "action") {
           updateItem(reply.id, (i) => ({ ...i, actions: [...i.actions, data as CopilotAction] }));
+          if (data?.type === "record" && typeof data.recordId === "string") {
+            // The copilot saved a record: re-read the page so registers and the
+            // open editor show it (see CopilotRefreshOnChange).
+            setRecordRevisions((r) => ({ ...r, [data.recordId]: (r[data.recordId] ?? 0) + 1 }));
+            router.refresh();
+          }
         } else if (event === "error") {
           updateItem(reply.id, (i) => ({ ...i, error: data.message ?? "Something went wrong." }));
         } else if (event === "done") {
@@ -359,7 +380,7 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
         return next;
       });
     }
-  }, [sending, page, updateItem, persist]);
+  }, [sending, page, updateItem, persist, router]);
 
   // Remember the panel state for the tab; restore it on first load.
   useEffect(() => {
@@ -383,6 +404,7 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
     formKind,
     registerFormBridge,
     pushNotice,
+    recordRevisions,
     lastCheck,
     conversationTooLong
   };
@@ -406,6 +428,7 @@ const NOOP_CONTEXT: CopilotContextValue = {
   formKind: null,
   registerFormBridge: () => () => {},
   pushNotice: () => {},
+  recordRevisions: {},
   lastCheck: null,
   conversationTooLong: false
 };

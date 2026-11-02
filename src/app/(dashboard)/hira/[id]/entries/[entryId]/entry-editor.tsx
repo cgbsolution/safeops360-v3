@@ -702,7 +702,9 @@ export function EntryEditor({
     recommendedControls: recommendedControls.map((c) => ({
       key: c.id, hierarchy: c.hierarchy, description: c.description, status: c.status
     })),
-    acceptableThreshold: acceptableThreshold ?? null
+    acceptableThreshold: acceptableThreshold ?? null,
+    // Unsaved edits: the copilot won't save over this entry while true.
+    dirty: isDirty
   });
   const hiraApply = useRef<(p: Record<string, unknown>) => void>(() => {});
   hiraApply.current = (p) => {

@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { AccessRestricted } from "@/components/access-restricted";
 import { EntryEditor } from "./entry-editor";
 import { AgentAssistantCard } from "@/components/agents/agent-assistant-card";
+import { CopilotRefreshOnChange } from "@/components/copilot/copilot-refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,7 @@ type EntryOut = {
   unacceptableOverrideActive: boolean;
   status: string;
   versionNumber: number;
+  updatedAt?: string;
   triggersTrainingProgramIds: string[] | null;
   triggersInspectionTypeIds: string[] | null;
   influencesPtwRiskLevel: boolean;
@@ -328,6 +330,20 @@ export default async function HiraEntryDetailPage(
         />
       </div>
 
+      {/* When the copilot saves this entry, the editor reloads with the saved copy. */}
+      <CopilotRefreshOnChange
+        recordId={entry.id}
+        version={[
+          entry.updatedAt ?? "",
+          entry.versionNumber,
+          entry.status,
+          entry.residualRiskScore ?? "",
+          entry.targetRiskScore ?? "",
+          entry.hazards.map((h) => `${h.id}:${h.consequence ?? ""}`).join(","),
+          entry.existingControls.map((c) => `${c.id}:${c.effectiveness ?? ""}`).join(","),
+          entry.recommendedControls.map((c) => c.id).join(",")
+        ].join("|")}
+      >
       <EntryEditor
         entry={editorEntry}
         matrix={{
@@ -345,6 +361,7 @@ export default async function HiraEntryDetailPage(
         trainingPrograms={trainingPrograms}
         inspectionTemplates={inspectionTemplates}
       />
+      </CopilotRefreshOnChange>
     </div>
   );
 }

@@ -629,68 +629,67 @@ const ROLE_GRANTS: Record<string, Grant[]> = {
   // they orchestrate but don't perform the field execution step.
   // ════════════════════════════════════════════════════════════════════
   // ════════════════════════════════════════════════════════════════════
-  // HSE Manager — full operational authority at own plant(s) across ALL
+  // HSE Manager — full operational authority at ALL plants across ALL
   // modules except CONFIGURATION (MASTERS / PERMISSIONS / ROLES / USERS /
-  // WORKFLOWS). CREATE on reporting modules is ALL_PLANTS so they can raise
-  // records at any plant during site visits; all other actions are OWN_PLANT.
+  // WORKFLOWS). Every grant is ALL_PLANTS (widened 2026-11-02 so HSE
+  // managers can see and act on every plant, incl. the JSL Hisar import).
   // ════════════════════════════════════════════════════════════════════
   HSE_MANAGER: [
     // Guided Field Capture triage + Daily Alert Brief
-    { module: "CAPTURE", actions: ["READ", "TRIAGE"], scope: "OWN_PLANT" },
-    { module: "ALERT", actions: ["READ", "ACK", "MUTE"], scope: "OWN_PLANT" },
+    { module: "CAPTURE", actions: ["READ", "TRIAGE"], scope: "ALL_PLANTS" },
+    { module: "ALERT", actions: ["READ", "ACK", "MUTE"], scope: "ALL_PLANTS" },
     // ── Operational Safety ──────────────────────────────────────────
     // View / edit / delete of raised records are elevated to ALL_PLANTS so HSE
     // leadership can act on any originator's record group-wide (any plant).
     // CREATE on OBS/NM/INCIDENT is already ALL_PLANTS (site-visit reporting).
-    // Approve/execute/verify/close/export stay OWN_PLANT — cross-plant workflow
-    // ownership sits with CORPORATE_HSE.
+    // Approve/execute/verify/close/export are ALL_PLANTS as well (since 2026-11-02).
     { module: "OBSERVATION",  actions: ["CREATE", "READ", "UPDATE", "DELETE"],                                                                 scope: "ALL_PLANTS" },
-    { module: "OBSERVATION",  actions: ["APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                                    scope: "OWN_PLANT" },
+    { module: "OBSERVATION",  actions: ["APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                                    scope: "ALL_PLANTS" },
     { module: "NEAR_MISS",    actions: ["CREATE", "READ", "UPDATE", "DELETE"],                                                                 scope: "ALL_PLANTS" },
-    { module: "NEAR_MISS",    actions: ["APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                                    scope: "OWN_PLANT" },
+    { module: "NEAR_MISS",    actions: ["APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                                    scope: "ALL_PLANTS" },
     { module: "INCIDENT",     actions: ["CREATE", "READ", "UPDATE", "DELETE"],                                                                 scope: "ALL_PLANTS" },
-    { module: "INCIDENT",     actions: ["APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                                    scope: "OWN_PLANT" },
+    { module: "INCIDENT",     actions: ["APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                                    scope: "ALL_PLANTS" },
     { module: "PTW",          actions: ["READ", "UPDATE", "DELETE"],                                                                           scope: "ALL_PLANTS" },
-    { module: "PTW",          actions: ["CREATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                          scope: "OWN_PLANT" },
+    { module: "PTW",          actions: ["CREATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                          scope: "ALL_PLANTS" },
     { module: "FLRA",         actions: ["READ", "UPDATE", "DELETE"],                                                                           scope: "ALL_PLANTS" },
-    { module: "FLRA",         actions: ["CREATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                          scope: "OWN_PLANT" },
-    { module: "EPC",          actions: ["CREATE", "READ", "UPDATE", "DELETE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT", "GATE_OVERRIDE", "INDUCTION_CONDUCT", "MOBILIZATION_APPROVE", "PREQUALIFY"], scope: "OWN_PLANT" },
+    { module: "FLRA",         actions: ["CREATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT"],                                          scope: "ALL_PLANTS" },
+    { module: "EPC",          actions: ["CREATE", "READ", "UPDATE", "DELETE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT", "GATE_OVERRIDE", "INDUCTION_CONDUCT", "MOBILIZATION_APPROVE", "PREQUALIFY"], scope: "ALL_PLANTS" },
     // ── Inspection ──────────────────────────────────────────────────
-    { module: "INSPECTION",         actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT", "SCHEDULE", "REASSIGN"], scope: "OWN_PLANT" },
-    { module: "INSPECTION_TYPE",    actions: ["CREATE", "READ", "UPDATE", "DELETE"],                                                           scope: "OWN_PLANT" },
-    { module: "CHECKLIST_TEMPLATE", actions: ["CREATE", "READ", "UPDATE", "APPROVE", "DELETE"],                                                scope: "OWN_PLANT" },
-    { module: "EQUIPMENT_MASTER",   actions: ["CREATE", "READ", "UPDATE", "DELETE"],                                                           scope: "OWN_PLANT" },
-    { module: "INSPECTION_FINDING", actions: ["READ", "UPDATE", "CLOSE", "VERIFY", "DEFER"],                                                   scope: "OWN_PLANT" },
+    { module: "INSPECTION",         actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT", "SCHEDULE", "REASSIGN"], scope: "ALL_PLANTS" },
+    { module: "INSPECTION_TYPE",    actions: ["CREATE", "READ", "UPDATE", "DELETE"],                                                           scope: "ALL_PLANTS" },
+    { module: "CHECKLIST_TEMPLATE", actions: ["CREATE", "READ", "UPDATE", "APPROVE", "DELETE"],                                                scope: "ALL_PLANTS" },
+    { module: "EQUIPMENT_MASTER",   actions: ["CREATE", "READ", "UPDATE", "DELETE"],                                                           scope: "ALL_PLANTS" },
+    { module: "INSPECTION_FINDING", actions: ["READ", "UPDATE", "CLOSE", "VERIFY", "DEFER"],                                                   scope: "ALL_PLANTS" },
     // ── Risk Management ─────────────────────────────────────────────
-    { module: "HIRA",         actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "OWN_PLANT" },
-    { module: "HIRA",         actions: ["LIBRARY_MANAGE", "MATRIX_CONFIGURE", "THRESHOLDS_CONFIGURE", "REVIEW_TRIGGER", "VERSION_VIEW"],       scope: "OWN_PLANT" },
+    { module: "HIRA",         actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "ALL_PLANTS" },
+    { module: "HIRA",         actions: ["LIBRARY_MANAGE", "MATRIX_CONFIGURE", "THRESHOLDS_CONFIGURE", "REVIEW_TRIGGER", "VERSION_VIEW", "OVERRIDE_UNACCEPTABLE"], scope: "ALL_PLANTS" },
     // Cross-Domain RCA — HSE investigator exposes/tags/approves operational
     // (event-derived) RCAs at own plant; reads analytics across the enterprise.
     { module: "RCA",          actions: ["READ"],                                                                                              scope: "ALL_PLANTS" },
-    { module: "RCA",          actions: ["CREATE", "UPDATE", "APPROVE", "EXPORT", "TAG"],                                                       scope: "OWN_PLANT" },
-    { module: "EAI",          actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "OWN_PLANT" },
-    { module: "EAI",          actions: ["REVIEW_TRIGGER", "VERSION_VIEW", "COMPLIANCE_REPORT", "LIBRARY_MANAGE", "MATRIX_CONFIGURE", "SIGNIFICANCE_CONFIGURE", "FEATURE_FLAG_TOGGLE"], scope: "OWN_PLANT" },
-    { module: "RISK",         actions: ["COMBINED_VIEW", "DASHBOARD_VIEW", "DASHBOARD_EXPORT"],                                                scope: "OWN_PLANT" },
+    { module: "RCA",          actions: ["CREATE", "UPDATE", "APPROVE", "EXPORT", "TAG"],                                                       scope: "ALL_PLANTS" },
+    { module: "EAI",          actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "ALL_PLANTS" },
+    { module: "EAI",          actions: ["REVIEW_TRIGGER", "VERSION_VIEW", "COMPLIANCE_REPORT", "LIBRARY_MANAGE", "MATRIX_CONFIGURE", "SIGNIFICANCE_CONFIGURE", "FEATURE_FLAG_TOGGLE"], scope: "ALL_PLANTS" },
+    { module: "RISK",         actions: ["COMBINED_VIEW", "DASHBOARD_VIEW", "DASHBOARD_EXPORT"],                                                scope: "ALL_PLANTS" },
     // ── CAPA ────────────────────────────────────────────────────────
-    { module: "CAPA",         actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "OWN_PLANT" },
-    { module: "CAPA",         actions: ["CROSS_SOURCE_VIEW", "PATTERN_LINK", "RECURRENCE_CHECK", "REASSIGN", "MASTERS_CONFIGURE"],             scope: "OWN_PLANT" },
+    { module: "CAPA",         actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "ALL_PLANTS" },
+    { module: "CAPA",         actions: ["CROSS_SOURCE_VIEW", "PATTERN_LINK", "RECURRENCE_CHECK", "REASSIGN", "MASTERS_CONFIGURE"],             scope: "ALL_PLANTS" },
     // ── Change Management ────────────────────────────────────────────
-    { module: "MOC",          actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "OWN_PLANT" },
+    { module: "MOC",          actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "ALL_PLANTS" },
     // ── Audit & Compliance ──────────────────────────────────────────
     // SCHEDULE is currently held ONLY by HSE Manager + ADMIN / SYSTEM_ADMIN.
-    { module: "AUDIT_COMPLIANCE", actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT", "SCHEDULE"],        scope: "OWN_PLANT" },
-    { module: "AUDIT",        actions: ["VIEW"],                                                                                              scope: "OWN_PLANT" },
+    { module: "AUDIT_COMPLIANCE", actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT", "SCHEDULE"],        scope: "ALL_PLANTS" },
+    { module: "AUDIT",        actions: ["VIEW"],                                                                                              scope: "ALL_PLANTS" },
     // ── PPE ──────────────────────────────────────────────────────────
-    { module: "PPE",          actions: ["CREATE", "READ", "UPDATE", "DELETE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT", "ISSUE", "INSPECT", "CATALOG_MANAGE", "RETIRE_APPROVE", "RECALL_MANAGE"], scope: "OWN_PLANT" },
+    { module: "PPE",          actions: ["CREATE", "READ", "UPDATE", "DELETE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT", "ISSUE", "INSPECT", "CATALOG_MANAGE", "RETIRE_APPROVE", "RECALL_MANAGE"], scope: "ALL_PLANTS" },
     // ── Training & Competency ────────────────────────────────────────
-    { module: "TRAINING",     actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "OWN_PLANT" },
-    { module: "SKILL_MATRIX", actions: ["CREATE", "READ", "UPDATE", "DELETE", "APPROVE", "APPROVE_OVERRIDE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT", "COMPETENCY_CONFIGURE", "ROLE_DEF_CONFIGURE", "RECERT_CYCLE", "ASSESS", "SUSPEND", "CROSS_PERSON_VIEW", "VERSION_VIEW"], scope: "OWN_PLANT" },
+    { module: "TRAINING",     actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "ALL_PLANTS" },
+    { module: "SKILL_MATRIX", actions: ["CREATE", "READ", "UPDATE", "DELETE", "APPROVE", "APPROVE_OVERRIDE", "EXECUTE", "VERIFY", "CLOSE", "EXPORT", "COMPETENCY_CONFIGURE", "ROLE_DEF_CONFIGURE", "RECERT_CYCLE", "ASSESS", "SUSPEND", "CROSS_PERSON_VIEW", "VERSION_VIEW"], scope: "ALL_PLANTS" },
     // ── Manhours ─────────────────────────────────────────────────────
-    { module: "MANHOURS",     actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "OWN_PLANT" },
+    { module: "MANHOURS",     actions: ["CREATE", "READ", "UPDATE", "APPROVE", "EXECUTE", "VERIFY", "CLOSE", "DELETE", "EXPORT"],              scope: "ALL_PLANTS" },
     // ── Agent Platform ───────────────────────────────────────────────
-    { module: "AGENT",        actions: ["RCA_INVOKE", "PERMIT_REVIEW_INVOKE", "TRIAGE_INVOKE", "HIRA_INVOKE", "CAPA_INVOKE", "AUDIT_VIEW", "PROMPT_EDIT", "RCA_CONFIGURE"], scope: "OWN_PLANT" },
+    { module: "AGENT",        actions: ["RCA_INVOKE", "PERMIT_REVIEW_INVOKE", "TRIAGE_INVOKE", "HIRA_INVOKE", "CAPA_INVOKE", "AUDIT_VIEW", "PROMPT_EDIT", "RCA_CONFIGURE"], scope: "ALL_PLANTS" },
     // ── CAMS — HSE managers conduct audits & inspections on the central engine ──
-    { module: "CAMS",         actions: ["READ", "TEMPLATE_AUTHOR", "SCHEDULE", "EXECUTE", "CLOSE", "FINDING_MANAGE", "ANALYTICS"], scope: "OWN_PLANT" },
+    { module: "CAMS",         actions: ["READ", "TEMPLATE_AUTHOR", "SCHEDULE", "EXECUTE", "CLOSE", "FINDING_MANAGE", "ANALYTICS"], scope: "ALL_PLANTS" },
     // ── Facilities — full factory-level data entry + the consolidated estate.
     // ALL_PLANTS because the consolidated dashboard is inherently group-level
     // (factories live on their own Sites/plants, not the user's home plant).

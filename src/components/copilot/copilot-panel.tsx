@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUp, Bot, CheckCircle2, AlertCircle, ExternalLink, Loader2, Plus, Sparkles, Square, Wrench, X,
-  TrendingDown, TrendingUp, Minus, Info
+  TrendingDown, TrendingUp, Minus, Info, FilePlus2, FilePen, Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,7 +30,8 @@ const FIELD_LABEL: Record<string, string> = {
   setControlEffectiveness: "control effectiveness", target: "target risk"
 };
 
-function suggestionsFor(module: string | null, recordId: string | null, ptwFormOpen: boolean, formKind: FormKind | null): string[] {
+function suggestionsFor(module: string | null, recordId: string | null, ptwFormOpen: boolean, formKind: FormKind | null,
+  studyId: string | null = null): string[] {
   if (formKind === "OBSERVATION") {
     return [
       "Suggest the category, severity and corrective action for what I've written",
@@ -42,9 +43,9 @@ function suggestionsFor(module: string | null, recordId: string | null, ptwFormO
   if (formKind === "HIRA_ENTRY") {
     return [
       "Suggest hazards and controls for this activity",
+      "Add the missing hazards and save them",
       "Which control would bring the residual risk down to acceptable?",
-      "What happens to the risk if we add an engineering control and verify the existing ones?",
-      "How would the plant's SP × LH × CN × DE method rate this?"
+      "What happens to the risk if we add an engineering control and verify the existing ones?"
     ];
   }
   if (ptwFormOpen) {
@@ -68,9 +69,23 @@ function suggestionsFor(module: string | null, recordId: string | null, ptwFormO
     return [...(recordId ? ["Triage this report"] : []), "Find near-miss reports about forklifts at my plant"];
   }
   if (module === "HIRA") {
+    if (recordId) {
+      return [
+        "Suggest hazards and controls for this activity",
+        "Add the missing hazards to this entry",
+        "Submit this entry for review"
+      ];
+    }
+    if (studyId) {
+      return [
+        "Add the main activities of this area as entries, with hazards and controls",
+        "Add an entry: replacing a conveyor belt pulley",
+        "Which entries still have a residual risk that isn't acceptable?"
+      ];
+    }
     return [
-      ...(recordId ? ["Suggest hazards and controls for this activity"] : []),
-      "Suggest hazards and controls for replacing a conveyor belt pulley",
+      "Create a new HIRA for EAF charging and tapping",
+      "Create a HIRA for ladle handling with the overhead crane",
       "Which controls does our plant HIRA use for work at height?"
     ];
   }
@@ -80,7 +95,7 @@ function suggestionsFor(module: string | null, recordId: string | null, ptwFormO
   if (module === "CAPA") {
     return [...(recordId ? ["Review this CAPA"] : []), "Find CAPAs about machine guarding"];
   }
-  const out = ["Draft a new permit to work"];
+  const out = ["Draft a new permit to work", "Create a new HIRA"];
   if (module === "PTW" && recordId) out.push("Review this permit for risks");
   out.push("Find hot work permits at my plant this week");
   if (module !== "PTW") out.push("What category and severity would this observation be: open cable joint near the pump house panel");
@@ -92,7 +107,7 @@ function introFor(module: string | null): string {
     case "OBSERVATION":
       return "Describe what you saw and I'll suggest the category, severity and corrective action from thousands of reviewed plant observations. Open New Observation and I'll fill them on the form for you to check.";
     case "HIRA":
-      return "I can suggest hazards and controls from the plant HIRA, and show how changing a control moves the risk rating. Open a HIRA entry and I'll work on it with you.";
+      return "Tell me the area or job and I'll build the HIRA for you: the study, each activity, its hazards and consequences, the risk scores and the controls. I save everything as a draft; you check it and send it for approval.";
     case "NEAR_MISS":
       return "I can find your near-miss reports and run the triage specialist on one.";
     case "INCIDENT":
@@ -100,7 +115,7 @@ function introFor(module: string | null): string {
     case "CAPA":
       return "I can find your CAPAs and run the CAPA review specialist on one.";
     default:
-      return "I can draft permits to work, suggest observation categories and HIRA controls, find your records, and run the RCA, permit-review, triage, HIRA and CAPA specialists for you.";
+      return "I can draft permits to work, build HIRA studies, suggest observation categories, find your records, and run the RCA, permit-review, triage, HIRA and CAPA specialists for you.";
   }
 }
 
@@ -200,6 +215,26 @@ function SpecialistCard({ action }: { action: Extract<CopilotAction, { type: "sp
   );
 }
 
+const RECORD_VERB = { created: "Created", updated: "Saved changes to", submitted: "Submitted for review:" } as const;
+
+function RecordCard({ action }: { action: Extract<CopilotAction, { type: "record" }> }) {
+  const Icon = action.verb === "created" ? FilePlus2 : action.verb === "submitted" ? Send : FilePen;
+  const what = action.kind === "study" ? "HIRA study" : "HIRA entry";
+  return (
+    <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs">
+      <div className="flex items-center gap-2">
+        <Icon size={14} className="shrink-0 text-emerald-700" />
+        <span className="font-medium text-emerald-900">{RECORD_VERB[action.verb]} {what}</span>
+        {action.number && <span className="truncate text-emerald-800/80">{action.number}</span>}
+      </div>
+      {action.title && <div className="mt-1 line-clamp-2 text-slate-700">{action.title}</div>}
+      <Link href={action.href} className="mt-1.5 inline-flex items-center gap-1 font-medium text-primary-700 hover:underline">
+        Open {action.kind} <ExternalLink size={12} />
+      </Link>
+    </div>
+  );
+}
+
 function NoticeCard({ item }: { item: ChatItem }) {
   const n = item.notice;
   if (!n) return null;
@@ -262,6 +297,8 @@ function Message({ item }: { item: ChatItem }) {
               className="mt-2 mr-2 inline-flex items-center gap-1 rounded-md border border-primary-200 bg-white px-2.5 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50">
               {a.label} <ExternalLink size={12} />
             </Link>
+          ) : a.type === "record" ? (
+            <RecordCard key={i} action={a} />
           ) : (
             <SpecialistCard key={i} action={a} />
           )
@@ -320,6 +357,7 @@ export function CopilotPanel() {
     ? "Drafting a permit"
     : formKind === "OBSERVATION" ? "Recording an observation"
     : formKind === "HIRA_ENTRY" ? "On this HIRA entry"
+    : page.module === "HIRA" && page.studyId && !page.recordId ? "On this HIRA study"
     : page.recordId && page.module ? `On this ${MODULE_LABEL[page.module]?.toLowerCase() ?? "record"}` : null;
 
   const submit = () => {
@@ -371,8 +409,8 @@ export function CopilotPanel() {
                 <>Write what you saw in the description, or tell me here. I&apos;ll suggest the category, severity and
                   corrective action from thousands of reviewed observations, and fill them on the form for you to check.</>
               ) : formKind === "HIRA_ENTRY" ? (
-                <>I can suggest hazards and controls for this activity, and show how each control change moves the
-                  residual risk. When you change a control in the editor, I&apos;ll note how the rating moved.</>
+                <>I can add hazards and controls to this entry and save them, and show how each control change moves
+                  the residual risk. If you have unsaved edits here, press Save first so I don&apos;t overwrite them.</>
               ) : ptwFormOpen ? (
                 <>Describe the job in your own words — what, where, when and who. I&apos;ll fill the permit form as we go,
                   check it against the permit rules and tell you what&apos;s left.</>
@@ -381,7 +419,7 @@ export function CopilotPanel() {
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              {suggestionsFor(page.module, page.recordId, ptwFormOpen, formKind).map((s) => (
+              {suggestionsFor(page.module, page.recordId, ptwFormOpen, formKind, page.studyId ?? null).map((s) => (
                 <Button key={s} type="button" variant="bare" onClick={() => void send(s)}
                   className="h-auto justify-start whitespace-normal rounded-lg border border-slate-200 px-3 py-2 text-left text-xs font-normal text-slate-700 hover:border-primary-300 hover:bg-primary-50/50">
                   {s}
@@ -426,7 +464,8 @@ export function CopilotPanel() {
           )}
         </div>
         <p className="mt-1.5 text-[10px] leading-tight text-slate-400">
-          The copilot drafts and advises — you review every field and submit. Checklist answers are always yours.
+          The copilot drafts and advises — you review every field and submit. HIRA work it saves stays a draft until
+          a reviewer approves it. Checklist answers are always yours.
           Ctrl/⌘ + J to toggle.
         </p>
       </div>
