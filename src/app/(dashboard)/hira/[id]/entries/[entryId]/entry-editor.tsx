@@ -421,7 +421,8 @@ export function EntryEditor({
   plantId = null,
   trainingPrograms = [],
   inspectionTemplates = [],
-  hazardLibrary = []
+  hazardLibrary = [],
+  residualInherentOnly = false
 }: {
   entry: EntryShape;
   matrix: {
@@ -445,6 +446,9 @@ export function EntryEditor({
   inspectionTemplates?: { id: string; name: string }[];
   /** Hazard master library: Section 2 picks hazards from it instead of typing. */
   hazardLibrary?: LibraryHazard[];
+  /** Calibrated Copilot review says no controls are recorded: the residual
+   *  can't be assessed, so show that instead of a residual band. */
+  residualInherentOnly?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -554,6 +558,10 @@ export function EntryEditor({
       matrix.cells.find((c) => c.likelihoodScore === effResidualL && c.severityScore === effResidualS) ?? null
     );
   }, [effResidualL, effResidualS, matrix.cells]);
+
+  // No controls recorded (per the calibrated review) and none added here yet:
+  // there is no residual to show, only the inherent rating.
+  const showInherentOnly = residualInherentOnly && existingControls.length === 0;
 
   // Computed: residual level, ALARP region, and acceptability.
   const acceptableThreshold = matrix.acceptableResidual[entry.routine.toLowerCase()] as string | undefined;
@@ -1705,7 +1713,11 @@ export function EntryEditor({
           caption={autoResidual ? "Residual Risk — auto-calculated from controls" : "Residual Risk — after stated controls"}
         />
 
-        {residualCell && (
+        {showInherentOnly ? (
+          <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+            Inherent only. Existing controls not captured
+          </div>
+        ) : residualCell && (
           <div
             className="mt-3 rounded-md border p-3"
             style={{ backgroundColor: residualCell.colorHex + "22" }}
@@ -2298,7 +2310,13 @@ export function EntryEditor({
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <PathwayStep label="Initial" level={entry.initialRiskLevel} region={initialRegion} bands={alarpBands} />
               <span className="text-slate-400">→</span>
-              <PathwayStep label="Residual (today)" level={residualLevel ?? null} region={residualRegion} bands={alarpBands} />
+              <PathwayStep
+                label="Residual (today)"
+                level={showInherentOnly ? null : residualLevel ?? null}
+                region={showInherentOnly ? null : residualRegion}
+                bands={alarpBands}
+                muted={showInherentOnly}
+              />
               <span className="text-slate-400">→</span>
               <PathwayStep label="Target" level={targetLevel} region={targetRegion} bands={alarpBands} muted={!targetLevel} />
             </div>

@@ -17,6 +17,10 @@ type Level = "error" | "warning" | "suggestion" | "info";
 type Rating = { likelihood: number; severity: number; score: number; level: string; verdict: string };
 
 export type HiraReview = {
+  /** The backend tags each review; the calibrated "v2" shape has its own card. */
+  version?: "v1";
+  /** Per-plant calibration flag (OFF / SHADOW / ON). */
+  mode?: string;
   entryId: string;
   label: string;
   activity: string;

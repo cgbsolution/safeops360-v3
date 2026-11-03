@@ -10,6 +10,8 @@ import { EntryEditor } from "./entry-editor";
 import { AgentAssistantCard } from "@/components/agents/agent-assistant-card";
 import { CopilotRefreshOnChange } from "@/components/copilot/copilot-refresh";
 import { HiraCopilotReview, type HiraReview } from "@/components/copilot/hira-copilot-review";
+import { HiraCalibrationReview } from "@/components/copilot/hira-calibration-review";
+import type { HiraCalibrationReviewData } from "@/components/copilot/hira-calibration-types";
 
 export const dynamic = "force-dynamic";
 
@@ -168,9 +170,13 @@ type Control = { id: string; code: string; hierarchy: string; description: strin
 type Version = { id: string; versionNumber: number };
 
 export default async function HiraEntryDetailPage(
-  props: { params: Promise<{ id: string; entryId: string }> }
+  props: {
+    params: Promise<{ id: string; entryId: string }>;
+    searchParams: Promise<{ preview?: string | string[] }>;
+  }
 ) {
   const { id: studyId, entryId } = await props.params;
+  const { preview } = await props.searchParams;
 
   let entry: EntryOut;
   let study: StudyOut;
@@ -206,7 +212,15 @@ export default async function HiraEntryDetailPage(
 
   // Copilot review of this activity (what is wrong, residual risk, improvements).
   // Best-effort: the page still works if the review can't be computed.
-  const review = await backendFetch<HiraReview>(`/api/copilot/hira-review/${entryId}`).catch(() => null);
+  // The backend returns the v1 shape or the calibrated "v2" shape by the plant's
+  // flag; `?preview=v2` asks for v2 (calibration managers only — the backend
+  // 403s anyone else, and then the normal review is shown).
+  const reviewPath = `/api/copilot/hira-review/${entryId}`;
+  const getReview = () => backendFetch<HiraReview | HiraCalibrationReviewData>(reviewPath);
+  const review = await (preview === "v2"
+    ? backendFetch<HiraReview | HiraCalibrationReviewData>(reviewPath, { query: { preview: "v2" } }).catch(getReview)
+    : getReview()
+  ).catch(() => null);
 
   // Area name from the study plant's area list. Never fall back to the raw id.
   let areaName = "";
@@ -335,7 +349,15 @@ export default async function HiraEntryDetailPage(
         </div>
       )}
 
-      <HiraCopilotReview review={review} />
+      {review?.version === "v2" ? (
+        <HiraCalibrationReview
+          review={review}
+          entryId={entry.id}
+          changeReasonRequired={!isEditable || entry.versionNumber > 1}
+        />
+      ) : (
+        <HiraCopilotReview review={review} />
+      )}
 
       <div className="mb-4">
         <AgentAssistantCard
@@ -381,6 +403,7 @@ export default async function HiraEntryDetailPage(
         trainingPrograms={trainingPrograms}
         inspectionTemplates={inspectionTemplates}
         hazardLibrary={hazardLibrary}
+        residualInherentOnly={review?.version === "v2" && review.entry.inherentOnly}
       />
       </CopilotRefreshOnChange>
     </div>

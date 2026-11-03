@@ -81,6 +81,8 @@ type CopilotContextValue = {
   pushNotice: (notice: RiskNotice) => void;
   /** How many times the copilot has saved each record (by id) in this tab. */
   recordRevisions: Record<string, number>;
+  /** Record a save made outside the chat, so the open editor remounts on refresh. */
+  markRecordChanged: (recordId: string) => void;
   lastCheck: PtwDraftCheck | null;
   conversationTooLong: boolean;
 };
@@ -280,6 +282,13 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
     });
   }, [persist]);
 
+  // A one-click action outside the chat (e.g. the calibrated HIRA review) saved
+  // this record: count it like a copilot save so CopilotRefreshOnChange
+  // remounts the open editor with the refreshed server copy.
+  const markRecordChanged = useCallback((recordId: string) => {
+    setRecordRevisions((r) => ({ ...r, [recordId]: (r[recordId] ?? 0) + 1 }));
+  }, []);
+
   const updateItem = useCallback((id: string, fn: (i: ChatItem) => ChatItem) => {
     setItems((prev) => prev.map((i) => (i.id === id ? fn(i) : i)));
   }, []);
@@ -405,6 +414,7 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
     registerFormBridge,
     pushNotice,
     recordRevisions,
+    markRecordChanged,
     lastCheck,
     conversationTooLong
   };
@@ -429,6 +439,7 @@ const NOOP_CONTEXT: CopilotContextValue = {
   registerFormBridge: () => () => {},
   pushNotice: () => {},
   recordRevisions: {},
+  markRecordChanged: () => {},
   lastCheck: null,
   conversationTooLong: false
 };
