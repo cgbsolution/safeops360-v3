@@ -83,6 +83,9 @@ type CopilotContextValue = {
   recordRevisions: Record<string, number>;
   /** Record a save made outside the chat, so the open editor remounts on refresh. */
   markRecordChanged: (recordId: string) => void;
+  /** Plant of the record on screen, when the page reports it (the URL has no plant). */
+  pagePlantId: string | null;
+  setPagePlantId: (plantId: string | null) => void;
   lastCheck: PtwDraftCheck | null;
   conversationTooLong: boolean;
 };
@@ -189,6 +192,7 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
   const bridge = useRef<PtwBridge | null>(null);
   const formBridge = useRef<FormBridge | null>(null);
   const [formKind, setFormKind] = useState<FormKind | null>(null);
+  const [pagePlantId, setPagePlantId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   // Restore the chat after a reload (per tab).
@@ -415,6 +419,8 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
     pushNotice,
     recordRevisions,
     markRecordChanged,
+    pagePlantId,
+    setPagePlantId,
     lastCheck,
     conversationTooLong
   };
@@ -440,10 +446,26 @@ const NOOP_CONTEXT: CopilotContextValue = {
   pushNotice: () => {},
   recordRevisions: {},
   markRecordChanged: () => {},
+  pagePlantId: null,
+  setPagePlantId: () => {},
   lastCheck: null,
   conversationTooLong: false
 };
 
 export function useCopilot(): CopilotContextValue {
   return useContext(CopilotContext) ?? NOOP_CONTEXT;
+}
+
+/**
+ * Tells the copilot which plant the open page belongs to (e.g. the HIRA entry
+ * page), so the panel can show what the calibrated review covers there.
+ * Renders nothing; clears the plant when the page unmounts.
+ */
+export function CopilotPagePlant({ plantId }: { plantId: string | null }) {
+  const { setPagePlantId } = useCopilot();
+  useEffect(() => {
+    setPagePlantId(plantId);
+    return () => setPagePlantId(null);
+  }, [setPagePlantId, plantId]);
+  return null;
 }

@@ -9,9 +9,13 @@ import { AccessRestricted } from "@/components/access-restricted";
 import { EntryEditor } from "./entry-editor";
 import { AgentAssistantCard } from "@/components/agents/agent-assistant-card";
 import { CopilotRefreshOnChange } from "@/components/copilot/copilot-refresh";
+import { CopilotPagePlant } from "@/components/copilot/copilot-provider";
 import { HiraCopilotReview, type HiraReview } from "@/components/copilot/hira-copilot-review";
 import { HiraCalibrationReview } from "@/components/copilot/hira-calibration-review";
-import type { HiraCalibrationReviewData } from "@/components/copilot/hira-calibration-types";
+import {
+  canShowResidualClaim,
+  type HiraCalibrationReviewData
+} from "@/components/copilot/hira-calibration-types";
 
 export const dynamic = "force-dynamic";
 
@@ -349,6 +353,9 @@ export default async function HiraEntryDetailPage(
         </div>
       )}
 
+      {/* The Copilot panel shows what the calibrated review covers at this plant. */}
+      <CopilotPagePlant plantId={study.plantId} />
+
       {review?.version === "v2" ? (
         <HiraCalibrationReview
           review={review}
@@ -403,7 +410,10 @@ export default async function HiraEntryDetailPage(
         trainingPrograms={trainingPrograms}
         inspectionTemplates={inspectionTemplates}
         hazardLibrary={hazardLibrary}
-        residualInherentOnly={review?.version === "v2" && review.entry.inherentOnly}
+        residualInherentOnly={
+          // Only a validated, calibrated review may make a residual claim.
+          canShowResidualClaim(review) && review?.version === "v2" && review.entry.inherentOnly
+        }
       />
       </CopilotRefreshOnChange>
     </div>

@@ -1,11 +1,18 @@
 "use client";
 
 // Copilot review card for a HIRA entry: the calibrated review ("version": "v2"
-// from GET /api/copilot/hira-review/{entryId}). It shows the inherent and
-// residual rating the recorded controls justify (per hazard), what must be
-// fixed before submitting, and one-click actions that fill the entry from plant
-// records and the control catalogue
+// from GET /api/copilot/hira-review/{entryId}). It shows the inherent rating
+// (neutral, for information) and the residual the recorded controls justify
+// (per hazard), what must be fixed before submitting, and one-click actions
+// that fill the entry from plant records and the control catalogue
 // (POST /api/hira/entries/{entryId}/calibration/apply).
+//
+// Scope gating (review.scope):
+//   - not calibrated (e.g. a HAZOP study): the banner and the structural
+//     findings only.
+//   - not validated (plant on a draft rubric pack): the banner, inherent
+//     ratings and suggested controls; never a residual, tolerability, "what the
+//     controls justify", ALARP draft or blocker (canShowResidualClaim).
 //
 // The older card (hira-copilot-review.tsx) is still used when the plant's flag
 // is off; the page picks one by `review.version`.
@@ -33,37 +40,56 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCopilot } from "@/components/copilot/copilot-provider";
 import { parseApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
-import type {
-  AlarpItem,
-  CalibrationApplyPart,
-  CalibrationApplyResponse,
-  CalibrationFinding,
-  CalibrationHazard,
-  CalibrationRating,
-  CalibrationRecommendation,
-  ControlHierarchy,
-  CostBand,
-  EntryStatus,
-  FindingClass,
-  HiraCalibrationReviewData,
-  Tolerability
+import {
+  canShowResidualClaim,
+  TOLERABILITY_FINDING_CODES,
+  type CalibrationApplyPart,
+  type CalibrationApplyResponse,
+  type CalibrationFinding,
+  type CalibrationHazard,
+  type CalibrationRating,
+  type CalibrationRecommendation,
+  type ControlHierarchy,
+  type CostBand,
+  type EntryState,
+  type EntryStatus,
+  type FindingClass,
+  type HiraCalibrationReviewData,
+  type Tolerability,
+  type TolerabilityMissing
 } from "./hira-calibration-types";
 
 export const INHERENT_ONLY_TEXT = "Inherent only. Existing controls not captured";
+export const INHERENT_LABEL = "Inherent (before controls)";
+const NOT_CALIBRATED_TEXT = "Calibrated rules are not applied to this study type.";
+const ROUTINE_NOTE = "Confirm only what is actually in place; they are recorded as confirmed by you.";
 
+// Residual chips only: status colours come from the residual and tolerability.
 const LEVEL_CHIP: Record<string, string> = {
   LOW: "bg-emerald-100 text-emerald-800 border-emerald-300",
   MODERATE: "bg-amber-100 text-amber-800 border-amber-300",
   HIGH: "bg-orange-100 text-orange-900 border-orange-300",
   CRITICAL: "bg-rose-200 text-rose-900 border-rose-400"
 };
+/** The inherent rating is information, not a status: always grey. */
+const NEUTRAL_CHIP = "bg-slate-100 text-slate-700 border-slate-300";
 const LEVEL_WORD: Record<string, string> = { LOW: "Low", MODERATE: "Moderate", HIGH: "High", CRITICAL: "Critical" };
 
 const STATUS: Record<EntryStatus, { text: string; cls: string }> = {
   INHERENT_ONLY: { text: "Existing controls not captured", cls: "bg-amber-50 text-amber-800 border-amber-300" },
   OPEN: { text: "Needs action", cls: "bg-rose-50 text-rose-800 border-rose-300" },
-  OVERRIDE_PENDING: { text: "Ready for override at approval", cls: "bg-violet-50 text-violet-800 border-violet-300" },
-  RESOLVED: { text: "Acceptable / ALARP", cls: "bg-emerald-50 text-emerald-800 border-emerald-300" }
+  OVERRIDE_PENDING: { text: "Override at approval", cls: "bg-violet-50 text-violet-800 border-violet-300" },
+  RESOLVED: { text: "Acceptable / ALARP", cls: "bg-emerald-50 text-emerald-800 border-emerald-300" },
+  // Not shown as a badge: the scope banner explains these.
+  NOT_VALIDATED: { text: "Suggestions only", cls: NEUTRAL_CHIP },
+  NOT_CALIBRATED: { text: "Checks only", cls: NEUTRAL_CHIP }
+};
+
+const STATE: Record<EntryState, { text: string; cls: string }> = {
+  ACCEPTABLE: { text: "Acceptable", cls: "bg-emerald-50 text-emerald-800 border-emerald-300" },
+  TOLERABLE_ALARP: { text: "Tolerable (ALARP)", cls: "bg-sky-50 text-sky-800 border-sky-300" },
+  OVERRIDE: { text: "Override at approval", cls: "bg-violet-50 text-violet-800 border-violet-300" },
+  NOT_ACCEPTABLE: { text: "Needs action", cls: "bg-rose-50 text-rose-800 border-rose-300" }
 };
 
 // Blocker = rose, Advisory = amber, Info = slate. Only blockers stop submission.
@@ -82,7 +108,8 @@ const HIERARCHY_WORD: Record<ControlHierarchy, string> = {
   PPE: "PPE"
 };
 const COST_WORD: Record<CostBand, string> = { LOW: "Low", MEDIUM: "Medium", HIGH: "High", VERY_HIGH: "Very high" };
-const ALARP_ITEM_WORD: Record<AlarpItem, string> = {
+/** ALARP checklist items in words (CONFIRM_CONTROLS items are not listed). */
+const ALARP_ITEM_WORD: Partial<Record<TolerabilityMissing, string>> = {
   eliminationConsidered: "elimination / substitution considered",
   engineeringInPlaceOrPlanned: "an engineering control in place or planned",
   statutoryCurrent: "statutory examinations current",
@@ -118,14 +145,33 @@ function byClass(a: CalibrationFinding, b: CalibrationFinding): number {
   return CLASS_ORDER[a.class] - CLASS_ORDER[b.class];
 }
 
+/** A rated recommendation (its residual-after is a real new rating). */
+function isRated(rec: CalibrationRecommendation): boolean {
+  return rec.kind === "CAPA" || rec.kind === "IMPROVEMENT_NOTE";
+}
+
+/**
+ * Findings the card may show. Not calibrated: structural checks only. Not
+ * validated: nothing that rests on a residual band, and no blockers (mirrors
+ * the backend's rubric_packs.apply_scope). Always a new array (callers sort it).
+ */
+function scopedFindings(list: CalibrationFinding[], calibrated: boolean, residualOk: boolean): CalibrationFinding[] {
+  if (!calibrated) return list.filter((f) => f.code.startsWith("STRUCT_"));
+  if (residualOk) return [...list];
+  return list
+    .filter((f) => !TOLERABILITY_FINDING_CODES.has(f.code))
+    .map((f) => (f.class === "BLOCKER" ? { ...f, class: "INFO" as const } : f));
+}
+
 /** What "Apply suggested defaults" would fill, in plain words (empty = nothing). */
-function defaultsList(r: HiraCalibrationReviewData): string[] {
+function defaultsList(r: HiraCalibrationReviewData, residualOk: boolean): string[] {
   const d = r.suggestedDefaults;
   const out: string[] = [];
   if (d.recommendedDefaults.length) out.push("owners and target dates");
   if (d.controlEffectiveness.length) out.push("control effectiveness (Not verified)");
   if (d.nextReviewDue) out.push(`next review date (${formatDate(d.nextReviewDue)})`);
-  if (d.alarpRecord) out.push("a draft ALARP record");
+  // An ALARP record is a tolerability claim: only where the scope is validated.
+  if (residualOk && d.alarpRecord) out.push("a draft ALARP record");
   // Per-hazard values can only be stored once the database update is applied.
   if (r.schemaReady && d.hazardRatings.length) out.push("per-hazard ratings");
   if (r.schemaReady && d.regulations.length) out.push("suggested legal references");
@@ -139,7 +185,13 @@ function appliedText(parts: CalibrationApplyPart[], applied: string[]): string {
   for (const a of applied) {
     if (/skipped/i.test(a)) skipped = true;
     else if (a === "existing controls")
-      words.push(parts.includes("EXISTING_CONTROLS") ? "existing controls added" : "control effectiveness filled");
+      words.push(
+        parts.includes("CONFIRM_ROUTINE_CONTROLS")
+          ? "routine controls confirmed"
+          : parts.includes("EXISTING_CONTROLS")
+            ? "existing controls added"
+            : "control effectiveness filled"
+      );
     else if (a === "recommended controls")
       words.push(parts.includes("RECOMMENDATIONS") ? "recommended controls added" : "owners and dates filled");
     else if (a === "defaults") words.push("ALARP record drafted");
@@ -159,26 +211,42 @@ function tolerabilityWords(t: Tolerability | null): { text: string; cls: string;
     const months = /review in (\d+) months/i.exec(t.note)?.[1] ?? "12";
     return { text: `Tolerable (ALARP) – review in ${months} months`, cls: "text-sky-700" };
   }
+  if (t.route === "CONFIRM_CONTROLS") return { text: "Confirm routine controls", cls: "text-amber-700" };
+  if (t.route === "VERIFY_CONTROLS") return { text: "Verify the controls in place", cls: "text-amber-700" };
   if (t.route === "ALARP_CHECKLIST") {
+    const missing = t.missing.map((m) => ALARP_ITEM_WORD[m]).filter((w): w is string => !!w);
     return {
       text: "Complete ALARP checklist",
       cls: "text-amber-700",
-      detail: t.missing.length ? `Missing: ${t.missing.map((m) => ALARP_ITEM_WORD[m] ?? m).join("; ")}` : undefined
+      detail: missing.length ? `Missing: ${missing.join("; ")}` : undefined
     };
   }
   if (t.route === "OVERRIDE") return { text: "Override at approval", cls: "text-violet-700" };
   return { text: "Needs control", cls: "text-rose-700" };
 }
 
+/** Header status: entry.state in words. Null when the scope makes no residual claim. */
+function entryBadge(r: HiraCalibrationReviewData): { text: string; cls: string } | null {
+  if (!canShowResidualClaim(r)) return null;
+  const e = r.entry;
+  if (e.status === "INHERENT_ONLY") return STATUS.INHERENT_ONLY;
+  if (e.state === "OVERRIDE" && e.status === "RESOLVED") {
+    return { text: "Accepted under override", cls: STATE.OVERRIDE.cls };
+  }
+  if (e.state) return STATE[e.state];
+  return STATUS[e.status] ?? { text: e.status, cls: NEUTRAL_CHIP };
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</h4>;
 }
 
-function RatingChip({ r }: { r: CalibrationRating }) {
+/** Residual (status colour), or inherent with `neutral` (grey). */
+function RatingChip({ r, neutral = false }: { r: CalibrationRating; neutral?: boolean }) {
   return (
     <Badge
-      className={cn("font-medium", LEVEL_CHIP[r.level] ?? "bg-slate-100 text-slate-800 border-slate-300")}
-      title={`Likelihood ${r.likelihood} × Severity ${r.severity} = ${r.score}`}
+      className={cn("font-medium", neutral ? NEUTRAL_CHIP : (LEVEL_CHIP[r.level] ?? NEUTRAL_CHIP))}
+      title={`${neutral ? `${INHERENT_LABEL}: ` : ""}Likelihood ${r.likelihood} × Severity ${r.severity} = ${r.score}`}
     >
       {LEVEL_WORD[r.level] ?? r.level} {r.score}
       <span className="hidden font-normal opacity-75 sm:inline">
@@ -246,42 +314,55 @@ function TolerabilityText({ t }: { t: Tolerability | null }) {
   );
 }
 
-function HazardRow({ h }: { h: CalibrationHazard }) {
+function HazardRow({ h, showResidual }: { h: CalibrationHazard; showResidual: boolean }) {
   return (
     <TableRow>
       <TableCell className="min-w-[9rem] align-top">
         <div className="font-medium text-slate-900">{h.name}</div>
         <HazardNotes h={h} />
-        <div className="mt-1 sm:hidden">
-          <TolerabilityText t={h.tolerability} />
-        </div>
-      </TableCell>
-      <TableCell className="align-top">
-        <RatingChip r={h.inherent} />
-      </TableCell>
-      <TableCell className="align-top">
-        {h.residual ? (
-          <>
-            <RatingChip r={h.residual} />
-            {h.provisional && <div className="mt-0.5 text-[10px] text-slate-500">unverified controls</div>}
-          </>
-        ) : (
-          <span className="italic text-slate-500">not assessed</span>
+        {showResidual && (
+          <div className="mt-1 sm:hidden">
+            <TolerabilityText t={h.tolerability} />
+          </div>
         )}
       </TableCell>
-      <TableCell className="hidden align-top sm:table-cell">
-        <TolerabilityText t={h.tolerability} />
+      <TableCell className="align-top">
+        <RatingChip r={h.inherent} neutral />
       </TableCell>
+      {showResidual && (
+        <TableCell className="align-top">
+          {h.residual ? (
+            <>
+              <RatingChip r={h.residual} />
+              {h.provisional && <div className="mt-0.5 text-[10px] text-slate-500">unverified controls</div>}
+            </>
+          ) : (
+            <span className="italic text-slate-500">not assessed</span>
+          )}
+        </TableCell>
+      )}
+      {showResidual && (
+        <TableCell className="hidden align-top sm:table-cell">
+          <TolerabilityText t={h.tolerability} />
+        </TableCell>
+      )}
     </TableRow>
   );
 }
 
-function RecommendationItem({ rec }: { rec: CalibrationRecommendation }) {
+function RecommendationItem({ rec, showResidual }: { rec: CalibrationRecommendation; showResidual: boolean }) {
+  const rated = isRated(rec);
+  // A residual-after chip only for a rated control where the scope is validated.
+  const after = rated && showResidual ? rec.residualAfter : null;
   return (
     <li className="rounded-md border border-slate-200 p-3">
       <div className="flex flex-wrap items-center gap-1.5">
         <HierarchyBadge h={rec.hierarchy} />
-        {rec.raisesCapa ? (
+        {rec.kind === "SUGGESTION" ? (
+          <Badge className="border-slate-300 bg-white font-medium text-slate-700">Suggested control</Badge>
+        ) : rec.kind === "IMPROVEMENT_NO_RATING_CREDIT" ? (
+          <Badge className="border-slate-300 bg-white font-medium text-slate-700">Improvement (no rating change)</Badge>
+        ) : rec.raisesCapa && showResidual ? (
           <Badge className="border-rose-200 bg-rose-50 font-medium text-rose-800">Raises CAPA</Badge>
         ) : (
           <Badge className="border-slate-300 bg-white font-medium text-slate-700">Improvement note</Badge>
@@ -297,10 +378,17 @@ function RecommendationItem({ rec }: { rec: CalibrationRecommendation }) {
         <div>
           <span className="text-slate-500">For:</span> {rec.targetHazards.map((t) => t.name).join(", ")}
         </div>
-        <div className="flex flex-wrap items-center gap-1">
-          <span className="text-slate-500">Effect:</span> {effectText(rec.expectedEffect)} →{" "}
-          <RatingChip r={rec.residualAfter} />
-        </div>
+        {rec.kind !== "SUGGESTION" && (
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-slate-500">Effect:</span> {rated ? effectText(rec.expectedEffect) : rec.expectedEffect}
+            {after && (
+              <>
+                {" "}
+                → <RatingChip r={after} />
+              </>
+            )}
+          </div>
+        )}
         <div>
           <span className="text-slate-500">Cost:</span> {COST_WORD[rec.costBand] ?? rec.costBand}
         </div>
@@ -318,6 +406,16 @@ function RecommendationItem({ rec }: { rec: CalibrationRecommendation }) {
       )}
     </li>
   );
+}
+
+/** "Add these N …" in the words that fit the kinds on offer. */
+function addRecsLabel(recs: CalibrationRecommendation[]): string {
+  const n = recs.length;
+  if (recs.every((x) => x.kind === "SUGGESTION"))
+    return n === 1 ? "Add this suggested control" : `Add these ${n} suggested controls`;
+  if (recs.every((x) => x.kind === "IMPROVEMENT_NO_RATING_CREDIT"))
+    return n === 1 ? "Add this improvement" : `Add these ${n} improvements`;
+  return n === 1 ? "Add this recommendation" : `Add these ${n} recommendations`;
 }
 
 export function HiraCalibrationReview({
@@ -412,35 +510,68 @@ export function HiraCalibrationReview({
     }
   }
 
+  // ── scope ──
+  const calibrated = r.calibrated !== false && r.scope?.calibrated !== false;
+  /** Residual, tolerability, "what the controls justify", ALARP draft, blockers. */
+  const residualOk = canShowResidualClaim(r);
+  const banner = r.scope?.banner ?? (calibrated ? null : NOT_CALIBRATED_TEXT);
+  const validatedFor = r.scope?.validatedFor ?? null;
+
   const entry = r.entry;
-  const status = STATUS[entry.status] ?? { text: entry.status, cls: "bg-slate-50 text-slate-700 border-slate-300" };
+  const badge = entryBadge(r);
   const drivers = entry.drivers.slice(0, 2).map((d) => d.name);
   const hazardName = new Map(r.hazards.map((h) => [h.key, h.name]));
   const mainHazards = r.hazards.filter((h) => !h.collapsed);
   const lowHazards = r.hazards.filter((h) => h.collapsed);
 
-  const shown = [...r.shownFindings].sort(byClass).slice(0, 3);
+  const findings = scopedFindings(r.findings, calibrated, residualOk);
+  const shown = scopedFindings(r.shownFindings, calibrated, residualOk).sort(byClass).slice(0, 3);
   const shownKeys = new Set(shown.map(findingKey));
-  const moreFindings = r.findings.filter((f) => !shownKeys.has(findingKey(f))).sort(byClass);
+  const moreFindings = findings.filter((f) => !shownKeys.has(findingKey(f))).sort(byClass);
   const visibleFindings = showAllFindings ? [...shown, ...moreFindings] : shown;
-  const blockers = r.counts.BLOCKER ?? r.findings.filter((f) => f.class === "BLOCKER").length;
+  const blockers = residualOk ? (r.counts.BLOCKER ?? findings.filter((f) => f.class === "BLOCKER").length) : 0;
 
-  const proposals = r.existingControlProposals;
-  const recs = r.recommendations;
-  const defaults = defaultsList(r);
-  const hasActions = proposals.length > 0 || recs.length > 0 || defaults.length > 0;
+  // Not calibrated: no ratings, controls or defaults are offered at all.
+  const proposals = calibrated ? r.existingControlProposals : [];
+  const plantProposals = proposals.filter((p) => !p.routine);
+  const routineProposals = proposals.filter((p) => p.routine);
+  const recs = calibrated ? r.recommendations : [];
+  const defaults = calibrated ? defaultsList(r, residualOk) : [];
+
+  // Recorded controls the assessor confirms (names from the hazard credits).
+  const recordedControl = new Map<string, { name: string; hierarchy: ControlHierarchy }>();
+  for (const h of r.hazards)
+    for (const c of h.credits) if (c.key) recordedControl.set(c.key, { name: c.control, hierarchy: c.hierarchy });
+  const confirmRecorded = calibrated
+    ? (r.suggestedDefaults.confirmControls ?? []).map((c) => ({ key: c.key, ...recordedControl.get(c.key) }))
+    : [];
+  const routineFinding = findings.find((f) => f.action === "CONFIRM_ROUTINE_CONTROLS") ?? null;
+  const showRoutine = calibrated && (!!routineFinding || routineProposals.length > 0);
+  const routineFor = (routineFinding?.hazardKeys ?? [])
+    .map((k) => hazardName.get(k))
+    .filter(Boolean)
+    .join(", ");
+
+  const hasActions = proposals.length > 0 || recs.length > 0 || defaults.length > 0 || showRoutine;
   const canAsk = copilot.available && !copilot.unavailableReason;
 
   const existingControlsLabel =
-    proposals.length === 1 ? "Use this existing control" : `Use these ${proposals.length} existing controls`;
-  const addRecsLabel = recs.length === 1 ? "Add this recommendation" : `Add these ${recs.length} recommendations`;
+    plantProposals.length === 1 ? "Use this existing control" : `Use these ${plantProposals.length} existing controls`;
   const isBusy = (p: CalibrationApplyPart) => !!busy?.includes(p);
 
   function findingAction(f: CalibrationFinding): { label: string; parts: CalibrationApplyPart[] } | null {
-    if (f.action === "USE_EXISTING_CONTROLS" && proposals.length) return { label: "Use existing controls", parts: ["EXISTING_CONTROLS"] };
+    if (f.action === "USE_EXISTING_CONTROLS" && plantProposals.length)
+      return { label: "Use existing controls", parts: ["EXISTING_CONTROLS"] };
     if (f.action === "ADD_RECOMMENDATIONS" && recs.length) return { label: "Add recommendations", parts: ["RECOMMENDATIONS"] };
     if (f.action === "APPLY_DEFAULTS" && defaults.length) return { label: "Apply suggested defaults", parts: ["DEFAULTS"] };
     return null;
+  }
+
+  /** Routine controls are confirmed below, with the list in view, not from the finding. */
+  function pointsToRoutine(f: CalibrationFinding): boolean {
+    if (!showRoutine) return false;
+    if (f.action === "CONFIRM_ROUTINE_CONTROLS") return true;
+    return f.action === "USE_EXISTING_CONTROLS" && plantProposals.length === 0 && routineProposals.length > 0;
   }
 
   return (
@@ -451,7 +582,9 @@ export function HiraCalibrationReview({
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Sparkles size={16} className="shrink-0 text-primary-600" />
               <CardTitle className="text-base">Copilot review · {r.label}</CardTitle>
-              <Badge className="border-primary-200 bg-primary-50 font-medium text-primary-800">Calibrated review</Badge>
+              {calibrated && (
+                <Badge className="border-primary-200 bg-primary-50 font-medium text-primary-800">Calibrated review</Badge>
+              )}
               {r.mode !== "ON" && (
                 <Badge
                   className="border-slate-300 bg-white font-medium text-slate-600"
@@ -460,7 +593,7 @@ export function HiraCalibrationReview({
                   Preview
                 </Badge>
               )}
-              <Badge className={cn("font-medium", status.cls)}>{status.text}</Badge>
+              {badge && <Badge className={cn("font-medium", badge.cls)}>{badge.text}</Badge>}
             </div>
             <div className="flex items-center gap-1.5">
               {canAsk && (
@@ -473,7 +606,9 @@ export function HiraCalibrationReview({
                   onClick={() => {
                     copilot.setOpen(true);
                     void copilot.send(
-                      `Review ${r.label} "${r.activity}": tell me what is wrong, what to correct in the residual risk, and recommend improvements.`
+                      residualOk
+                        ? `Review ${r.label} "${r.activity}": tell me what is wrong, what to correct in the residual risk, and recommend improvements.`
+                        : `Review ${r.label} "${r.activity}": tell me what is missing and suggest controls.`
                     );
                   }}
                 >
@@ -493,6 +628,20 @@ export function HiraCalibrationReview({
               </CollapsibleTrigger>
             </div>
           </div>
+
+          {/* Scope banner: information, not an error. Visible even when collapsed. */}
+          {banner && (
+            <div
+              role="note"
+              className="mt-2 flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900"
+            >
+              <Info size={16} className="mt-0.5 shrink-0 text-sky-700" />
+              <div className="min-w-0">
+                <div className="font-medium">{banner}</div>
+                {validatedFor && <div className="text-xs text-sky-800">Validated for: {validatedFor}</div>}
+              </div>
+            </div>
+          )}
         </CardHeader>
 
         <CollapsibleContent>
@@ -508,54 +657,74 @@ export function HiraCalibrationReview({
               </div>
             )}
 
-            {/* Entry rating */}
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Inherent</span>
-                  {entry.inherent ? <RatingChip r={entry.inherent} /> : <span className="text-xs text-slate-400">—</span>}
+            {/* Entry rating: inherent (neutral) and, where validated, the residual */}
+            {calibrated && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500">{entry.inherentLabel ?? INHERENT_LABEL}</span>
+                    {entry.inherent ? (
+                      <RatingChip r={entry.inherent} neutral />
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </div>
+                  {residualOk && (
+                    <>
+                      <span aria-hidden className="text-slate-400">
+                        →
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-slate-500">Residual</span>
+                        {entry.residual ? (
+                          <RatingChip r={entry.residual} />
+                        ) : entry.inherentOnly ? (
+                          <span className="text-sm font-medium text-amber-800">{INHERENT_ONLY_TEXT}</span>
+                        ) : (
+                          <span className="text-sm italic text-slate-500">not assessed</span>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
-                <span aria-hidden className="text-slate-400">
-                  →
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Residual</span>
-                  {entry.residual ? (
-                    <RatingChip r={entry.residual} />
-                  ) : (
-                    <span className="text-sm font-medium text-amber-800">{INHERENT_ONLY_TEXT}</span>
+                {residualOk && drivers.length > 0 && (
+                  <p className="mt-1.5 text-xs text-slate-600">
+                    Driven by: <span className="font-medium text-slate-800">{drivers.join(", ")}</span>
+                  </p>
+                )}
+                <div className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+                  {r.ratingBasis === "WITH_CONTROLS" && <p>The sheet rating already includes the listed controls.</p>}
+                  {residualOk && r.matrixRule?.moderateNotAcceptable && (
+                    <p>Plant rule: a Moderate residual is not acceptable.</p>
+                  )}
+                  {r.evidence && (
+                    <p>
+                      Records:{" "}
+                      {r.evidence.lines.length
+                        ? r.evidence.lines.join(" · ")
+                        : `no incidents or near misses in the last ${r.evidence.windowMonths} months.`}
+                    </p>
                   )}
                 </div>
               </div>
-              {drivers.length > 0 && (
-                <p className="mt-1.5 text-xs text-slate-600">
-                  Driven by: <span className="font-medium text-slate-800">{drivers.join(", ")}</span>
-                </p>
-              )}
-              <div className="mt-1 space-y-0.5 text-[11px] text-slate-500">
-                {r.ratingBasis === "WITH_CONTROLS" && <p>The sheet rating already includes the listed controls.</p>}
-                {r.matrixRule.moderateNotAcceptable && <p>Plant rule: a Moderate residual is not acceptable.</p>}
-                <p>
-                  Records:{" "}
-                  {r.evidence.lines.length
-                    ? r.evidence.lines.join(" · ")
-                    : `no incidents or near misses in the last ${r.evidence.windowMonths} months.`}
-                </p>
-              </div>
-            </div>
+            )}
 
             {/* Findings */}
             <div>
-              <SectionTitle>What to fix</SectionTitle>
-              {r.findings.length === 0 ? (
+              <SectionTitle>{calibrated ? "What to fix" : "Checks"}</SectionTitle>
+              {findings.length === 0 ? (
                 <p className="text-sm text-slate-600">Nothing to fix.</p>
               ) : (
                 <>
-                  <p className={cn("mb-1.5 text-xs", blockers ? "text-rose-800" : "text-emerald-700")}>
-                    {blockers
-                      ? `${blockers} must-fix ${plural(blockers, "item stops", "items stop")} submission. Advice and notes do not.`
-                      : "Nothing here stops submission."}
-                  </p>
+                  {residualOk ? (
+                    <p className={cn("mb-1.5 text-xs", blockers ? "text-rose-800" : "text-emerald-700")}>
+                      {blockers
+                        ? `${blockers} must-fix ${plural(blockers, "item stops", "items stop")} submission. Advice and notes do not.`
+                        : "Nothing here stops submission."}
+                    </p>
+                  ) : (
+                    r.canSubmit && <p className="mb-1.5 text-xs text-slate-600">Advice only. Nothing here stops submission.</p>
+                  )}
                   <ul className="space-y-1.5">
                     {visibleFindings.map((f, i) => {
                       const s = FINDING_STYLE[f.class] ?? FINDING_STYLE.INFO;
@@ -566,10 +735,15 @@ export function HiraCalibrationReview({
                             <Badge className={cn("mt-0.5 shrink-0", s.badge)}>{s.label}</Badge>
                             <div className="min-w-0 flex-1">
                               <div className="text-sm font-medium text-slate-900">{f.title}</div>
-                              <div className="text-xs text-slate-700">{f.detail}</div>
+                              {f.detail && <div className="text-xs text-slate-700">{f.detail}</div>}
                               {f.fix && <div className="mt-0.5 text-xs font-medium text-slate-800">→ {f.fix}</div>}
-                              {f.action === "OVERRIDE" && r.alarpDraft && (
+                              {residualOk && f.action === "OVERRIDE" && r.alarpDraft && (
                                 <div className="mt-0.5 text-xs text-slate-600">Use the drafted justification below.</div>
+                              )}
+                              {pointsToRoutine(f) && (
+                                <div className="mt-0.5 text-xs text-slate-600">
+                                  Use &quot;Confirm routine controls&quot; below.
+                                </div>
                               )}
                             </div>
                             {action && (
@@ -605,7 +779,7 @@ export function HiraCalibrationReview({
             </div>
 
             {/* Per-hazard ratings */}
-            {r.hazards.length > 0 && (
+            {calibrated && r.hazards.length > 0 && (
               <div>
                 <SectionTitle>Hazards</SectionTitle>
                 {mainHazards.length > 0 && (
@@ -614,14 +788,16 @@ export function HiraCalibrationReview({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="h-8 text-xs text-slate-500">Hazard</TableHead>
-                          <TableHead className="h-8 text-xs text-slate-500">Inherent</TableHead>
-                          <TableHead className="h-8 text-xs text-slate-500">Residual</TableHead>
-                          <TableHead className="hidden h-8 text-xs text-slate-500 sm:table-cell">Status</TableHead>
+                          <TableHead className="h-8 text-xs text-slate-500">{INHERENT_LABEL}</TableHead>
+                          {residualOk && <TableHead className="h-8 text-xs text-slate-500">Residual</TableHead>}
+                          {residualOk && (
+                            <TableHead className="hidden h-8 text-xs text-slate-500 sm:table-cell">Status</TableHead>
+                          )}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {mainHazards.map((h) => (
-                          <HazardRow key={h.key} h={h} />
+                          <HazardRow key={h.key} h={h} showResidual={residualOk} />
                         ))}
                       </TableBody>
                     </Table>
@@ -640,7 +816,15 @@ export function HiraCalibrationReview({
                       <ul className="mt-1 space-y-1 pl-6 text-xs text-slate-700">
                         {lowHazards.map((h) => (
                           <li key={h.key} className="flex flex-wrap items-center gap-1.5">
-                            {h.name} <RatingChip r={h.residual ?? h.inherent} />
+                            {h.name}{" "}
+                            {residualOk && h.residual ? (
+                              <RatingChip r={h.residual} />
+                            ) : (
+                              <>
+                                <span className="text-slate-500">{INHERENT_LABEL}</span>
+                                <RatingChip r={h.inherent} neutral />
+                              </>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -648,7 +832,7 @@ export function HiraCalibrationReview({
                   </Collapsible>
                 )}
 
-                {r.controlsJustify.length > 0 && (
+                {residualOk && r.controlsJustify.length > 0 && (
                   <Collapsible className="mt-1">
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" size="sm" type="button" className="group h-7 gap-1 px-2 text-xs text-slate-600">
@@ -668,12 +852,12 @@ export function HiraCalibrationReview({
               </div>
             )}
 
-            {/* Existing controls from plant records */}
-            {proposals.length > 0 && (
+            {/* Existing controls from plant records (not the routine ones) */}
+            {plantProposals.length > 0 && (
               <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3">
                 <SectionTitle>Existing controls found in plant records</SectionTitle>
                 <ul className="space-y-1.5">
-                  {proposals.map((p, i) => {
+                  {plantProposals.map((p, i) => {
                     const covers = p.hazardKeys.map((k) => hazardName.get(k)).filter(Boolean).join(", ");
                     return (
                       <li key={`${p.description}-${i}`} className="flex items-start gap-2 text-sm">
@@ -705,18 +889,66 @@ export function HiraCalibrationReview({
               </div>
             )}
 
-            {/* Recommendations */}
-            {(recs.length > 0 || r.linkedCapas.length > 0 || entry.status === "RESOLVED") && (
+            {/* Routine controls the assessor confirms (low-severity hazards) */}
+            {showRoutine && (
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <SectionTitle>Confirm routine controls</SectionTitle>
+                {routineFor && <p className="mb-1.5 text-xs text-slate-600">For: {routineFor}</p>}
+                {(routineProposals.length > 0 || confirmRecorded.length > 0) && (
+                  <ul className="space-y-1.5">
+                    {routineProposals.map((p, i) => {
+                      const covers = p.hazardKeys.map((k) => hazardName.get(k)).filter(Boolean).join(", ");
+                      return (
+                        <li key={`routine-${p.description}-${i}`} className="flex items-start gap-2 text-sm">
+                          <HierarchyBadge h={p.hierarchy} />
+                          <div className="min-w-0">
+                            <div className="text-slate-900">{p.description}</div>
+                            <div className="text-xs text-slate-500">
+                              Routine control (added)
+                              {covers ? ` · Covers: ${covers}` : ""}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                    {confirmRecorded.map((c) => (
+                      <li key={`recorded-${c.key}`} className="flex items-start gap-2 text-sm">
+                        {c.hierarchy && <HierarchyBadge h={c.hierarchy} />}
+                        <div className="min-w-0">
+                          <div className="text-slate-900">{c.name ?? "A control already recorded on this entry"}</div>
+                          <div className="text-xs text-slate-500">Already recorded · not checked yet</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-2 text-xs text-slate-600">
+                  {ROUTINE_NOTE}
+                </p>
+                <Button
+                  size="sm"
+                  type="button"
+                  className="mt-2"
+                  disabled={!!busy}
+                  onClick={() => start(["CONFIRM_ROUTINE_CONTROLS"])}
+                >
+                  {isBusy("CONFIRM_ROUTINE_CONTROLS") ? "Saving…" : "Confirm routine controls"}
+                </Button>
+              </div>
+            )}
+
+            {/* Recommended (validated) or suggested (not validated) controls */}
+            {(recs.length > 0 || (calibrated && r.linkedCapas.length > 0) || (residualOk && entry.status === "RESOLVED")) && (
               <div>
-                <SectionTitle>Recommended controls</SectionTitle>
-                {recs.length === 0 && entry.status === "RESOLVED" && (
+                <SectionTitle>{residualOk ? "Recommended controls" : "Suggested controls"}</SectionTitle>
+                {recs.length === 0 && residualOk && entry.status === "RESOLVED" && (
                   <p className="text-sm text-emerald-700">No further controls needed.</p>
                 )}
                 {recs.length > 0 && (
                   <>
                     <ul className="space-y-2">
                       {recs.map((rec) => (
-                        <RecommendationItem key={rec.id} rec={rec} />
+                        <RecommendationItem key={rec.id} rec={rec} showResidual={residualOk} />
                       ))}
                     </ul>
                     <Button
@@ -726,11 +958,11 @@ export function HiraCalibrationReview({
                       disabled={!!busy}
                       onClick={() => start(["RECOMMENDATIONS"])}
                     >
-                      {isBusy("RECOMMENDATIONS") ? "Saving…" : addRecsLabel}
+                      {isBusy("RECOMMENDATIONS") ? "Saving…" : addRecsLabel(recs)}
                     </Button>
                   </>
                 )}
-                {r.linkedCapas.length > 0 && (
+                {calibrated && r.linkedCapas.length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {r.linkedCapas.map((c) => (
                       <li key={c.id} className="flex items-start gap-1.5 text-xs text-slate-700">
@@ -747,29 +979,31 @@ export function HiraCalibrationReview({
             )}
 
             {/* Suggested defaults */}
-            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-slate-900">Suggested defaults</div>
-                <div className="text-xs text-slate-600">
-                  {defaults.length
-                    ? `Fills ${defaults.join(", ")}. You can edit everything afterwards.`
-                    : "Nothing to fill right now."}
+            {calibrated && (
+              <div className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-slate-900">Suggested defaults</div>
+                  <div className="text-xs text-slate-600">
+                    {defaults.length
+                      ? `Fills ${defaults.join(", ")}. You can edit everything afterwards.`
+                      : "Nothing to fill right now."}
+                  </div>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  className="shrink-0"
+                  disabled={!defaults.length || !!busy}
+                  onClick={() => start(["DEFAULTS"])}
+                >
+                  {isBusy("DEFAULTS") ? "Saving…" : "Apply suggested defaults"}
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                className="shrink-0"
-                disabled={!defaults.length || !!busy}
-                onClick={() => start(["DEFAULTS"])}
-              >
-                {isBusy("DEFAULTS") ? "Saving…" : "Apply suggested defaults"}
-              </Button>
-            </div>
+            )}
 
-            {/* Drafted ALARP / override justification */}
-            {r.alarpDraft && (
+            {/* Drafted ALARP / override justification (validated scope only) */}
+            {residualOk && r.alarpDraft && (
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label htmlFor={`alarp-draft-${entryId}`} className="text-xs font-semibold text-slate-700">
@@ -795,7 +1029,7 @@ export function HiraCalibrationReview({
               </div>
             )}
 
-            {!r.schemaReady && (
+            {calibrated && !r.schemaReady && (
               <p className="flex items-start gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                 <Info size={14} className="mt-0.5 shrink-0" />
                 Per-hazard ratings will be saved once the database update is applied.

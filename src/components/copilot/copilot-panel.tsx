@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { type ChatItem, type CopilotAction, type FormKind, useCopilot } from "./copilot-provider";
+import type { CalibrationScopeResponse } from "./hira-calibration-types";
 import type { PtwDraftCheck } from "@/lib/ptw/wizard-config";
 
 const MODULE_LABEL: Record<string, string> = {
@@ -340,8 +341,42 @@ function CheckStrip({ check }: { check: PtwDraftCheck }) {
   );
 }
 
+/**
+ * What the calibrated HIRA review covers (GET /api/hira/calibration/scope),
+ * for the plant the open entry belongs to. Informational: errors stay silent.
+ */
+function HiraScopeLine({ plantId }: { plantId: string | null }) {
+  const key = plantId ?? "";
+  const [state, setState] = useState<{ key: string; scope: CalibrationScopeResponse } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const qs = plantId ? `?plantId=${encodeURIComponent(plantId)}` : "";
+    fetch(`/api/hira/calibration/scope${qs}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: CalibrationScopeResponse | null) => {
+        if (alive && j && typeof j.validatedFor === "string") setState({ key: plantId ?? "", scope: j });
+      })
+      .catch(() => { /* not shown when unavailable */ });
+    return () => { alive = false; };
+  }, [plantId]);
+
+  // Only the answer for the plant now on screen.
+  if (!state || state.key !== key) return null;
+  const { scope } = state;
+  return (
+    <div className="border-b bg-slate-50 px-3 py-1 text-[11px] leading-snug text-slate-500">
+      <div className="truncate" title={`Validated for: ${scope.validatedFor}`}>Validated for: {scope.validatedFor}</div>
+      {scope.validated === false && scope.banner && (
+        <div className="mt-0.5 flex items-start gap-1 text-slate-700">
+          <Info size={11} className="mt-0.5 shrink-0" /> <span>{scope.banner}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CopilotPanel() {
-  const { open, setOpen, items, send, sending, stop, newChat, page, ptwFormOpen, formKind, lastCheck, conversationTooLong, unavailableReason } = useCopilot();
+  const { open, setOpen, items, send, sending, stop, newChat, page, ptwFormOpen, formKind, lastCheck, conversationTooLong, unavailableReason, pagePlantId } = useCopilot();
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -394,6 +429,7 @@ export function CopilotPanel() {
       </div>
 
       {ptwFormOpen && lastCheck && <CheckStrip check={lastCheck} />}
+      {page.module === "HIRA" && !!page.recordId && <HiraScopeLine plantId={pagePlantId} />}
 
       <div ref={scroller} className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
         {unavailableReason && (
