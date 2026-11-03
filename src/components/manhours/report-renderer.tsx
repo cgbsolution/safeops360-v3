@@ -86,7 +86,7 @@ export function ReportRenderer({ data }: { data: ReportData }) {
           <h2 className="text-base font-semibold text-slate-900">Executive summary</h2>
           {data.narrative.source === "claude" && (
             <Badge className="bg-primary-50 text-primary-700 border-primary-200 text-[10px]">
-              AI-generated · Opus 4.7
+              AI-generated
             </Badge>
           )}
           {data.narrative.source === "template" && (

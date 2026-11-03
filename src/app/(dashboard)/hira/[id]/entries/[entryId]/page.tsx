@@ -208,14 +208,13 @@ export default async function HiraEntryDetailPage(
   // Best-effort: the page still works if the review can't be computed.
   const review = await backendFetch<HiraReview>(`/api/copilot/hira-review/${entryId}`).catch(() => null);
 
+  // Area name from the study plant's area list. Never fall back to the raw id.
   let areaName = "";
   if (entry.areaId) {
-    try {
-      const area = await backendFetch<{ id: string; name: string }>(`/api/hira/areas/${entry.areaId}`);
-      areaName = area.name;
-    } catch {
-      areaName = entry.areaId;
-    }
+    const plantAreas = await backendFetch<{ id: string; name: string }[]>(
+      `/api/plants/${study.plantId}/areas`
+    ).catch(() => [] as { id: string; name: string }[]);
+    areaName = plantAreas.find((a) => a.id === entry.areaId)?.name ?? "Unknown area";
   }
 
   // Hazard master library for the Section 2 dropdown (choose, don't type).

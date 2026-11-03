@@ -321,10 +321,7 @@ export function AgentAssistantCard({
           </Badge>
         </CardTitle>
         <div className="text-[10px] text-violet-700 tracking-wide">
-          {inv.invocationNumber} · model {inv.modelUsed || "…"}
-          {inv.totalCostUsd != null && <> · ${inv.totalCostUsd.toFixed(4)}</>}
-          {inv.latencyMs != null && <> · {(inv.latencyMs / 1000).toFixed(1)}s</>}
-          {inv.toolCalls && inv.toolCalls.length > 0 && <> · {inv.toolCalls.length} tool calls</>}
+          Ref {inv.invocationNumber}
         </div>
       </CardHeader>
 

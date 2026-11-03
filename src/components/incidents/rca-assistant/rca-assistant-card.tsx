@@ -426,13 +426,7 @@ export function RcaAssistantCard(props: RcaAssistantCardProps) {
           </Badge>
         </CardTitle>
         <div className="text-[10px] text-violet-700 tracking-wide">
-          {inv.invocationNumber} · model {inv.modelUsed || "…"}
-          {inv.totalCostUsd != null && (
-            <> · ${inv.totalCostUsd.toFixed(4)}</>
-          )}
-          {inv.latencyMs != null && (
-            <> · {(inv.latencyMs / 1000).toFixed(1)}s</>
-          )}
+          Ref {inv.invocationNumber}
         </div>
       </CardHeader>
 
@@ -532,7 +526,7 @@ export function RcaAssistantCard(props: RcaAssistantCardProps) {
               variant="ghost"
               onClick={() => startInvocation(true)}
               disabled={starting}
-              title="Use the escalation model (Opus) for a deeper, slower, more expensive analysis."
+              title="Run a deeper, slower analysis."
             >
               <Zap size={12} />
               Deep analysis
@@ -589,7 +583,7 @@ function IdleCard({
           causes for your review.
         </p>
         <p className="text-xs text-violet-700">
-          Estimated time: 30-60 seconds · estimated cost: ~$0.015 (Haiku)
+          Estimated time: 30-60 seconds
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -608,10 +602,10 @@ function IdleCard({
             variant="ghost"
             onClick={() => onStart(true)}
             disabled={starting}
-            title="Use Opus 4.7 for a deeper analysis. ~10x cost; takes longer."
+            title="A deeper analysis. Takes longer."
           >
             <Zap size={12} />
-            Deep analysis (Opus)
+            Deep analysis
           </Button>
         </div>
         <p className="text-[10px] text-violet-600 leading-relaxed">

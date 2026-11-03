@@ -1432,13 +1432,13 @@ export function EntryEditor({
         <div className="flex items-center gap-4">
           <RiskChip level={entry.initialRiskLevel} score={entry.initialRiskScore} large />
           <div className="text-sm text-slate-700">
-            <div>
-              <span className="text-slate-500">Likelihood:</span> {entry.initialLikelihood?.label} (
-              {entry.initialLikelihoodScore})
+            <div title={entry.initialLikelihood?.description ?? undefined}>
+              <span className="text-slate-500">Likelihood:</span>{" "}
+              {levelText(entry.initialLikelihood?.label, entry.initialLikelihoodScore)}
             </div>
-            <div>
-              <span className="text-slate-500">Severity:</span> {entry.initialSeverity?.label} (
-              {entry.initialSeverityScore})
+            <div title={entry.initialSeverity?.description ?? undefined}>
+              <span className="text-slate-500">Severity:</span>{" "}
+              {levelText(entry.initialSeverity?.label, entry.initialSeverityScore)}
             </div>
           </div>
         </div>
@@ -2805,6 +2805,14 @@ function ReadField({ label, children }: { label: string; children: React.ReactNo
       <div className="text-sm text-slate-800 mt-0.5">{children}</div>
     </div>
   );
+}
+
+// "Likely (4)" for a word scale; just "CN 4" when the level name already
+// carries the number, so it isn't printed twice.
+function levelText(label: string | undefined, score: number | null | undefined): string {
+  const s = score == null ? "" : String(score);
+  if (!label) return s || "—";
+  return s && new RegExp(`(^|\\D)${s}$`).test(label.trim()) ? label : s ? `${label} (${s})` : label;
 }
 
 function RiskChip({ level, score, large }: { level: string; score: number; large?: boolean }) {

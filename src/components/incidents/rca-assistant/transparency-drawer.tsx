@@ -10,7 +10,7 @@
 // What lives here:
 //   • Full reasoning (uncollapsed)
 //   • Every tool call with input + output (collapsible, JSON-pretty)
-//   • Token usage + cost + latency + model breakdown
+//   (Model, tokens, cost and run time are in the backend log, not here.)
 //   • Hallucination details if flagged
 //   • Raw Anthropic API response (for advanced debug)
 //   • The input context that was fed to the agent
@@ -135,24 +135,6 @@ export function TransparencyDrawer({
               <dd>{inv.invocationTrigger}</dd>
               <dt className="text-slate-500">Authority level used</dt>
               <dd>{inv.authorityLevelUsed}</dd>
-              <dt className="text-slate-500">Model</dt>
-              <dd className="font-mono text-[10px]">{inv.modelUsed}</dd>
-              <dt className="text-slate-500">Input tokens</dt>
-              <dd>{inv.inputTokens ?? "—"}</dd>
-              <dt className="text-slate-500">Output tokens</dt>
-              <dd>{inv.outputTokens ?? "—"}</dd>
-              <dt className="text-slate-500">Total cost</dt>
-              <dd>
-                {inv.totalCostUsd != null
-                  ? `$${inv.totalCostUsd.toFixed(4)}`
-                  : "—"}
-              </dd>
-              <dt className="text-slate-500">Latency</dt>
-              <dd>
-                {inv.latencyMs != null
-                  ? `${(inv.latencyMs / 1000).toFixed(2)}s`
-                  : "—"}
-              </dd>
               <dt className="text-slate-500">Confidence</dt>
               <dd>
                 {inv.agentConfidence != null

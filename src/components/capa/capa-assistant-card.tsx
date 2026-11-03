@@ -295,9 +295,7 @@ export function CapaAssistantCard({ capaId }: { capaId: string }) {
           </Badge>
         </CardTitle>
         <div className="text-[10px] text-violet-700 tracking-wide">
-          {inv.invocationNumber} · model {inv.modelUsed || "…"}
-          {inv.totalCostUsd != null && <> · ${inv.totalCostUsd.toFixed(4)}</>}
-          {inv.latencyMs != null && <> · {(inv.latencyMs / 1000).toFixed(1)}s</>}
+          Ref {inv.invocationNumber}
         </div>
       </CardHeader>
 
