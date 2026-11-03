@@ -12470,3 +12470,62 @@ model BeBenefitReading {
   @@index([benefitId, readingAt])
   @@index([plantId])
 }
+
+// HIRA calibration v2 (flag hira.calibration.v2). Created by prisma/apply-hira-calibration-ddl.ts,
+// which also adds per-hazard rating columns to HiraEntryHazard, appliesToHazardIds to
+// HiraEntryControl and ownerRole / appliesToHazardIds / calibrationRef to
+// HiraEntryRecommendedControl. Those columns are read and written by the Python
+// backend only (raw SQL, after a schema check); add them to the models above once
+// the DDL has been applied everywhere this client runs.
+// Versioned settings per tenant (plantId NULL) or plant; newest active row wins.
+model HiraCalibrationConfig {
+  id          String   @id @default(cuid())
+  plantId     String?
+  version     Int      @default(1)
+  mode        String   @default("OFF") // OFF | SHADOW | ON
+  config      Json     @default("{}")
+  isActive    Boolean  @default(true)
+  note        String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([plantId])
+}
+
+// Hazard -> suggested regulation reference (R10), editable without a deploy.
+model HiraRegulationMap {
+  id             String   @id @default(cuid())
+  plantId        String?
+  hazardCode     String?
+  hazardCategory String?
+  family         String?
+  regulation     String
+  section        String?
+  note           String?
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([plantId])
+}
+
+// v1 / v2 side-by-side log for shadow mode.
+model HiraCopilotShadowRun {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now()) @map("created_at")
+  plantId       String?  @map("plant_id")
+  entryId       String?  @map("entry_id")
+  surface       String
+  mode          String
+  engineVersion String   @map("engine_version")
+  configVersion Json?    @map("config_version")
+  v1            Json?
+  v2            Json?
+  summary       Json?
+  userId        String?  @map("user_id")
+
+  @@index([plantId, createdAt])
+  @@index([entryId])
+  @@map("hira_copilot_shadow_runs")
+}

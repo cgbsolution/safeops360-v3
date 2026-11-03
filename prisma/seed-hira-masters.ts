@@ -103,17 +103,16 @@ const CELL_COLORS: Record<string, string> = {
   CRITICAL: "#EF4444"
 };
 
-// (likelihood, severity) → riskLevel based on spec §10.1
+// (likelihood, severity) → riskLevel. One set of band thresholds for every
+// cell (HIRA calibration v2, same as the backend risk engine
+// app/services/hira_calibration/risk_engine.py): score = L × S,
+// <=3 LOW, 4-6 MODERATE, 8-12 HIGH, >=15 CRITICAL. The earlier rule made
+// L2×S2 = 4 LOW while L1×S4 = 4 was MODERATE; every other cell is unchanged.
 function cellLevel(l: number, s: number): "LOW" | "MODERATE" | "HIGH" | "CRITICAL" {
   const score = l * s;
-  // High-severity ceiling: severity 5 with likelihood 3+ goes critical regardless
-  if (s === 5 && l >= 3) return "CRITICAL";
-  if (s === 4 && l >= 4) return "CRITICAL";
   if (score >= 15) return "CRITICAL";
   if (score >= 8) return "HIGH";
-  if (score >= 6) return "MODERATE";
-  if (score >= 4 && l >= 4) return "MODERATE";
-  if (score >= 4 && s >= 4) return "MODERATE";
+  if (score >= 4) return "MODERATE";
   return "LOW";
 }
 
