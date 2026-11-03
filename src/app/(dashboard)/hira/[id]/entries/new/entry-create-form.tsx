@@ -12,13 +12,14 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Search } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { RiskMatrixGrid } from "@/components/hira/risk-matrix-grid";
 import { parseApiError } from "@/lib/api-error";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { HazardCombobox, hazardCategoryLabel } from "@/components/hira/hazard-combobox";
 
 type Likelihood = { id: string; score: number; label: string; description: string; frequencyGuidance?: string | null };
 type Severity = { id: string; score: number; label: string; description: string };
@@ -99,9 +100,7 @@ export function EntryCreateForm({
   const [personsPublic, setPersonsPublic] = useState<number>(0);
   const [affectedPersonGroups, setAffectedPersonGroups] = useState("");
 
-  // Section 2 — hazard picker
-  const [hazardSearch, setHazardSearch] = useState("");
-  const [hazardCategory, setHazardCategory] = useState("");
+  // Section 2 — hazards, picked from the library dropdown
   const [pickedHazards, setPickedHazards] = useState<EntryHazardInput[]>([]);
 
   // Section 3 — initial risk
@@ -120,23 +119,15 @@ export function EntryCreateForm({
     [selectedLikelihood, selectedSeverity, matrix.cells]
   );
 
-  const hazardCategories = Array.from(new Set(hazards.map((h) => h.category))).sort();
-  const filteredHazards = hazards.filter((h) => {
-    if (hazardCategory && h.category !== hazardCategory) return false;
-    if (hazardSearch) {
-      const q = hazardSearch.toLowerCase();
-      return (
-        h.name.toLowerCase().includes(q) ||
-        h.description.toLowerCase().includes(q) ||
-        h.code.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
-
   function addHazard(h: Hazard) {
     if (pickedHazards.some((p) => p.hazardId === h.id)) return;
     setPickedHazards((arr) => [...arr, { hazardId: h.id, contextualDescription: "", consequence: "" }]);
+  }
+
+  // Swap the library hazard on a picked row, keeping what was typed for it.
+  function replaceHazard(oldId: string, h: Hazard) {
+    if (pickedHazards.some((p) => p.hazardId === h.id)) return;
+    setPickedHazards((arr) => arr.map((p) => (p.hazardId === oldId ? { ...p, hazardId: h.id } : p)));
   }
 
   function removeHazard(hazardId: string) {
@@ -309,7 +300,7 @@ export function EntryCreateForm({
         </Field>
       </Section>
 
-      {/* Section 2 — hazard picker */}
+      {/* Section 2 — hazards, chosen from the hazard library */}
       <Section title={`2 — Hazards (${pickedHazards.length})`}>
         {pickedHazards.length > 0 ? (
           <div className="space-y-2 mb-3">
@@ -318,27 +309,37 @@ export function EntryCreateForm({
               if (!h) return null;
               return (
                 <div key={p.hazardId} className="rounded-md border bg-slate-50 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium text-sm">{h.name}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">
-                        {h.category.replace(/_/g, " ")} · {h.code}
-                      </div>
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1">
+                      <Label className="block text-[10px] uppercase text-slate-500 mb-0.5 font-normal">
+                        Hazard <span className="text-rose-600">*</span>
+                      </Label>
+                      <HazardCombobox
+                        mode="row"
+                        hazards={hazards}
+                        value={p.hazardId}
+                        selectedIds={pickedHazards.map((x) => x.hazardId)}
+                        onSelect={(next) => replaceHazard(p.hazardId, next as Hazard)}
+                      />
                     </div>
                     <Button
-                      variant="bare"
+                      variant="ghost"
+                      size="icon"
                       type="button"
                       onClick={() => removeHazard(p.hazardId)}
-                      className="text-rose-600 hover:bg-rose-50 rounded p-1"
+                      className="mt-5 text-rose-600 hover:bg-rose-50"
                       aria-label="Remove hazard"
                     >
                       <Trash2 size={14} />
                     </Button>
                   </div>
+                  <Label className="block text-[10px] uppercase text-slate-500 mt-2 mb-0.5 font-normal">
+                    How this hazard manifests in this activity
+                  </Label>
                   <Textarea
-                    className={`${TEXTAREA_CLASS} mt-2`}
+                    className={TEXTAREA_CLASS}
                     rows={2}
-                    placeholder="How this hazard manifests in THIS activity (optional)"
+                    placeholder="Optional context"
                     value={p.contextualDescription}
                     onChange={(e) => updateContext(p.hazardId, e.target.value)}
                   />
@@ -361,7 +362,7 @@ export function EntryCreateForm({
                       <span className="font-medium text-slate-600">
                         Factories Act 1948 · {h.factoriesActSection}
                       </span>{" "}
-                      — editable on the entry once created.
+                      ({hazardCategoryLabel(h.category)}) — editable on the entry once created.
                     </p>
                   )}
                 </div>
@@ -370,68 +371,17 @@ export function EntryCreateForm({
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 mb-3">
-            No hazards picked yet. Search the library below.
+            No hazards picked yet. Choose them from the hazard library below.
           </div>
         )}
 
-        <div className="border rounded-md bg-white">
-          <div className="p-2 border-b flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 text-slate-400" size={16} />
-              <Input
-                className={`${INPUT_CLASS} pl-8`}
-                placeholder="Search hazards by name, description, or code"
-                value={hazardSearch}
-                onChange={(e) => setHazardSearch(e.target.value)}
-              />
-            </div>
-            <Select
-              className={`${INPUT_CLASS} w-48`}
-              value={hazardCategory}
-              onChange={(e) => setHazardCategory(e.target.value)}
-            >
-              <SelectItem value="">All categories</SelectItem>
-              {hazardCategories.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c.replace(/_/g, " ")}
-                </SelectItem>
-              ))}
-            </Select>
-          </div>
-          <div className="max-h-80 overflow-y-auto divide-y">
-            {filteredHazards.slice(0, 60).map((h) => {
-              const already = pickedHazards.some((p) => p.hazardId === h.id);
-              return (
-                <Button
-                  variant="bare"
-                  key={h.id}
-                  type="button"
-                  disabled={already}
-                  onClick={() => addHazard(h)}
-                  className={`w-full text-left px-3 py-2 hover:bg-slate-50 ${
-                    already ? "opacity-40 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="font-medium text-sm">{h.name}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
-                      {h.category.replace(/_/g, " ")}
-                    </div>
-                  </div>
-                  <div className="text-xs text-slate-600 mt-0.5 line-clamp-1">{h.description}</div>
-                </Button>
-              );
-            })}
-            {filteredHazards.length === 0 && (
-              <div className="px-3 py-6 text-sm text-slate-500 text-center">No hazards match the filter.</div>
-            )}
-          </div>
-          {filteredHazards.length > 60 && (
-            <p className="text-xs text-amber-700 mt-1 px-3 pb-2">
-              Showing first 60 of {filteredHazards.length}. Refine your search to see more.
-            </p>
-          )}
-        </div>
+        <Label className="block text-xs text-slate-600 mb-1">Add a hazard from the library</Label>
+        <HazardCombobox
+          hazards={hazards}
+          selectedIds={pickedHazards.map((p) => p.hazardId)}
+          onSelect={(h) => addHazard(h as Hazard)}
+          placeholder={`Search ${hazards.length} library hazards…`}
+        />
       </Section>
 
       {/* Section 3 — initial risk */}

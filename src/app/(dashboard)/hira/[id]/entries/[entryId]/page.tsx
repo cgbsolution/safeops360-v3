@@ -218,6 +218,20 @@ export default async function HiraEntryDetailPage(
     }
   }
 
+  // Hazard master library for the Section 2 dropdown (choose, don't type).
+  const hazardLibrary = await backendFetch<
+    {
+      id: string;
+      code: string;
+      category: string;
+      name: string;
+      description: string | null;
+      requiresPermit?: boolean;
+      permitTypes?: string[] | null;
+      factoriesActSection?: string | null;
+    }[]
+  >("/api/hira/hazards", { query: { limit: 200 } }).catch(() => []);
+
   // Section 7 cross-module picker options. Best-effort: if the caller can't read
   // a registry (or none is seeded), the editor falls back to a raw-id input.
   const [trainingPrograms, inspectionTemplates] = await Promise.all([
@@ -367,6 +381,7 @@ export default async function HiraEntryDetailPage(
         plantId={study.plantId}
         trainingPrograms={trainingPrograms}
         inspectionTemplates={inspectionTemplates}
+        hazardLibrary={hazardLibrary}
       />
       </CopilotRefreshOnChange>
     </div>

@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Save, ChevronDown, ShieldAlert, FileWarning, Sparkles } from "lucide-react";
 import { useCopilot } from "@/components/copilot/copilot-provider";
@@ -26,6 +27,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { HazardCombobox, hazardCategoryLabel, type LibraryHazard } from "@/components/hira/hazard-combobox";
 
 type Likelihood = { id: string; score: number; label: string; description: string };
 type Severity = { id: string; score: number; label: string; description: string };
@@ -417,7 +420,8 @@ export function EntryEditor({
   canOverride = false,
   plantId = null,
   trainingPrograms = [],
-  inspectionTemplates = []
+  inspectionTemplates = [],
+  hazardLibrary = []
 }: {
   entry: EntryShape;
   matrix: {
@@ -439,6 +443,8 @@ export function EntryEditor({
   plantId?: string | null;
   trainingPrograms?: { id: string; name: string }[];
   inspectionTemplates?: { id: string; name: string }[];
+  /** Hazard master library: Section 2 picks hazards from it instead of typing. */
+  hazardLibrary?: LibraryHazard[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -665,7 +671,20 @@ export function EntryEditor({
         : residualRegion === "UNACCEPTABLE"
           ? false
           : null;
-  const residualAcceptable = regionOk === null ? null : regionOk && thresholdOk;
+  const matrixAcceptable = regionOk === null ? null : regionOk && thresholdOk;
+  // Like the backend (update_entry): while the verdict's inputs are unchanged,
+  // the stored verdict stands. An imported plant HIRA can mark a LOW score "not
+  // acceptable" because a legal/domino/chronic/emergency concern is Y, which the
+  // matrix level alone cannot express.
+  const verdictInputsUnchanged =
+    effResidualL === entry.residualLikelihoodScore &&
+    effResidualS === entry.residualSeverityScore &&
+    alarpFurtherConsidered === entry.alarpFurtherControlsConsidered &&
+    alarpGrossly === entry.alarpGrosslyDisproportionate &&
+    alarpJustification.trim() === (entry.alarpJustification ?? "").trim();
+  const storedVerdictOverrides =
+    verdictInputsUnchanged && entry.residualAcceptable !== null && entry.residualAcceptable !== matrixAcceptable;
+  const residualAcceptable = storedVerdictOverrides ? entry.residualAcceptable : matrixAcceptable;
 
   // ── Copilot bridge ── the copilot reads the entry as edited here and can add
   // proposed controls / a target risk; the assessor reviews and presses Save.
@@ -849,6 +868,20 @@ export function EntryEditor({
       const wasPopulated = !!original?.consequence?.trim();
       return !h.consequence?.trim() && wasPopulated;
     });
+    // A hazard added or swapped from the library is a new row on the server,
+    // and a new row must carry its consequence.
+    const originalHazardIds = new Set(entry.hazards.map((o) => o.hazardId));
+    const newWithoutConsequence = hazards.filter(
+      (h) => !originalHazardIds.has(h.hazardId) && !h.consequence?.trim()
+    );
+    if (newWithoutConsequence.length > 0) {
+      setError(
+        `Add the consequence for each new hazard: ${newWithoutConsequence
+          .map((h) => h.hazard?.name ?? "hazard")
+          .join(", ")}`
+      );
+      return;
+    }
     if (blanked.length > 0) {
       setError(
         `Consequence cannot be cleared once recorded: ${blanked
@@ -1044,6 +1077,44 @@ export function EntryEditor({
     setIsDirty(true);
   }
 
+  function libraryFields(lib: LibraryHazard) {
+    return {
+      hazardId: lib.id,
+      hazardRequiresPermit: !!lib.requiresPermit,
+      hazardPermitTypes: lib.permitTypes ?? [],
+      hazard: { id: lib.id, code: lib.code, category: lib.category, name: lib.name }
+    };
+  }
+
+  // Add a hazard row picked from the library. On save the server fills the
+  // regulation citation for a newly added library hazard if it is left blank.
+  function addHazardRow(lib: LibraryHazard) {
+    if (hazards.some((h) => h.hazardId === lib.id)) return;
+    setHazards((arr) => [
+      ...arr,
+      {
+        id: `new-${Date.now()}`,
+        contextualDescription: null,
+        consequence: null,
+        regulationRef: null,
+        regulationSection: null,
+        ...libraryFields(lib)
+      }
+    ]);
+    setIsDirty(true);
+  }
+
+  // Swap the library hazard on a row; what was typed for the row is kept.
+  function replaceRowHazard(rowId: string, lib: LibraryHazard) {
+    if (hazards.some((h) => h.hazardId === lib.id)) return;
+    updateHazard(rowId, libraryFields(lib));
+  }
+
+  function removeHazardRow(rowId: string) {
+    setHazards((arr) => arr.filter((h) => h.id !== rowId));
+    setIsDirty(true);
+  }
+
   // Re-approval. Only reachable when a material edit has knocked the entry out
   // of APPROVED; the server enforces HIRA.APPROVE and the IN_REVIEW precondition
   // regardless of what the UI shows.
@@ -1195,25 +1266,49 @@ export function EntryEditor({
         )}
       </Section>
 
-      {/* Section 2 — Hazards (editable) */}
+      {/* Section 2 — Hazards. Each hazard is chosen from the hazard library
+          dropdown; context, consequence and citation stay editable. */}
       <Section title={`2 — Hazards (${hazards.length})`}>
         {hazards.length === 0 ? (
-          <div className="text-sm text-slate-500">No hazards identified.</div>
+          <div className="mb-3 rounded border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
+            No hazards identified. Add them from the hazard library below.
+          </div>
         ) : (
-          <ul className="space-y-3">
+          <div className="mb-3 space-y-3">
             {hazards.map((h) => (
-              <li key={h.id} className="rounded border bg-slate-50 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium text-sm">{h.hazard?.name ?? "Hazard"}</div>
-                  <div className="flex items-center gap-1.5">
+              <div key={h.id} className="rounded border bg-slate-50 p-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <Label className="block text-[10px] uppercase text-slate-500 mb-0.5 font-normal">
+                      Hazard (library) <span className="text-rose-600">*</span>
+                    </Label>
+                    <HazardCombobox
+                      mode="row"
+                      hazards={hazardLibrary.length ? hazardLibrary : [h.hazard]}
+                      value={h.hazardId}
+                      selectedIds={hazards.map((x) => x.hazardId)}
+                      onSelect={(lib) => replaceRowHazard(h.id, lib)}
+                    />
+                  </div>
+                  <div className="mt-5 flex items-center gap-1.5">
                     {h.hazardRequiresPermit && (
-                      <span className="inline-flex items-center gap-1 text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                      <Badge className="border-amber-200 bg-amber-100 text-amber-800">
                         <ShieldAlert size={11} /> Permit required
-                      </span>
+                      </Badge>
                     )}
-                    <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">
-                      {(h.hazard?.category ?? "").replace(/_/g, " ")}
-                    </span>
+                    <Badge className="border-slate-200 bg-slate-200 text-slate-700">
+                      {hazardCategoryLabel(h.hazard?.category ?? "")}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      onClick={() => removeHazardRow(h.id)}
+                      className="h-8 w-8 text-rose-600 hover:bg-rose-50"
+                      aria-label="Remove hazard"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
                   </div>
                 </div>
 
@@ -1252,7 +1347,7 @@ export function EntryEditor({
                       <FileWarning size={12} className="mt-0.5 shrink-0" />
                       <span>
                         Not recorded. ISO 45001 cl.6.1.2.1 expects the consequence as a distinct
-                        element — add it on the next revision of this row.
+                        element — add it before saving.
                       </span>
                     </div>
                   )}
@@ -1269,7 +1364,11 @@ export function EntryEditor({
                       className={INPUT}
                       value={h.regulationRef ?? ""}
                       onChange={(e) => updateHazard(h.id, { regulationRef: e.target.value || null })}
-                      placeholder="e.g. Factories Act 1948"
+                      placeholder={
+                        h.id.startsWith("new-")
+                          ? "Filled from the library on save if left blank"
+                          : "e.g. Factories Act 1948"
+                      }
                     />
                   </div>
                   <div className="col-span-5">
@@ -1301,19 +1400,31 @@ export function EntryEditor({
                         Save this entry before raising a permit.
                       </span>
                     ) : (
-                      <a
-                        href={`/ptw/new?hiraEntryId=${entry.id}&hiraEntryHazardId=${h.id}`}
-                        className="inline-flex items-center gap-1 rounded border border-amber-400 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="border-amber-400 text-amber-900 hover:bg-amber-100"
                       >
-                        <ShieldAlert size={12} /> Create PTW
-                      </a>
+                        <Link href={`/ptw/new?hiraEntryId=${entry.id}&hiraEntryHazardId=${h.id}`}>
+                          <ShieldAlert size={12} /> Create PTW
+                        </Link>
+                      </Button>
                     )}
                   </div>
                 )}
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
+
+        <Label className="block text-xs text-slate-600 mb-1">Add a hazard from the library</Label>
+        <HazardCombobox
+          hazards={hazardLibrary}
+          selectedIds={hazards.map((h) => h.hazardId)}
+          onSelect={addHazardRow}
+          placeholder={`Search ${hazardLibrary.length} library hazards…`}
+        />
       </Section>
 
       {/* Section 3 — Initial risk (read-only) */}
@@ -1632,6 +1743,13 @@ export function EntryEditor({
             {regionMeta && (
               <div className={`mt-2 rounded border px-2.5 py-1.5 text-xs ${regionMeta.banner}`}>
                 {regionMeta.blurb}
+              </div>
+            )}
+            {storedVerdictOverrides && (
+              <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs text-rose-900">
+                {entry.residualAcceptable
+                  ? "Recorded as acceptable in the source HIRA, although the matrix level alone would not allow it."
+                  : "Not acceptable as recorded in the source HIRA (for example a legal, domino, chronic or emergency concern), although the matrix level alone would allow it. See the rationale and the Copilot review."}
               </div>
             )}
           </div>

@@ -484,15 +484,23 @@ export default async function ObservationDetailPage(
               {o.immediateAction && (
                 <div className="mt-6 pt-6 border-t">
                   <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Immediate Action Taken</div>
-                  <p className="text-slate-700">{o.immediateAction}</p>
+                  <p className="text-slate-700 whitespace-pre-wrap">{o.immediateAction}</p>
                 </div>
               )}
 
               {o.closingRemark && (
                 <div className="mt-6 pt-6 border-t">
-                  <div className="text-sm font-semibold text-emerald-600 uppercase tracking-wider mb-2">Closing Remark</div>
-                  <p className="text-slate-700">{o.closingRemark}</p>
-                  <p className="text-xs text-slate-500 mt-2">Closed on {formatDate(o.closedAt)}</p>
+                  <div
+                    className={`text-sm font-semibold uppercase tracking-wider mb-2 ${
+                      o.closedAt ? "text-emerald-600" : "text-slate-500"
+                    }`}
+                  >
+                    {o.closedAt ? "Closing Remark" : "Closure / Review History"}
+                  </div>
+                  <p className="text-slate-700 whitespace-pre-wrap">{o.closingRemark}</p>
+                  {o.closedAt && (
+                    <p className="text-xs text-slate-500 mt-2">Closed on {formatDate(o.closedAt)}</p>
+                  )}
                 </div>
               )}
             </CardContent>
