@@ -5,6 +5,9 @@
     "src/app/api/copilot/chat/route.ts": {
       "maxDuration": 300
     },
+    "src/app/api/copilot/chat/*/events/route.ts": {
+      "maxDuration": 300
+    },
     "src/app/api/**/*.ts": {
       "maxDuration": 30
     }

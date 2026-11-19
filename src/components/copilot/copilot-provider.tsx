@@ -18,6 +18,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { PtwDraft, PtwDraftCheck } from "@/lib/ptw/wizard-config";
+import type { CopilotPhoto } from "@/lib/copilot-photos";
 
 export type ToolChip = { id: string; name: string; label: string; status: "pending" | "running" | "done" | "error"; error?: string | null };
 export type CopilotAction =
@@ -35,7 +36,11 @@ export type ChatItem = {
   actions: CopilotAction[];
   error?: string | null;
   streaming?: boolean;
+  /** The connection dropped mid-answer and is being re-opened. */
+  reconnecting?: boolean;
   patchedFields?: string[];
+  /** Thumbnails of the photos the user sent with this message. */
+  photos?: string[];
 };
 
 export type PtwBridge = {
@@ -48,6 +53,8 @@ export type FormBridge = {
   kind: FormKind;
   getDraft: () => Record<string, unknown>;
   applyPatch: (patch: Record<string, unknown>) => void;
+  /** The observation form: add photos the user gave the copilot to the form's Photos section. */
+  attachPhotos?: (files: File[]) => void;
 };
 
 export type PageContext = {
@@ -68,7 +75,8 @@ type CopilotContextValue = {
   toggle: () => void;
   items: ChatItem[];
   sending: boolean;
-  send: (text: string) => Promise<void>;
+  /** Send a message, optionally with photos (upload or camera). */
+  send: (text: string, photos?: CopilotPhoto[]) => Promise<void>;
   stop: () => void;
   newChat: () => void;
   page: PageContext;
@@ -140,8 +148,74 @@ function loadStored(): Stored | null {
   return null;
 }
 
-/** Parse an SSE byte stream into (event, data) pairs. */
-async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<{ event: string; data: any }> {
+// ─── Turn transport ─────────────────────────────────────────────────────
+// A turn runs on the backend on its own. The browser reads its events over
+// one or more streams: the backend ends each stream after ~3 minutes (under
+// Vercel's function limit) and the browser carries on from the last event it
+// got. A dropped connection or a failed request is retried the same way, and
+// the turn id makes a resent message join the turn it already started. A slow
+// answer is never given up on; only a server that stays unreachable for
+// minutes is. The Stop button is the only thing that stops a turn.
+
+const ACTIVE_KEY = `${STORE_KEY}.turn`;
+/** Give up only after the server has been unreachable this long. */
+const UNREACHABLE_GIVE_UP_MS = 10 * 60_000;
+const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000];
+/** Responses that won't change on a retry. */
+const FINAL_STATUSES = new Set([400, 401, 403, 404, 405, 409, 413, 422, 429]);
+
+/** The turn being answered, kept so a reload can pick it up again. */
+type ActiveTurn = { turnId: string; conversationId: string; userItem: ChatItem; replyId: string };
+
+/** 32 hex characters: the backend also uses it as the audit row id. */
+function newTurnId(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function saveActive(turn: ActiveTurn | null) {
+  try {
+    if (turn) sessionStorage.setItem(ACTIVE_KEY, JSON.stringify(turn));
+    else sessionStorage.removeItem(ACTIVE_KEY);
+  } catch {
+    /* storage unavailable: the answer still arrives, it just can't be picked up after a reload */
+  }
+}
+
+function loadActive(): ActiveTurn | null {
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_KEY);
+    const j = raw ? JSON.parse(raw) : null;
+    if (j && typeof j.turnId === "string" && /^[0-9a-f]{32}$/.test(j.turnId) &&
+        typeof j.conversationId === "string" && typeof j.replyId === "string" && j.userItem?.role === "user") return j;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** setTimeout that ends early when the turn is stopped. */
+function wait(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve();
+    const onAbort = () => { clearTimeout(timer); resolve(); };
+    const timer = setTimeout(() => { signal.removeEventListener("abort", onAbort); resolve(); }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function errorDetail(res: Response): Promise<string | null> {
+  try {
+    const j = await res.json();
+    return typeof j?.detail === "string" ? j.detail : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Parse an SSE byte stream into (id, event, data). */
+async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<{ id: number | null; event: string; data: any }> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
@@ -155,21 +229,28 @@ async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<{ even
         const chunk = buf.slice(0, idx);
         buf = buf.slice(idx + 2);
         let event = "message";
+        let id: number | null = null;
         const dataLines: string[] = [];
         for (const line of chunk.split("\n")) {
           if (line.startsWith(":")) continue; // keepalive comment
           if (line.startsWith("event:")) event = line.slice(6).trim();
           else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+          else if (line.startsWith("id:")) {
+            const n = Number(line.slice(3).trim());
+            id = Number.isFinite(n) ? n : null;
+          }
         }
         if (!dataLines.length) continue;
         try {
-          yield { event, data: JSON.parse(dataLines.join("\n")) };
+          yield { id, event, data: JSON.parse(dataLines.join("\n")) };
         } catch {
           /* ignore a malformed frame */
         }
       }
     }
   } finally {
+    // Leaving early (a `reconnect` event) closes the connection too.
+    reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }
@@ -194,16 +275,13 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
   const [formKind, setFormKind] = useState<FormKind | null>(null);
   const [pagePlantId, setPagePlantId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
-
-  // Restore the chat after a reload (per tab).
-  useEffect(() => {
-    const s = loadStored();
-    if (s) {
-      conversationId.current = s.conversationId;
-      apiMessages.current = s.apiMessages;
-      setItems(s.items.map((i) => ({ ...i, streaming: false })));
-    }
-  }, []);
+  const activeTurn = useRef<string | null>(null);
+  const restored = useRef(false);
+  // Photos sent while the observation form was closed wait here for it; when it
+  // opens they move into its Photos section and the copilot is asked to fill it.
+  const pendingPhotos = useRef<File[]>([]);
+  const carryOver = useRef(false);
+  const [carryOverReady, setCarryOverReady] = useState(false);
 
   const persist = useCallback((nextItems: ChatItem[]) => {
     try {
@@ -263,6 +341,12 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
   const registerFormBridge = useCallback((b: FormBridge) => {
     formBridge.current = b;
     setFormKind(b.kind);
+    if (b.kind === "OBSERVATION" && b.attachPhotos && pendingPhotos.current.length) {
+      b.attachPhotos(pendingPhotos.current);
+      pendingPhotos.current = [];
+      if (carryOver.current) setCarryOverReady(true);
+      carryOver.current = false;
+    }
     return () => {
       if (formBridge.current === b) {
         formBridge.current = null;
@@ -297,103 +381,240 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
     setItems((prev) => prev.map((i) => (i.id === id ? fn(i) : i)));
   }, []);
 
-  const stop = useCallback(() => { abort.current?.abort(); }, []);
+  const stop = useCallback(() => {
+    const turnId = activeTurn.current;
+    abort.current?.abort();
+    // Closing the stream doesn't stop the turn on the server; this does.
+    if (turnId) void fetch(`/api/copilot/chat/${turnId}/cancel`, { method: "POST" }).catch(() => {});
+  }, []);
 
   const newChat = useCallback(() => {
-    abort.current?.abort();
+    stop();
     conversationId.current = uid();
     apiMessages.current = [];
+    pendingPhotos.current = [];
+    carryOver.current = false;
+    setCarryOverReady(false);
     setItems([]);
     setTooLong(false);
     try { sessionStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
-  }, []);
+  }, [stop]);
 
-  const send = useCallback(async (text: string) => {
-    const message = text.trim();
-    if (!message || sending) return;
-    const userItem: ChatItem = { id: uid(), role: "user", text: message, tools: [], actions: [] };
-    const reply: ChatItem = { id: uid(), role: "assistant", text: "", tools: [], actions: [], streaming: true };
-    setItems((prev) => [...prev, userItem, reply]);
+  /** Read a turn's events until it ends, reconnecting as often as needed.
+   *  `startBody` is the POST that starts the turn, resent until the server
+   *  accepts it; null = the turn already exists (picked up after a reload). */
+  const streamTurn = useCallback(async (turnId: string, replyId: string, startBody: string | null, signal: AbortSignal) => {
+    let after = 0;    // last event applied
+    let textLen = 0;  // reply text applied, in the server's offsets
+    let accepted = startBody === null;
+    let failures = 0;
+    let lastContact = Date.now();
+    const update = (fn: (i: ChatItem) => ChatItem) => updateItem(replyId, fn);
+    const fail = (message: string) => update((i) => ({ ...i, error: message, reconnecting: false }));
+
+    while (!signal.aborted) {
+      let res: Response | null = null;
+      try {
+        res = accepted
+          ? await fetch(`/api/copilot/chat/${turnId}/events?after=${after}`, { cache: "no-store", signal })
+          : await fetch("/api/copilot/chat", {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: startBody ?? "", signal
+          });
+      } catch {
+        if (signal.aborted) return;
+      }
+
+      if (res?.ok && res.body && (res.headers.get("content-type") ?? "").includes("text/event-stream")) {
+        accepted = true;
+        let rollover = false;
+        try {
+          for await (const { id, event, data } of readSse(res.body)) {
+            lastContact = Date.now();
+            if (failures) {
+              failures = 0;
+              update((i) => ({ ...i, reconnecting: false }));
+            }
+            if (id !== null) {
+              if (id <= after) continue; // already applied before the reconnect
+              after = id;
+            }
+            if (event === "reconnect") {
+              rollover = true;
+              break;
+            }
+            if (event === "end") return;
+            if (event === "text") {
+              // `at` places the text in the reply, so a span that arrives twice
+              // after a reconnect is only shown once.
+              const delta = typeof data.delta === "string" ? data.delta : "";
+              const at = typeof data.at === "number" ? data.at : textLen;
+              const piece = at >= textLen ? delta : delta.slice(textLen - at);
+              textLen = Math.max(textLen, at + delta.length);
+              if (piece) update((i) => ({ ...i, text: i.text + piece }));
+            } else if (event === "rewind") {
+              // A model round failed half-way and is being run again.
+              const to = typeof data.to === "number" ? data.to : textLen;
+              const drop = new Set<string>(Array.isArray(data.dropTools) ? data.dropTools : []);
+              textLen = Math.min(textLen, to);
+              update((i) => ({ ...i, text: i.text.slice(0, to), tools: i.tools.filter((t) => !drop.has(t.id)) }));
+            } else if (event === "tool") {
+              update((i) => {
+                const chip: ToolChip = { id: data.id, name: data.name, label: data.label, status: data.status, error: data.error };
+                const exists = i.tools.some((t) => t.id === chip.id);
+                return { ...i, tools: exists ? i.tools.map((t) => (t.id === chip.id ? chip : t)) : [...i.tools, chip] };
+              });
+            } else if (event === "draft_patch") {
+              bridge.current?.applyPatch(data.patch ?? {});
+              if (data.check) setLastCheck(data.check);
+              const fields = Object.keys(data.patch ?? {});
+              update((i) => ({ ...i, patchedFields: Array.from(new Set([...(i.patchedFields ?? []), ...fields])) }));
+            } else if (event === "form_patch") {
+              if (formBridge.current && formBridge.current.kind === data.kind) formBridge.current.applyPatch(data.patch ?? {});
+              const fields = Object.keys(data.patch ?? {});
+              update((i) => ({ ...i, patchedFields: Array.from(new Set([...(i.patchedFields ?? []), ...fields])) }));
+            } else if (event === "draft_check") {
+              if (data.check) setLastCheck(data.check);
+            } else if (event === "action") {
+              update((i) => ({ ...i, actions: [...i.actions, data as CopilotAction] }));
+              if (data?.type === "record" && typeof data.recordId === "string") {
+                // The copilot saved a record: re-read the page so registers and the
+                // open editor show it (see CopilotRefreshOnChange).
+                setRecordRevisions((r) => ({ ...r, [data.recordId]: (r[data.recordId] ?? 0) + 1 }));
+                router.refresh();
+              }
+            } else if (event === "error") {
+              update((i) => ({ ...i, error: data.message ?? "Something went wrong." }));
+            } else if (event === "done") {
+              const base = Array.isArray(data.replaceHistory) ? data.replaceHistory : apiMessages.current;
+              apiMessages.current = [...base, ...(Array.isArray(data.appendMessages) ? data.appendMessages : [])];
+              if (data.stopped) update((i) => ({ ...i, error: i.text ? null : "Stopped." }));
+              return;
+            }
+          }
+        } catch {
+          if (signal.aborted) return;
+        }
+        if (rollover) continue; // the server ended this stream segment on purpose
+      } else if (res) {
+        const detail = await errorDetail(res);
+        if (res.status === 413) setTooLong(true);
+        // 503 "... not configured" is a setup problem, not a hiccup.
+        const permanent = FINAL_STATUSES.has(res.status) || (res.status === 503 && !!detail && /configured/i.test(detail));
+        if (permanent) {
+          fail(detail ?? "The copilot could not answer.");
+          return;
+        }
+      }
+
+      // A dropped connection or a server hiccup: wait a little, then pick up
+      // where we left off.
+      if (Date.now() - lastContact > UNREACHABLE_GIVE_UP_MS) {
+        fail("Lost the connection to the copilot. Reload the page to see the answer.");
+        return;
+      }
+      failures += 1;
+      update((i) => ({ ...i, reconnecting: true }));
+      await wait(RETRY_DELAYS_MS[Math.min(failures, RETRY_DELAYS_MS.length) - 1], signal);
+    }
+  }, [updateItem, router]);
+
+  const drive = useCallback(async (turn: ActiveTurn, startBody: string | null) => {
     setSending(true);
     const ctrl = new AbortController();
     abort.current = ctrl;
-
+    activeTurn.current = turn.turnId;
+    saveActive(turn);
     try {
-      const res = await fetch("/api/copilot/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: ctrl.signal,
-        body: JSON.stringify({
-          conversationId: conversationId.current,
-          message,
-          messages: apiMessages.current,
-          page: { path: page.path, module: page.module, recordId: page.recordId, recordLabel: page.recordLabel, studyId: page.studyId ?? null },
-          ptwDraft: bridge.current ? bridge.current.getDraft() : null,
-          formDraft: formBridge.current ? { kind: formBridge.current.kind, draft: formBridge.current.getDraft() } : null,
-          nowLocal: localNow(),
-          timezoneOffsetMinutes: new Date().getTimezoneOffset()
-        })
-      });
-      if (!res.ok || !res.body) {
-        let detail = "The copilot could not answer.";
-        try { const j = await res.json(); detail = typeof j?.detail === "string" ? j.detail : detail; } catch { /* ignore */ }
-        if (res.status === 413) setTooLong(true);
-        updateItem(reply.id, (i) => ({ ...i, streaming: false, error: detail }));
-        return;
-      }
-      for await (const { event, data } of readSse(res.body)) {
-        if (event === "text") {
-          updateItem(reply.id, (i) => ({ ...i, text: i.text + (data.delta ?? "") }));
-        } else if (event === "tool") {
-          updateItem(reply.id, (i) => {
-            const chip: ToolChip = { id: data.id, name: data.name, label: data.label, status: data.status, error: data.error };
-            const exists = i.tools.some((t) => t.id === chip.id);
-            return { ...i, tools: exists ? i.tools.map((t) => (t.id === chip.id ? chip : t)) : [...i.tools, chip] };
-          });
-        } else if (event === "draft_patch") {
-          bridge.current?.applyPatch(data.patch ?? {});
-          if (data.check) setLastCheck(data.check);
-          const fields = Object.keys(data.patch ?? {});
-          updateItem(reply.id, (i) => ({ ...i, patchedFields: Array.from(new Set([...(i.patchedFields ?? []), ...fields])) }));
-        } else if (event === "form_patch") {
-          if (formBridge.current && formBridge.current.kind === data.kind) formBridge.current.applyPatch(data.patch ?? {});
-          const fields = Object.keys(data.patch ?? {});
-          updateItem(reply.id, (i) => ({ ...i, patchedFields: Array.from(new Set([...(i.patchedFields ?? []), ...fields])) }));
-        } else if (event === "draft_check") {
-          if (data.check) setLastCheck(data.check);
-        } else if (event === "action") {
-          updateItem(reply.id, (i) => ({ ...i, actions: [...i.actions, data as CopilotAction] }));
-          if (data?.type === "record" && typeof data.recordId === "string") {
-            // The copilot saved a record: re-read the page so registers and the
-            // open editor show it (see CopilotRefreshOnChange).
-            setRecordRevisions((r) => ({ ...r, [data.recordId]: (r[data.recordId] ?? 0) + 1 }));
-            router.refresh();
-          }
-        } else if (event === "error") {
-          updateItem(reply.id, (i) => ({ ...i, error: data.message ?? "Something went wrong." }));
-        } else if (event === "done") {
-          const base = Array.isArray(data.replaceHistory) ? data.replaceHistory : apiMessages.current;
-          apiMessages.current = [...base, ...(Array.isArray(data.appendMessages) ? data.appendMessages : [])];
-        }
-      }
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
-        updateItem(reply.id, (i) => ({ ...i, error: i.text ? null : "Stopped." }));
-      } else {
-        updateItem(reply.id, (i) => ({ ...i, error: "Connection lost. Try again." }));
-      }
+      await streamTurn(turn.turnId, turn.replyId, startBody, ctrl.signal);
+    } catch {
+      updateItem(turn.replyId, (i) => ({ ...i, error: "Something went wrong. Try again." }));
     } finally {
+      if (ctrl.signal.aborted) updateItem(turn.replyId, (i) => ({ ...i, error: i.text ? null : "Stopped." }));
       setSending(false);
-      abort.current = null;
+      if (abort.current === ctrl) abort.current = null;
+      if (activeTurn.current === turn.turnId) activeTurn.current = null;
+      saveActive(null);
       // A turn that never reached "done" added nothing to the transcript, so
       // the user can simply resend; the bubble stays visible.
       setItems((prev) => {
-        const next = prev.map((i) => (i.id === reply.id ? { ...i, streaming: false } : i));
+        const next = prev.map((i) => (i.id === turn.replyId ? { ...i, streaming: false, reconnecting: false } : i));
         persist(next);
         return next;
       });
     }
-  }, [sending, page, updateItem, persist, router]);
+  }, [streamTurn, updateItem, persist]);
+
+  const send = useCallback(async (text: string, photos: CopilotPhoto[] = []) => {
+    const typed = text.trim();
+    if ((!typed && photos.length === 0) || sending) return;
+    const message = typed || (photos.length === 1
+      ? "Here is a photo of what I saw. Help me record a safety observation."
+      : "Here are photos of what I saw. Help me record a safety observation.");
+    const userItem: ChatItem = {
+      id: uid(), role: "user", text: typed, tools: [], actions: [],
+      photos: photos.length ? photos.map((p) => p.thumb) : undefined
+    };
+    if (photos.length) {
+      // The photos also go on the observation form, so they are saved with it.
+      const files = photos.map((p) => p.file);
+      const fb = formBridge.current;
+      if (fb?.kind === "OBSERVATION" && fb.attachPhotos) {
+        fb.attachPhotos(files);
+      } else {
+        pendingPhotos.current = [...pendingPhotos.current, ...files];
+        carryOver.current = true;
+      }
+    }
+    const reply: ChatItem = { id: uid(), role: "assistant", text: "", tools: [], actions: [], streaming: true };
+    setItems((prev) => [...prev, userItem, reply]);
+    const turnId = newTurnId();
+    // Built once, so a retry resends exactly the same request.
+    const body = JSON.stringify({
+      turnId,
+      conversationId: conversationId.current,
+      message,
+      messages: apiMessages.current,
+      page: { path: page.path, module: page.module, recordId: page.recordId, recordLabel: page.recordLabel, studyId: page.studyId ?? null },
+      ptwDraft: bridge.current ? bridge.current.getDraft() : null,
+      formDraft: formBridge.current ? { kind: formBridge.current.kind, draft: formBridge.current.getDraft() } : null,
+      nowLocal: localNow(),
+      timezoneOffsetMinutes: new Date().getTimezoneOffset(),
+      images: photos.map((p) => ({ mediaType: p.mediaType, data: p.data }))
+    });
+    await drive({ turnId, conversationId: conversationId.current, userItem, replyId: reply.id }, body);
+  }, [sending, page, drive]);
+
+  // The observation form opened after photos were sent from elsewhere: once the
+  // copilot is free, ask it to fill the form from that conversation.
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  useEffect(() => {
+    if (!carryOverReady || sending || formKind !== "OBSERVATION") return;
+    setCarryOverReady(false);
+    void sendRef.current("The New Observation form is open now, with my photos attached. Fill it from the photos and what we discussed.");
+  }, [carryOverReady, sending, formKind]);
+
+  // After a reload: restore the chat (per tab), and if an answer was still
+  // coming in, show it again and carry on reading it — the server kept going.
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    const s = loadStored();
+    if (s) {
+      conversationId.current = s.conversationId;
+      apiMessages.current = s.apiMessages;
+    }
+    const items0 = (s?.items ?? []).map((i) => ({ ...i, streaming: false, reconnecting: false }));
+    const turn = loadActive();
+    if (!turn || turn.conversationId !== conversationId.current) {
+      saveActive(null);
+      if (s) setItems(items0);
+      return;
+    }
+    const reply: ChatItem = { id: turn.replyId, role: "assistant", text: "", tools: [], actions: [], streaming: true };
+    setItems([...items0.filter((i) => i.id !== turn.userItem.id && i.id !== turn.replyId), turn.userItem, reply]);
+    void drive(turn, null);
+  }, [drive]);
 
   // Remember the panel state for the tab; restore it on first load.
   useEffect(() => {

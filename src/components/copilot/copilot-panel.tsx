@@ -2,12 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowUp, Bot, CheckCircle2, AlertCircle, ExternalLink, Loader2, Plus, Sparkles, Square, Wrench, X,
-  TrendingDown, TrendingUp, Minus, Info, FilePlus2, FilePen, Send
+  TrendingDown, TrendingUp, Minus, Info, FilePlus2, FilePen, Send, Camera, ImagePlus, ClipboardList
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { COPILOT_MAX_PHOTOS, type CopilotPhoto, prepareCopilotPhoto } from "@/lib/copilot-photos";
+import { CameraCaptureDialog } from "./camera-capture-dialog";
 import { cn } from "@/lib/utils";
 import { type ChatItem, type CopilotAction, type FormKind, useCopilot } from "./copilot-provider";
 import type { CalibrationScopeResponse } from "./hira-calibration-types";
@@ -256,13 +260,26 @@ function Message({ item }: { item: ChatItem }) {
   if (item.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary-600 px-3 py-2 text-sm text-white">
-          {item.text}
+        <div className="flex max-w-[85%] flex-col items-end gap-1">
+          {item.photos && item.photos.length > 0 && (
+            <div className="flex flex-wrap justify-end gap-1">
+              {item.photos.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={src} alt={`Photo ${i + 1}`} className="h-16 w-16 rounded-lg border border-slate-200 object-cover" />
+              ))}
+            </div>
+          )}
+          {item.text && (
+            <div className="whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary-600 px-3 py-2 text-sm text-white">
+              {item.text}
+            </div>
+          )}
         </div>
       </div>
     );
   }
-  const busy = item.streaming && !item.text && item.tools.every((t) => t.status === "done");
+  const reconnecting = !!(item.streaming && item.reconnecting);
+  const busy = item.streaming && !reconnecting && !item.text && item.tools.every((t) => t.status === "done");
   return (
     <div className="flex gap-2">
       <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700">
@@ -286,6 +303,11 @@ function Message({ item }: { item: ChatItem }) {
         )}
         {item.text && <div className="leading-relaxed"><RichText text={item.text} /></div>}
         {busy && <div className="flex items-center gap-1.5 text-slate-500"><Loader2 size={14} className="animate-spin" /> Thinking…</div>}
+        {reconnecting && (
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+            <Loader2 size={12} className="animate-spin" /> Connection dropped. Reconnecting; the answer is still being written…
+          </div>
+        )}
         {item.patchedFields && item.patchedFields.length > 0 && (
           <div className="mt-1.5 flex items-start gap-1.5 rounded-md bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800">
             <Wrench size={12} className="mt-0.5 shrink-0" />
@@ -377,9 +399,30 @@ function HiraScopeLine({ plantId }: { plantId: string | null }) {
 
 export function CopilotPanel() {
   const { open, setOpen, items, send, sending, stop, newChat, page, ptwFormOpen, formKind, lastCheck, conversationTooLong, unavailableReason, pagePlantId } = useCopilot();
+  const router = useRouter();
   const [draft, setDraft] = useState("");
+  const [photos, setPhotos] = useState<CopilotPhoto[]>([]);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const addPhotos = async (files: File[]) => {
+    setPhotoError(null);
+    const room = COPILOT_MAX_PHOTOS - photos.length;
+    if (room <= 0) { setPhotoError(`Up to ${COPILOT_MAX_PHOTOS} photos per message.`); return; }
+    if (files.length > room) setPhotoError(`Up to ${COPILOT_MAX_PHOTOS} photos per message; the extra ones were left out.`);
+    setPreparing(true);
+    const ready: CopilotPhoto[] = [];
+    for (const f of files.slice(0, room)) {
+      try { ready.push(await prepareCopilotPhoto(f)); } catch (e) { setPhotoError(e instanceof Error ? e.message : "That photo could not be used."); }
+    }
+    setPreparing(false);
+    if (ready.length) setPhotos((prev) => [...prev, ...ready].slice(0, COPILOT_MAX_PHOTOS));
+    input.current?.focus();
+  };
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
@@ -395,11 +438,19 @@ export function CopilotPanel() {
     : page.module === "HIRA" && page.studyId && !page.recordId ? "On this HIRA study"
     : page.recordId && page.module ? `On this ${MODULE_LABEL[page.module]?.toLowerCase() ?? "record"}` : null;
 
+  const canSend = (!!draft.trim() || photos.length > 0) && !preparing;
   const submit = () => {
-    if (!draft.trim() || sending || unavailableReason) return;
+    if (!canSend || sending || unavailableReason) return;
     const t = draft;
+    const p = photos;
     setDraft("");
-    void send(t);
+    setPhotos([]);
+    setPhotoError(null);
+    void send(t, p);
+  };
+  const reportObservation = () => {
+    if (formKind !== "OBSERVATION") router.push("/observations/new");
+    input.current?.focus();
   };
 
   return (
@@ -454,6 +505,27 @@ export function CopilotPanel() {
                 <>{introFor(page.module)}</>
               )}
             </div>
+            <div className="rounded-lg border border-slate-200 p-3">
+              <div className="flex items-start gap-2">
+                <ClipboardList size={16} className="mt-0.5 shrink-0 text-primary-600" />
+                <div className="min-w-0 text-xs text-slate-700">
+                  <div className="font-semibold text-slate-900">Report a safety observation</div>
+                  Upload or take a photo of what you saw and add a line on where it is. I&apos;ll describe the hazard,
+                  suggest the category and severity, and put the photo on the observation form for you to submit.
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <Button type="button" size="sm" variant="outline" onClick={() => { reportObservation(); setCameraOpen(true); }}>
+                  <Camera size={13} /> Take photo
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => { reportObservation(); fileInput.current?.click(); }}>
+                  <ImagePlus size={13} /> Upload photo
+                </Button>
+                {formKind !== "OBSERVATION" && (
+                  <Button type="button" size="sm" variant="ghost" onClick={reportObservation}>Open the form</Button>
+                )}
+              </div>
+            </div>
             <div className="flex flex-col gap-1.5">
               {suggestionsFor(page.module, page.recordId, ptwFormOpen, formKind, page.studyId ?? null).map((s) => (
                 <Button key={s} type="button" variant="bare" onClick={() => void send(s)}
@@ -475,6 +547,40 @@ export function CopilotPanel() {
       </div>
 
       <div className="shrink-0 border-t p-3">
+        {(photos.length > 0 || preparing) && (
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            {photos.map((p) => (
+              <div key={p.id} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.thumb} alt={p.file.name || "Photo"} className="h-14 w-14 rounded-md border border-slate-200 object-cover" />
+                <Button type="button" variant="bare" aria-label="Remove photo"
+                  onClick={() => setPhotos((prev) => prev.filter((x) => x.id !== p.id))}
+                  className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-full bg-slate-800 p-0 text-white hover:bg-slate-700">
+                  <X size={11} />
+                </Button>
+              </div>
+            ))}
+            {preparing && <span className="flex items-center gap-1 text-[11px] text-slate-500"><Loader2 size={12} className="animate-spin" /> Preparing photo…</span>}
+          </div>
+        )}
+        {photoError && (
+          <div className="mb-2 flex items-start gap-1.5 rounded-md bg-rose-50 px-2 py-1 text-[11px] text-rose-800">
+            <AlertCircle size={12} className="mt-0.5 shrink-0" /> {photoError}
+          </div>
+        )}
+        <Input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = e.target.files ? Array.from(e.target.files) : [];
+            e.target.value = "";
+            if (files.length) void addPhotos(files);
+          }}
+        />
+        <CameraCaptureDialog open={cameraOpen} onOpenChange={setCameraOpen} onCapture={(files) => void addPhotos(files)} />
         <div className="flex items-end gap-2 rounded-xl border border-slate-300 bg-white p-1.5 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100">
           <Textarea
             ref={input}
@@ -486,22 +592,34 @@ export function CopilotPanel() {
             rows={Math.min(5, Math.max(1, draft.split("\n").length))}
             maxLength={4000}
             disabled={!!unavailableReason}
-            placeholder={ptwFormOpen ? "Describe the job, or ask what's missing…" : "Ask SafeOps Copilot…"}
+            placeholder={ptwFormOpen ? "Describe the job, or ask what's missing…"
+              : photos.length ? "Add where it is and what you saw (optional)…" : "Ask SafeOps Copilot…"}
             className="max-h-32 min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent px-1.5 py-1 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
+          <Button type="button" variant="ghost" size="sm" aria-label="Upload photo" title="Upload photo"
+            disabled={!!unavailableReason || sending || preparing || photos.length >= COPILOT_MAX_PHOTOS}
+            onClick={() => fileInput.current?.click()} className="h-8 w-8 p-0 text-slate-500">
+            <ImagePlus size={16} />
+          </Button>
+          <Button type="button" variant="ghost" size="sm" aria-label="Take photo" title="Take photo"
+            disabled={!!unavailableReason || sending || preparing || photos.length >= COPILOT_MAX_PHOTOS}
+            onClick={() => setCameraOpen(true)} className="h-8 w-8 p-0 text-slate-500">
+            <Camera size={16} />
+          </Button>
           {sending ? (
             <Button type="button" variant="outline" size="sm" onClick={stop} aria-label="Stop">
               <Square size={12} />
             </Button>
           ) : (
-            <Button type="button" size="sm" onClick={submit} disabled={!draft.trim()} aria-label="Send">
+            <Button type="button" size="sm" onClick={submit} disabled={!canSend} aria-label="Send">
               <ArrowUp size={14} />
             </Button>
           )}
         </div>
         <p className="mt-1.5 text-[10px] leading-tight text-slate-400">
           The copilot drafts and advises — you review every field and submit. HIRA work it saves stays a draft until
-          a reviewer approves it. Checklist answers are always yours.
+          a reviewer approves it. Checklist answers are always yours. Photos you attach are added to the
+          observation form and saved only when you submit it.
           Ctrl/⌘ + J to toggle.
         </p>
       </div>

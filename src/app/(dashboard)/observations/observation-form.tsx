@@ -204,8 +204,12 @@ export function ObservationForm({ plants }: { plants: Plant[] }) {
     immediateAction: actionRef.current?.value ?? "",
     contractorInvolved: !!contractorCompanyId,
     workersNamed: workersInvolved.length,
-    areas: (selectedPlant?.areas ?? []).map((a) => ({ areaId: a.id, name: a.name }))
+    areas: (selectedPlant?.areas ?? []).map((a) => ({ areaId: a.id, name: a.name })),
+    photoCount: validPhotos.length
   });
+  // Photos the user gave the copilot (upload or camera) land in Photos & Evidence.
+  const addFilesRef = useRef<(files: File[]) => void>(() => {});
+  addFilesRef.current = (files) => addFiles(files);
   const applyRef = useRef<(p: Record<string, unknown>) => void>(() => {});
   applyRef.current = (p) => {
     const has = (k: string) => Object.prototype.hasOwnProperty.call(p, k);
@@ -231,7 +235,12 @@ export function ObservationForm({ plants }: { plants: Plant[] }) {
     if (has("immediateAction") && actionRef.current) actionRef.current.value = str("immediateAction");
   };
   useEffect(
-    () => registerFormBridge({ kind: "OBSERVATION", getDraft: () => snapshotRef.current(), applyPatch: (p) => applyRef.current(p) }),
+    () => registerFormBridge({
+      kind: "OBSERVATION",
+      getDraft: () => snapshotRef.current(),
+      applyPatch: (p) => applyRef.current(p),
+      attachPhotos: (files) => addFilesRef.current(files)
+    }),
     [registerFormBridge]
   );
   // The severity field re-prefills the matrix suggestion whenever the
