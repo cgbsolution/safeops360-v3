@@ -71,6 +71,14 @@ import {
   MessageSquarePlus,
   Workflow,
   FileStack,
+  FileSearch,
+  Bot,
+  Star,
+  ListChecks,
+  Library,
+  MessageSquareText,
+  FolderCog,
+  Plug,
 } from "lucide-react";
 import { usePermissions } from "@/components/auth/can";
 import { useLicence } from "@/components/licensing/licence-provider";
@@ -161,6 +169,20 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    // IMS / MIS (JSL Hisar #8): the plant MIS dashboard plus the governance
+    // registers it counts that no other module owns.
+    key: "ims",
+    label: "IMS / MIS",
+    items: [
+      { href: "/ims", label: "MIS Dashboard", icon: Gauge, permission: "IMS.READ", exact: true },
+      { href: "/ims/toolbox-talks", label: "Toolbox Talks", icon: MessageSquarePlus, permission: "IMS.READ" },
+      { href: "/ims/show-cause", label: "Show Cause Notices", icon: ScrollText, permission: "IMS.READ" },
+      { href: "/ims/meetings", label: "Safety Meetings", icon: Users, permission: "IMS.READ" },
+      { href: "/ims/mom", label: "MOM Tracker", icon: ClipboardCheck, permission: "IMS.READ" },
+      { href: "/ims/mock-drills", label: "Mock Drills", icon: Siren, permission: "FIRE.READ" },
+    ],
+  },
+  {
     // Tier 3: the analysis that belongs to NO single register — each spans
     // several, or has a data model of its own. Everything that did belong to
     // one register has gone to that register's Analytics tab:
@@ -198,6 +220,13 @@ const SECTIONS: NavSection[] = [
       // Route, permission key and schema keep the original term.
       { href: "/flra", label: "Site Safety Check", icon: Hammer, permission: "FLRA.READ" },
       { href: "/incidents", label: "Incident Investigation", icon: ShieldAlert, permission: "INCIDENT.READ" },
+      // Fire Safety & Emergency Response. The module has been live since P1-4
+      // but was never linked. Gated on INCIDENT.READ, the permission its router uses.
+      { href: "/fire-safety", label: "Fire Safety", icon: Siren, permission: "FIRE.READ", exact: true },
+      // QR-code inspections (JSL Hisar #7): due list, register, printable labels.
+      { href: "/fire-safety/due", label: "Fire Inspections Due", icon: ClipboardCheck, permission: "FIRE.READ" },
+      { href: "/fire-safety/inspections", label: "Fire Inspection Register", icon: ClipboardList, permission: "FIRE.READ" },
+      { href: "/fire-safety/labels", label: "Fire QR Labels", icon: QrCode, permission: "FIRE.MANAGE" },
       // Guided Field Capture — the technician wizard is a full-screen, offline,
       // no-chrome PWA (route group (field)); technicians also land there via
       // Role.defaultLanding. This link opens it from the desk for access/testing.
@@ -218,6 +247,45 @@ const SECTIONS: NavSection[] = [
       { href: "/capa", label: "CAPA — Universal", icon: ClipboardCheck, permission: "CAPA.READ" },
       { href: "/moc", label: "MOC — Management of Change", icon: GitBranch },
       { href: "/compliance", label: "Statutory Registers", icon: ClipboardCheck }
+    ],
+  },
+  {
+    // Process safety (JSL Hisar #3, #6, #9): HAZOP, standalone PSSR, chemical
+    // register / PSI library and the Chem advisor.
+    key: "process-safety",
+    label: "Process Safety",
+    items: [
+      { href: "/process-safety", label: "Process Safety Hub", icon: ShieldAlert, permission: "PHA.READ", exact: true },
+      { href: "/process-safety/hazop", label: "PHA / HAZOP Studies", icon: FileSearch, permission: "PHA.READ" },
+      { href: "/process-safety/pssr", label: "PSSR", icon: ClipboardCheck, permission: "PSSR.READ" },
+      { href: "/process-safety/chemicals", label: "Chemical Register", icon: FlaskConical, permission: "PSI.READ" },
+      { href: "/process-safety/psi-documents", label: "PSI Documents", icon: FileStack, permission: "PSI.READ" },
+      { href: "/process-safety/chem-advisor", label: "Chem Advisor", icon: Bot, permission: "PSI.READ" },
+    ],
+  },
+  {
+    // Contractor Safety Management for plant contractors (JSL Hisar #4):
+    // prequalification → work order → roster/gate → evaluation → sanctions.
+    key: "csm",
+    label: "Contractor Safety (CSM)",
+    items: [
+      { href: "/csm", label: "CSM Hub", icon: HardHat, permission: "CSM.READ", exact: true },
+      { href: "/csm/contractors", label: "Contractors", icon: Building2, permission: "CSM.READ" },
+      { href: "/csm/prequalifications", label: "Prequalification", icon: ClipboardCheck, permission: "CSM.READ" },
+      { href: "/csm/work-orders", label: "Work Orders", icon: FileText, permission: "CSM.READ" },
+      { href: "/csm/evaluations", label: "Evaluations", icon: Star, permission: "CSM.READ" },
+      { href: "/csm/templates", label: "Questionnaires", icon: ListChecks, permission: "CSM.MANAGE" },
+    ],
+  },
+  {
+    // Knowledge bank (JSL Hisar #10): KB.READ is granted to every role.
+    key: "knowledge-bank",
+    label: "Knowledge Bank",
+    items: [
+      { href: "/knowledge-bank", label: "Standards & Policies", icon: Library, permission: "KB.READ", exact: true },
+      { href: "/knowledge-bank/ask", label: "Ask the Knowledge Bank", icon: MessageSquareText, permission: "KB.READ" },
+      { href: "/knowledge-bank/my-acknowledgements", label: "My Acknowledgements", icon: FileCheck, permission: "KB.READ" },
+      { href: "/knowledge-bank/manage", label: "Manage Documents", icon: FolderCog, permission: "KB.MANAGE" },
     ],
   },
   {
@@ -448,6 +516,8 @@ const SECTIONS: NavSection[] = [
       // what every future record on it means, which is the same class of act as
       // editing a workflow but a different permission family.
       { href: "/configuration/forms", label: "Forms", icon: FileStack, permission: "FORMS.PUBLISH" },
+      // External connectors (JSL SAS observations). Admin-only via INTEGRATION.READ.
+      { href: "/configuration/integrations", label: "Integrations", icon: Plug, permission: "INTEGRATION.READ" },
       { href: "/licence", label: "Licence & Entitlements", icon: ScrollText },
       // Signal Engine data-quality register. No `permission` key for the same
       // reason as Licence above: the backend gates it to System-Admin roles and

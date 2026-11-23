@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils";
 import { RcaEditor, useRcaMethodSwitcher } from "@/components/incidents/rca-editor";
 import { type RcaMethod, RCA_METHODS_LIST, emptyDataFor, isEmptyRcaData } from "@/lib/rca/types";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toOptions, useCopilotForm } from "@/components/copilot/use-copilot-form";
 
 type Plant = { id: string; name: string; areas: { id: string; name: string }[] };
 type Department = { id: string; plantId: string; name: string };
@@ -257,6 +258,63 @@ export function IncidentForm({ plants }: { plants: Plant[] }) {
       return prev.filter((p) => p.tempId !== id);
     });
   }
+
+  // ─── Copilot ─────────────────────────────────────────────────────
+  // The copilot fills the first report from what the reporter tells it (or a
+  // photo): when, where, what happened, immediate action and cause. People,
+  // injuries, witnesses, equipment rows and the RCA stay with the reporter.
+  useCopilotForm({
+    kind: "INCIDENT",
+    title: "New incident report",
+    attachPhotos: (files) => addFiles(files),
+    fields: () => [
+      { name: "occurredAt", label: "Date & time of occurrence", type: "datetime", required: true, value: occurredAt,
+        help: `Local time; cannot be later than now (${nowLocal}).` },
+      { name: "type", label: "Incident type", type: "select", required: true, value: type,
+        options: TYPES.map((t) => ({ value: t.value, label: t.label })),
+        help: "Injury types need at least one photo. The plant HSE manager confirms or reclassifies it later." },
+      { name: "plantId", label: "Plant", type: "select", required: true, value: plantId,
+        options: toOptions(plants, (p) => p.id, (p) => p.name) },
+      { name: "departmentId", label: "Department", type: "select", value: departmentId, dependsOn: "plantId",
+        options: toOptions(departments, (d) => d.id, (d) => d.name) },
+      { name: "areaId", label: "Area", type: "select", required: true, value: areaId, dependsOn: "plantId",
+        options: toOptions(selectedPlant?.areas ?? [], (a) => a.id, (a) => a.name) },
+      { name: "specificLocation", label: "Specific location", type: "text", maxLength: 200, value: specificLocation },
+      { name: "shiftId", label: "Shift", type: "select", value: shiftId, options: toOptions(shifts, (s) => s.id, (s) => s.label) },
+      { name: "weatherConditions", label: "Weather conditions", type: "text", maxLength: 120, value: weatherConditions,
+        help: "Only when the reporter mentions it." },
+      { name: "description", label: "Initial description", type: "textarea", required: true, minLength: 10, maxLength: 4000,
+        value: description, help: "What happened, where, to whom (by role), and the immediate context." },
+      { name: "activityBeingPerformed", label: "Activity being performed", type: "text", maxLength: 300, value: activityBeingPerformed },
+      { name: "activityIsRoutine", label: "Was the activity routine?", type: "select", value: activityIsRoutine,
+        options: [{ value: "yes", label: "Yes — routine activity" }, { value: "no", label: "No — non-routine" }] },
+      { name: "immediateAction", label: "Immediate action taken", type: "textarea", maxLength: 4000, value: immediateAction,
+        help: "Only what the reporter says was done." },
+      { name: "immediateCauseText", label: "Immediate cause", type: "textarea", maxLength: 1000, value: immediateCauseText,
+        help: "One line, as it looks now. The root-cause analysis is the investigation team's." },
+      { name: "photoCount", label: "Photos attached", type: "number", value: validPhotos.length, readOnly: true }
+    ],
+    apply: (p) => {
+      const str = (k: string) => (p[k] == null ? "" : String(p[k]));
+      if ("occurredAt" in p && p.occurredAt) setOccurredAt(str("occurredAt") > nowLocal ? nowLocal : str("occurredAt"));
+      if ("type" in p && TYPES.some((t) => t.value === p.type)) setType(str("type"));
+      if ("plantId" in p && str("plantId") !== plantId) {
+        setPlantId(str("plantId"));
+        setAreaId("");
+        setDepartmentId("");
+      }
+      if ("departmentId" in p) setDepartmentId(str("departmentId"));
+      if ("areaId" in p) setAreaId(str("areaId"));
+      if ("specificLocation" in p) setSpecificLocation(str("specificLocation"));
+      if ("shiftId" in p) setShiftId(str("shiftId"));
+      if ("weatherConditions" in p) setWeatherConditions(str("weatherConditions"));
+      if ("description" in p) setDescription(str("description"));
+      if ("activityBeingPerformed" in p) setActivityBeingPerformed(str("activityBeingPerformed"));
+      if ("activityIsRoutine" in p) setActivityIsRoutine(p.activityIsRoutine === "yes" || p.activityIsRoutine === "no" ? p.activityIsRoutine : "");
+      if ("immediateAction" in p) setImmediateAction(str("immediateAction"));
+      if ("immediateCauseText" in p) setImmediateCauseText(str("immediateCauseText"));
+    }
+  });
 
   // ─── Sub-form row management ─────────────────────────────────────
   function addPerson() {

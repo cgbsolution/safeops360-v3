@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { RegisterTabs, RegisterWorkspacePane } from "@/components/analytics/register-workspace";
 import { resolveTab } from "@/lib/registers";
 import { Button } from "@/components/ui/button";
-import { Archive, FileDown, Plus } from "lucide-react";
+import { Archive, FileDown, Plus, ScanLine } from "lucide-react";
 import { statusColor, humanize } from "@/lib/utils";
 import { WorkflowEngine } from "@/lib/workflow/engine";
 import { Can } from "@/components/auth/can";
@@ -16,6 +16,9 @@ import { PtwTable, type PermitRow } from "./ptw-table";
 import { FilterTab, FilterTabsList } from "@/components/ui/filter-tabs";
 import { AnalyticsStripSkeleton } from "@/components/dashboard/analytics-strip";
 import { PtwAnalyticsStrip } from "@/components/ptw/analytics-strip";
+import { PtwControlCenter } from "@/components/ptw/control-center";
+import { PtwInsightsPanel } from "@/components/ptw/insights-panel";
+import { resolvePlantContext } from "@/lib/plant-context";
 
 export const dynamic = "force-dynamic";
 
@@ -63,18 +66,35 @@ function permitWorkflowColor(workflowStatus: string | undefined, permitStatus: s
   return statusColor(permitStatus);
 }
 
-export default async function PTWPage(props: { searchParams: Promise<{ tab?: string; type?: string; status?: string; archived?: string }> }) {
+export default async function PTWPage(props: { searchParams: Promise<{ tab?: string; type?: string; status?: string; archived?: string; plantId?: string; plant?: string }> }) {
   const searchParams = await props.searchParams;
 
-  // Tier-2 workspace tabs. Analytics and Signals are PANES on this
-  // route, not screens of their own — see @/lib/registers.
+  // Tier-2 workspace tabs. Analytics, Signals and Control Center are PANES on
+  // this route, not screens of their own — see @/lib/registers.
   const activeTab = resolveTab("ptw", searchParams.tab);
   if (activeTab !== "register") {
+    // Plant picker options for the live board and the insights panel (both
+    // re-check plant scope server-side; this list only drives the dropdown).
+    const needsPlants = activeTab === "control-center" || activeTab === "analytics";
+    const plantCtx = needsPlants
+      ? await resolvePlantContext(searchParams.plantId ?? searchParams.plant ?? null)
+      : null;
+    const plantOptions = (plantCtx?.plants ?? []).map((p) => ({ id: p.id, name: p.name }));
     return (
       <RegisterWorkspacePane
         register="ptw"
         tab={activeTab}
         searchParams={props.searchParams}
+        panes={
+          activeTab === "control-center"
+            ? { "control-center": <PtwControlCenter plants={plantOptions} defaultPlantId={plantCtx?.plantId ?? null} /> }
+            : undefined
+        }
+        analyticsExtra={
+          activeTab === "analytics"
+            ? <PtwInsightsPanel plants={plantOptions} defaultPlantId={searchParams.plant ?? plantCtx?.plantId ?? null} />
+            : undefined
+        }
       />
     );
   }
@@ -184,6 +204,13 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
                 <Archive size={14} /> {showArchived ? "Live Permits" : "Archived"}
               </Link>
             </Button>
+            <Can permission="PTW.CREATE">
+              <Button asChild variant="outline" size="sm">
+                <Link href="/ptw/new?scan=1">
+                  <ScanLine size={14} /> Scan paper permit
+                </Link>
+              </Button>
+            </Can>
             <Can permission="PTW.CREATE">
               <Button asChild>
                 <Link href="/ptw/new">

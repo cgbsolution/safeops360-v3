@@ -55,11 +55,13 @@ import { readApiError } from "@/lib/client-errors";
 import { WizardLotoLink, type WizardLotoLinkValue } from "@/components/loto/wizard-loto-link";
 import { EXECUTION_STATUS_LABEL as LOTO_STATUS_LABEL } from "@/app/(dashboard)/loto/_meta";
 import { useCopilot } from "@/components/copilot/copilot-provider";
+import { ScanPermitDialog } from "@/components/ptw/scan-permit-dialog";
+import { uploadPermitPhoto } from "@/components/ptw/evidence-capture";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { type PlanAdvisory, planAdvisories } from "@/lib/ptw/advisories";
 import {
   AlertCircle, ChevronLeft, ChevronRight, Check, Trash2, Clock, Flame, Wrench, Users, ShieldAlert, Zap, HardHat,
-  Pickaxe, Hammer, Anchor, ListChecks, ClipboardList, Sparkles, History, AlertTriangle, Info
+  Pickaxe, Hammer, Anchor, ListChecks, ClipboardList, Sparkles, History, AlertTriangle, Info, ScanLine
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -131,11 +133,14 @@ export type HiraPrefill = {
 export function PermitForm({
   plants,
   defaultPlantId,
-  hiraPrefill
+  hiraPrefill,
+  openScan = false
 }: {
   plants: Plant[];
   defaultPlantId?: string | null;
   hiraPrefill?: HiraPrefill | null;
+  /** Open the "Scan paper permit" dialog on load (/ptw/new?scan=1 from the register). */
+  openScan?: boolean;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -144,6 +149,10 @@ export function PermitForm({
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Paper-permit scan: the reviewed draft is applied through applyDraftPatch and
+  // the scanned files are attached (SOURCE_SCAN) once the permit is created.
+  const [scanOpen, setScanOpen] = useState(openScan);
+  const [scanSource, setScanSource] = useState<{ files: File[]; paperNo: string | null; flagged: number } | null>(null);
 
   // ─── Job — type + validity ───
   // A HIRA-driven permit opens on the type the hazard implies rather than the
@@ -744,6 +753,17 @@ export function PermitForm({
       }
       const j = await res.json();
       try { if (autosaveKey) localStorage.removeItem(autosaveKey); } catch { /* ignore */ }
+      if (scanSource?.files.length) {
+        // Keep the paper original with the digital permit. A failed upload must
+        // not undo a submitted permit, so it only warns.
+        const failed: string[] = [];
+        for (const f of scanSource.files) {
+          try { await uploadPermitPhoto(j.id, f, "SOURCE_SCAN"); } catch { failed.push(f.name); }
+        }
+        if (failed.length) {
+          toast({ variant: "error", title: "Scan not attached", description: `${failed.join(", ")} could not be attached to ${j.number ?? "the permit"}. Attach it from the permit page.` });
+        }
+      }
       toast({ variant: "success", title: "Permit submitted", description: j.number ?? "Awaiting approval" });
       router.push(`/ptw/${j.id}`);
       router.refresh();
@@ -793,6 +813,43 @@ export function PermitForm({
           </ol>
         </CardContent>
       </Card>
+
+      {/* Paper permit scan */}
+      {scanSource ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          <div className="flex items-center gap-2">
+            <ScanLine size={16} className="shrink-0" />
+            <span>
+              Pre-filled from a scanned paper permit{scanSource.paperNo ? ` (no. ${scanSource.paperNo})` : ""}.
+              {scanSource.flagged ? ` ${scanSource.flagged} field${scanSource.flagged === 1 ? " was" : "s were"} unclear, so check every step.` : " Check every step against the paper."}
+              {" "}The scan is attached to the permit when you submit.
+            </span>
+          </div>
+          <Button type="button" size="sm" variant="outline" onClick={() => setScanSource(null)}>Don&apos;t attach scan</Button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+          <span>Have a filled-in paper permit? Scan it to pre-fill this form.</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => setScanOpen(true)} disabled={!plantId}>
+            <ScanLine size={14} /> Scan paper permit
+          </Button>
+        </div>
+      )}
+      {plantId && (
+        <ScanPermitDialog
+          open={scanOpen}
+          onOpenChange={setScanOpen}
+          plantId={plantId}
+          plantName={selectedPlant?.name}
+          areas={selectedPlant?.areas ?? []}
+          contractors={contractors}
+          onApply={(draft, files, info) => {
+            applyDraftPatch(draft);
+            setScanSource({ files, paperNo: info.paperPermitNumber, flagged: info.flagged });
+            goTo(1);
+          }}
+        />
+      )}
 
       {/* Copilot invitation */}
       {copilotAvailable && !copilotOpen && (

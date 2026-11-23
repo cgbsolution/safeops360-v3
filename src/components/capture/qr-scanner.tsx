@@ -9,6 +9,10 @@
 //   safeops:area:<areaId>          → area
 //   safeops:equipment:<equipId>    → equipment (area optional, second scan)
 //   a bare areaId that matches the technician's plant areas
+// Fire equipment labels (opt-in via `{ fire: true }` / the modal's `acceptFire`,
+// so the capture wizard and CAMS QR jump behave exactly as before):
+//   <origin>/q/fire/<equipmentCode>  → the URL printed on fire equipment labels
+//   SAFEOPS-FIRE-<equipmentCode>      → FireEquipment.qrCode (older stickers)
 // All formats resolve on-device (no server round-trip) so QR entry keeps
 // working in dead zones — the offline-first QR decision.
 
@@ -30,10 +34,36 @@ export function qrSupported(): boolean {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 }
 
-export type QrResult = { areaId?: string; equipmentId?: string };
+export type QrResult = { areaId?: string; equipmentId?: string; fireEquipmentCode?: string };
 
-export function parseQrPayload(raw: string, knownAreaIds: Set<string>): QrResult | null {
+const FIRE_URL = /\/q\/fire\/([A-Za-z0-9._-]+)\/?(?:[?#].*)?$/;
+
+/** Fire equipment code from a label URL (`…/q/fire/FE-JSLH-0001`) or the
+ *  legacy `SAFEOPS-FIRE-<code>` payload; null for anything else. */
+export function parseFireQr(raw: string): string | null {
   const value = raw.trim();
+  const m = value.match(FIRE_URL);
+  if (m) {
+    try {
+      return decodeURIComponent(m[1]);
+    } catch {
+      return m[1];
+    }
+  }
+  if (/^SAFEOPS-FIRE-/i.test(value)) return value.slice("SAFEOPS-FIRE-".length) || null;
+  return null;
+}
+
+export function parseQrPayload(
+  raw: string,
+  knownAreaIds: Set<string>,
+  opts?: { fire?: boolean }
+): QrResult | null {
+  const value = raw.trim();
+  if (opts?.fire) {
+    const code = parseFireQr(value);
+    if (code) return { fireEquipmentCode: code };
+  }
   // combined Area + Asset sticker — one scan fills the whole Context Banner
   if (value.startsWith("safeops:loc:")) {
     const [areaId, equipmentId] = value.slice("safeops:loc:".length).split(":");
@@ -53,11 +83,21 @@ export function QrScannerModal({
   knownAreaIds,
   onResult,
   onClose,
+  acceptFire = false,
+  title,
+  hint,
+  unrecognised,
 }: {
   lang: Lang;
   knownAreaIds: Set<string>;
   onResult: (result: QrResult) => void;
   onClose: () => void;
+  /** Also accept fire equipment labels (returns `fireEquipmentCode`). */
+  acceptFire?: boolean;
+  title?: string;
+  hint?: string;
+  /** Message when a QR is read but is not one this scanner accepts. */
+  unrecognised?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,13 +142,13 @@ export function QrScannerModal({
               raw = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" })?.data ?? null;
             }
             if (raw) {
-              const parsed = parseQrPayload(raw, knownAreaIds);
+              const parsed = parseQrPayload(raw, knownAreaIds, { fire: acceptFire });
               if (parsed) {
                 stopRef.current = true;
                 onResult(parsed);
                 return;
               }
-              setError(t("qrNotFound", lang)); // a code was read but not one of ours
+              setError(unrecognised ?? t("qrNotFound", lang)); // a code was read but not one of ours
             }
           } catch {
             /* per-frame failure — keep scanning */
@@ -126,12 +166,12 @@ export function QrScannerModal({
       stopRef.current = true;
       stream?.getTracks().forEach((tr) => tr.stop());
     };
-  }, [knownAreaIds, lang, onResult]);
+  }, [knownAreaIds, lang, onResult, acceptFire, unrecognised]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
       <div className="flex items-center justify-between p-4">
-        <span className="text-lg font-semibold text-white">{t("scanQr", lang)}</span>
+        <span className="text-lg font-semibold text-white">{title ?? t("scanQr", lang)}</span>
         <Button
           variant="bare"
           type="button"
@@ -149,7 +189,7 @@ export function QrScannerModal({
           <div className="h-56 w-56 rounded-2xl border-4 border-[#C9A961]" />
         </div>
       </div>
-      <div className="p-4 text-center text-sm text-white/80">{error ?? t("qrHint", lang)}</div>
+      <div className="p-4 text-center text-sm text-white/80">{error ?? hint ?? t("qrHint", lang)}</div>
     </div>
   );
 }

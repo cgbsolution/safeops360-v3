@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { readNamedInput, setNamedInput, toOptions, useCopilotForm } from "@/components/copilot/use-copilot-form";
 
 type Plant = { id: string; name: string; areas: { id: string; name: string }[] };
 
@@ -202,6 +203,115 @@ export function NearMissForm({ plants }: { plants: Plant[] }) {
     })();
     return () => { cancelled = true; };
   }, [plantId]);
+
+  // ── Copilot ── the copilot reads this form and fills it from what the user
+  // tells it (or a photo); the reporter reviews and submits as usual. People
+  // pickers stay with the user: the copilot never sees or picks people here.
+  const formRef = useRef<HTMLFormElement>(null);
+  const injury = consequences.find((c) => c.type === "INJURY");
+  useCopilotForm({
+    kind: "NEAR_MISS",
+    title: "New near miss form",
+    attachPhotos: (files) => addFiles(files),
+    fields: () => {
+      const f = formRef.current;
+      return [
+        { name: "date", label: "Date / time", type: "datetime", required: true, value: readNamedInput(f, "date"),
+          help: "When it happened, local time. The form starts at now." },
+        { name: "plantId", label: "Plant", type: "select", required: true, value: plantId,
+          options: toOptions(plants, (p) => p.id, (p) => p.name) },
+        { name: "departmentId", label: "Department", type: "select", value: departmentId, dependsOn: "plantId",
+          options: toOptions(departments, (d) => d.id, (d) => d.name) },
+        { name: "areaId", label: "Area", type: "select", value: areaId, dependsOn: "plantId",
+          options: toOptions(selectedPlant?.areas ?? [], (a) => a.id, (a) => a.name) },
+        { name: "specificLocation", label: "Specific location", type: "text", maxLength: 200, value: readNamedInput(f, "specificLocation"),
+          help: "The exact spot in the reporter's words." },
+        { name: "shiftId", label: "Shift", type: "select", value: shiftId, options: toOptions(shifts, (s) => s.id, (s) => s.label) },
+        { name: "description", label: "Description", type: "textarea", required: true, minLength: 10, maxLength: 1500,
+          value: readNamedInput(f, "description"), help: "What happened, where, and what could have happened." },
+        { name: "activityType", label: "Activity being performed", type: "select", value: activityType,
+          options: toOptions(activityTypes, (a) => a.id, (a) => a.label) },
+        { name: "activityIsRoutine", label: "Routine activity", type: "boolean", value: activityIsRoutine },
+        { name: "activityFreeText", label: "Other detail", type: "text", maxLength: 300, value: readNamedInput(f, "activityFreeText") },
+        { name: "equipmentId", label: "Equipment / tool involved", type: "select", value: equipmentId, dependsOn: "plantId",
+          options: toOptions(equipmentList, (e) => e.id, (e) => `${e.code} — ${e.name}`) },
+        { name: "reporterType", label: "Reporter type", type: "select", value: reporterType,
+          options: REPORTER_TYPES.filter((r) => r !== "ANONYMOUS").map((r) => ({ value: r, label: r })) },
+        { name: "isAnonymous", label: "Anonymous reporting", type: "boolean", value: isAnonymous,
+          help: "Only when the reporter asks to stay anonymous." },
+        { name: "contractorCompanyId", label: "Contractor company", type: "select", value: contractorCompanyId,
+          options: toOptions(contractors, (c) => c.id, (c) => c.name) },
+        { name: "severity", label: "Potential severity", type: "select", required: true, value: severity,
+          options: SEVERITIES.map((s) => ({ value: s, label: s })),
+          help: "What could credibly have happened. CRITICAL sends it straight to incident investigation and alerts the plant head." },
+        { name: "consequenceTypes", label: "Consequence types", type: "multiselect", value: consequences.map((c) => c.type),
+          options: CONSEQUENCE_TYPES.map((c) => ({ value: c.code, label: c.label })) },
+        { name: "injuryRating", label: "Injury potential", type: "select", value: injury?.subRating ?? "",
+          options: CONSEQUENCE_TYPES[0].subRatings.map((r) => ({ value: r, label: r.replace(/_/g, " ") })),
+          help: "Only with the INJURY consequence type." },
+        { name: "multipleWorkers", label: "Multiple worker impact", type: "boolean", value: multipleWorkers },
+        { name: "hazardCategory", label: "Hazard category", type: "select", value: hazardCategory,
+          options: toOptions(hazardCats, (h) => h.id, (h) => h.label) },
+        { name: "energySource", label: "Energy source", type: "select", value: energySource,
+          options: toOptions(energySources, (e) => e.id, (e) => e.label) },
+        { name: "riskLikelihood", label: "Likelihood of recurrence (1-5)", type: "number", min: 1, max: 5, value: riskLikelihood },
+        { name: "riskConsequence", label: "Severity if it had happened (1-5)", type: "number", min: 1, max: 5, value: riskConsequence },
+        { name: "controlsFailed", label: "Controls that failed", type: "textarea", maxLength: 2000, value: readNamedInput(f, "controlsFailed") },
+        { name: "controlsWorked", label: "Controls that worked", type: "textarea", maxLength: 2000, value: readNamedInput(f, "controlsWorked") },
+        { name: "initialRootCause", label: "Initial root cause hint", type: "select", value: initialRootCause,
+          options: ROOT_CAUSE_HINTS.map((r) => ({ value: r.code, label: r.label })) },
+        { name: "immediateAction", label: "Immediate action taken", type: "textarea", maxLength: 2000, value: readNamedInput(f, "immediateAction"),
+          help: "Only what the reporter says was done." },
+        { name: "recommendedActions", label: "Recommended corrective actions", type: "textarea", maxLength: 2000,
+          value: readNamedInput(f, "recommendedActions") },
+        { name: "photoCount", label: "Photos attached", type: "number", value: validPhotos.length, readOnly: true,
+          help: "Photos on the form, including ones sent in the chat. Recommended for HIGH and CRITICAL." }
+      ];
+    },
+    apply: (p) => {
+      const f = formRef.current;
+      const str = (k: string) => (p[k] == null ? "" : String(p[k]));
+      for (const k of ["date", "specificLocation", "description", "activityFreeText", "controlsFailed",
+        "controlsWorked", "immediateAction", "recommendedActions"]) {
+        if (k in p) setNamedInput(f, k, p[k]);
+      }
+      if ("plantId" in p && str("plantId") !== plantId) {
+        setPlantId(str("plantId"));
+        setAreaId("");
+        setDepartmentId("");
+      }
+      if ("departmentId" in p) setDepartmentId(str("departmentId"));
+      if ("areaId" in p) setAreaId(str("areaId"));
+      if ("shiftId" in p) setShiftId(str("shiftId"));
+      if ("activityType" in p) setActivityType(str("activityType"));
+      if ("activityIsRoutine" in p) setActivityIsRoutine(typeof p.activityIsRoutine === "boolean" ? p.activityIsRoutine : null);
+      if ("equipmentId" in p) setEquipmentId(str("equipmentId"));
+      if ("reporterType" in p && p.reporterType) setReporterType(str("reporterType"));
+      if ("isAnonymous" in p) setIsAnonymous(p.isAnonymous === true);
+      if ("contractorCompanyId" in p) setContractorCompanyId(str("contractorCompanyId"));
+      if ("severity" in p && SEVERITIES.includes(p.severity as Severity)) setSeverity(p.severity as Severity);
+      if ("consequenceTypes" in p || "injuryRating" in p) {
+        setConsequences((prev) => {
+          const types = "consequenceTypes" in p && Array.isArray(p.consequenceTypes)
+            ? (p.consequenceTypes as string[]) : prev.map((c) => c.type);
+          // Keep what the reporter already typed against a type that stays.
+          let next = types.map((t) => prev.find((c) => c.type === t) ?? { type: t });
+          if ("injuryRating" in p) {
+            const rating = str("injuryRating") || undefined;
+            if (rating && !next.some((c) => c.type === "INJURY")) next = [...next, { type: "INJURY" }];
+            next = next.map((c) => (c.type === "INJURY" ? { ...c, subRating: rating } : c));
+          }
+          return next;
+        });
+      }
+      if ("multipleWorkers" in p) setMultipleWorkers(p.multipleWorkers === true);
+      if ("hazardCategory" in p) setHazardCategory(str("hazardCategory"));
+      if ("energySource" in p) setEnergySource(str("energySource"));
+      if ("riskLikelihood" in p) setRiskLikelihood(typeof p.riskLikelihood === "number" ? p.riskLikelihood : null);
+      if ("riskConsequence" in p) setRiskConsequence(typeof p.riskConsequence === "number" ? p.riskConsequence : null);
+      if ("initialRootCause" in p) setInitialRootCause(str("initialRootCause"));
+    }
+  });
 
   // Cleanup blob URLs on unmount
   useEffect(() => {
@@ -371,7 +481,7 @@ export function NearMissForm({ plants }: { plants: Plant[] }) {
   return (
     <Card>
       <CardContent className="p-6">
-        <form onSubmit={onSubmit} className="space-y-6">
+        <form ref={formRef} onSubmit={onSubmit} className="space-y-6">
           {/* CRITICAL severity warning — sticky, prominent */}
           {severity === "CRITICAL" && (
             <div className="rounded-md border-2 border-rose-400 bg-rose-50 p-4 flex gap-3">

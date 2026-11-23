@@ -48,12 +48,16 @@ export type PtwBridge = {
   applyPatch: (patch: Partial<PtwDraft>) => void;
 };
 
-export type FormKind = "OBSERVATION" | "HIRA_ENTRY";
+/** OBSERVATION and HIRA_ENTRY have their own copilot tools; any other kind is a
+ *  form described field by field through useCopilotForm (NEAR_MISS, INCIDENT…). */
+export type FormKind = "OBSERVATION" | "HIRA_ENTRY" | (string & {});
 export type FormBridge = {
   kind: FormKind;
+  /** What the user sees the form as, e.g. "New near miss form". */
+  title?: string;
   getDraft: () => Record<string, unknown>;
   applyPatch: (patch: Record<string, unknown>) => void;
-  /** The observation form: add photos the user gave the copilot to the form's Photos section. */
+  /** Add photos the user gave the copilot to the form's own photos section. */
   attachPhotos?: (files: File[]) => void;
 };
 
@@ -82,8 +86,12 @@ type CopilotContextValue = {
   page: PageContext;
   ptwFormOpen: boolean;
   registerPtwBridge: (bridge: PtwBridge) => () => void;
-  /** Which non-PTW form is open (observation form / HIRA entry editor), if any. */
+  /** Which non-PTW form is open (observation form / HIRA entry editor / any form using useCopilotForm), if any. */
   formKind: FormKind | null;
+  /** The open form's title, for forms described through useCopilotForm. */
+  formTitle: string | null;
+  /** The open form has a photos section that takes the photos sent in the chat. */
+  formTakesPhotos: boolean;
   registerFormBridge: (bridge: FormBridge) => () => void;
   /** Post a non-AI notice card into the chat (never sent to the model). */
   pushNotice: (notice: RiskNotice) => void;
@@ -273,6 +281,8 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
   const bridge = useRef<PtwBridge | null>(null);
   const formBridge = useRef<FormBridge | null>(null);
   const [formKind, setFormKind] = useState<FormKind | null>(null);
+  const [formTitle, setFormTitle] = useState<string | null>(null);
+  const [formTakesPhotos, setFormTakesPhotos] = useState(false);
   const [pagePlantId, setPagePlantId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const activeTurn = useRef<string | null>(null);
@@ -341,6 +351,8 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
   const registerFormBridge = useCallback((b: FormBridge) => {
     formBridge.current = b;
     setFormKind(b.kind);
+    setFormTitle(b.title ?? null);
+    setFormTakesPhotos(Boolean(b.attachPhotos));
     if (b.kind === "OBSERVATION" && b.attachPhotos && pendingPhotos.current.length) {
       b.attachPhotos(pendingPhotos.current);
       pendingPhotos.current = [];
@@ -351,6 +363,8 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
       if (formBridge.current === b) {
         formBridge.current = null;
         setFormKind(null);
+        setFormTitle(null);
+        setFormTakesPhotos(false);
       }
     };
   }, []);
@@ -470,7 +484,9 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
               update((i) => ({ ...i, patchedFields: Array.from(new Set([...(i.patchedFields ?? []), ...fields])) }));
             } else if (event === "form_patch") {
               if (formBridge.current && formBridge.current.kind === data.kind) formBridge.current.applyPatch(data.patch ?? {});
-              const fields = Object.keys(data.patch ?? {});
+              // Forms described field by field send their own labels.
+              const labels: Record<string, string> = data.labels && typeof data.labels === "object" ? data.labels : {};
+              const fields = Object.keys(data.patch ?? {}).map((k) => labels[k] ?? k);
               update((i) => ({ ...i, patchedFields: Array.from(new Set([...(i.patchedFields ?? []), ...fields])) }));
             } else if (event === "draft_check") {
               if (data.check) setLastCheck(data.check);
@@ -547,19 +563,24 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
   const send = useCallback(async (text: string, photos: CopilotPhoto[] = []) => {
     const typed = text.trim();
     if ((!typed && photos.length === 0) || sending) return;
-    const message = typed || (photos.length === 1
-      ? "Here is a photo of what I saw. Help me record a safety observation."
-      : "Here are photos of what I saw. Help me record a safety observation.");
+    const fb = formBridge.current;
+    const other = fb && fb.kind !== "OBSERVATION" && fb.kind !== "HIRA_ENTRY" && fb.title ? fb.title : null;
+    const message = typed || (other
+      ? `${photos.length === 1 ? "Here is a photo" : "Here are photos"} of what happened. Help me fill the ${other}.`
+      : photos.length === 1
+        ? "Here is a photo of what I saw. Help me record a safety observation."
+        : "Here are photos of what I saw. Help me record a safety observation.");
     const userItem: ChatItem = {
       id: uid(), role: "user", text: typed, tools: [], actions: [],
       photos: photos.length ? photos.map((p) => p.thumb) : undefined
     };
     if (photos.length) {
-      // The photos also go on the observation form, so they are saved with it.
+      // The photos also go on the open form's photos section, so they are saved with it.
       const files = photos.map((p) => p.file);
-      const fb = formBridge.current;
-      if (fb?.kind === "OBSERVATION" && fb.attachPhotos) {
+      if (fb?.attachPhotos) {
         fb.attachPhotos(files);
+      } else if (fb && fb.kind !== "OBSERVATION") {
+        // A form without a photos section: the copilot still sees them.
       } else {
         pendingPhotos.current = [...pendingPhotos.current, ...files];
         carryOver.current = true;
@@ -593,6 +614,19 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
     setCarryOverReady(false);
     void sendRef.current("The New Observation form is open now, with my photos attached. Fill it from the photos and what we discussed.");
   }, [carryOverReady, sending, formKind]);
+
+  // A form the copilot offered (its last answer's button led here) has opened:
+  // ask it to fill the form from the conversation, once per offer.
+  const filledOnOpen = useRef(new Set<string>());
+  useEffect(() => {
+    if (!formKind || formKind === "OBSERVATION" || formKind === "HIRA_ENTRY" || sending) return;
+    const last = [...items].reverse().find((i) => i.role === "assistant");
+    const here = pathname.split("?")[0];
+    const offered = last?.actions.some((a) => a.type === "navigate" && a.path.split("?")[0] === here);
+    if (!last || !offered || filledOnOpen.current.has(last.id)) return;
+    filledOnOpen.current.add(last.id);
+    void sendRef.current(`The ${formTitle ?? "form"} is open now. Fill it from what we discussed.`);
+  }, [formKind, formTitle, sending, items, pathname]);
 
   // After a reload: restore the chat (per tab), and if an answer was still
   // coming in, show it again and carry on reading it — the server kept going.
@@ -636,6 +670,8 @@ export function CopilotProvider({ children, enabled }: { children: React.ReactNo
     ptwFormOpen: bridgeCount > 0,
     registerPtwBridge,
     formKind,
+    formTitle,
+    formTakesPhotos,
     registerFormBridge,
     pushNotice,
     recordRevisions,
@@ -663,6 +699,8 @@ const NOOP_CONTEXT: CopilotContextValue = {
   ptwFormOpen: false,
   registerPtwBridge: () => () => {},
   formKind: null,
+  formTitle: null,
+  formTakesPhotos: false,
   registerFormBridge: () => () => {},
   pushNotice: () => {},
   recordRevisions: {},

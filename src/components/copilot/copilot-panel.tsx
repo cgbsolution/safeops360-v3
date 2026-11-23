@@ -35,8 +35,22 @@ const FIELD_LABEL: Record<string, string> = {
   setControlEffectiveness: "control effectiveness", target: "target risk"
 };
 
+/** Examples for forms described through useCopilotForm, by form kind. */
+const FORM_EXAMPLES: Record<string, string> = {
+  NEAR_MISS: "A sling slipped while lifting a motor at the rolling mill bay, the load swung near two fitters, nobody was hurt",
+  INCIDENT: "Fitter's hand caught between the conveyor belt and pulley during cleaning at 10:30, first aid given",
+  CAPA: "Raise an action to install a fixed guard on the tail pulley of conveyor CV-12, owner maintenance, due in 2 weeks"
+};
+
 function suggestionsFor(module: string | null, recordId: string | null, ptwFormOpen: boolean, formKind: FormKind | null,
   studyId: string | null = null): string[] {
+  if (formKind && formKind !== "OBSERVATION" && formKind !== "HIRA_ENTRY") {
+    return [
+      ...(FORM_EXAMPLES[formKind] ? [FORM_EXAMPLES[formKind]] : []),
+      "Fill this form from what I've written so far",
+      "What's still missing before I can submit?"
+    ];
+  }
   if (formKind === "OBSERVATION") {
     return [
       "Suggest the category, severity and corrective action for what I've written",
@@ -398,7 +412,9 @@ function HiraScopeLine({ plantId }: { plantId: string | null }) {
 }
 
 export function CopilotPanel() {
-  const { open, setOpen, items, send, sending, stop, newChat, page, ptwFormOpen, formKind, lastCheck, conversationTooLong, unavailableReason, pagePlantId } = useCopilot();
+  const { open, setOpen, items, send, sending, stop, newChat, page, ptwFormOpen, formKind, formTitle, formTakesPhotos, lastCheck, conversationTooLong, unavailableReason, pagePlantId } = useCopilot();
+  // A form described field by field (near miss, incident, CAPA…), not one with its own tools.
+  const otherForm = formKind && formKind !== "OBSERVATION" && formKind !== "HIRA_ENTRY" ? (formTitle ?? "this form") : null;
   const router = useRouter();
   const [draft, setDraft] = useState("");
   const [photos, setPhotos] = useState<CopilotPhoto[]>([]);
@@ -435,6 +451,7 @@ export function CopilotPanel() {
     ? "Drafting a permit"
     : formKind === "OBSERVATION" ? "Recording an observation"
     : formKind === "HIRA_ENTRY" ? "On this HIRA entry"
+    : otherForm ? `Filling the ${otherForm}`
     : page.module === "HIRA" && page.studyId && !page.recordId ? "On this HIRA study"
     : page.recordId && page.module ? `On this ${MODULE_LABEL[page.module]?.toLowerCase() ?? "record"}` : null;
 
@@ -449,7 +466,9 @@ export function CopilotPanel() {
     void send(t, p);
   };
   const reportObservation = () => {
-    if (formKind !== "OBSERVATION") router.push("/observations/new");
+    // A form that takes photos (the observation form, a near miss…) keeps them; otherwise
+    // the photo is for a new observation.
+    if (formKind !== "OBSERVATION" && !formTakesPhotos) router.push("/observations/new");
     input.current?.focus();
   };
 
@@ -498,6 +517,9 @@ export function CopilotPanel() {
               ) : formKind === "HIRA_ENTRY" ? (
                 <>I can add hazards and controls to this entry and save them, and show how each control change moves
                   the residual risk. If you have unsaved edits here, press Save first so I don&apos;t overwrite them.</>
+              ) : otherForm ? (
+                <>Tell me what happened in your own words, or send a photo. I&apos;ll fill the {otherForm} for you to
+                  check, tell you what&apos;s still missing, and you submit it.</>
               ) : ptwFormOpen ? (
                 <>Describe the job in your own words — what, where, when and who. I&apos;ll fill the permit form as we go,
                   check it against the permit rules and tell you what&apos;s left.</>
@@ -508,11 +530,19 @@ export function CopilotPanel() {
             <div className="rounded-lg border border-slate-200 p-3">
               <div className="flex items-start gap-2">
                 <ClipboardList size={16} className="mt-0.5 shrink-0 text-primary-600" />
-                <div className="min-w-0 text-xs text-slate-700">
-                  <div className="font-semibold text-slate-900">Report a safety observation</div>
-                  Upload or take a photo of what you saw and add a line on where it is. I&apos;ll describe the hazard,
-                  suggest the category and severity, and put the photo on the observation form for you to submit.
-                </div>
+                {otherForm && formTakesPhotos ? (
+                  <div className="min-w-0 text-xs text-slate-700">
+                    <div className="font-semibold text-slate-900">Add a photo to this report</div>
+                    Upload or take a photo and add a line on what happened. I&apos;ll use it to fill the {otherForm} and
+                    put the photo in its photos section, to be saved when you submit.
+                  </div>
+                ) : (
+                  <div className="min-w-0 text-xs text-slate-700">
+                    <div className="font-semibold text-slate-900">Report a safety observation</div>
+                    Upload or take a photo of what you saw and add a line on where it is. I&apos;ll describe the hazard,
+                    suggest the category and severity, and put the photo on the observation form for you to submit.
+                  </div>
+                )}
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <Button type="button" size="sm" variant="outline" onClick={() => { reportObservation(); setCameraOpen(true); }}>
@@ -521,7 +551,7 @@ export function CopilotPanel() {
                 <Button type="button" size="sm" variant="outline" onClick={() => { reportObservation(); fileInput.current?.click(); }}>
                   <ImagePlus size={13} /> Upload photo
                 </Button>
-                {formKind !== "OBSERVATION" && (
+                {formKind !== "OBSERVATION" && !formTakesPhotos && (
                   <Button type="button" size="sm" variant="ghost" onClick={reportObservation}>Open the form</Button>
                 )}
               </div>

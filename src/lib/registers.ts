@@ -112,7 +112,12 @@ export const REGISTERS: Record<RegisterKey, RegisterSpec> = {
     signalsModule: "OBSERVATION",
     permission: "OBSERVATION.READ",
     section: "Operational Safety",
-    tabs: standardTabs("/observations", { signals: true }),
+    // "Live" is the real-time observation dashboard (60 s polling), a pane
+    // rendered by the observations page itself — see ObservationLiveDashboard.
+    tabs: standardTabs("/observations", {
+      signals: true,
+      extra: [{ key: "live", label: "Live", href: "/observations?tab=live" }],
+    }),
   },
   "near-miss": {
     key: "near-miss",
@@ -142,7 +147,13 @@ export const REGISTERS: Record<RegisterKey, RegisterSpec> = {
     signalsModule: "PTW",
     permission: "PTW.READ",
     section: "Operational Safety",
-    tabs: standardTabs("/ptw", { registerLabel: "Permits", signals: true }),
+    // Control Center: the live board (app/routers/ptw_cc.py). A pane on /ptw,
+    // so it stays under the PTW licence module with no route-map change.
+    tabs: standardTabs("/ptw", {
+      registerLabel: "Permits",
+      signals: true,
+      extra: [{ key: "control-center", label: "Control Center", href: "/ptw?tab=control-center" }],
+    }),
   },
   loto: {
     key: "loto",

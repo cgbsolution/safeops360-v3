@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Workflow, ListChecks, Users, Shield, ChevronRight, Flag,
-  Sparkles, Grid3X3, AlertTriangle, ShieldCheck, CalendarClock, Gauge, FileStack
+  Sparkles, Grid3X3, AlertTriangle, ShieldCheck, CalendarClock, Gauge, FileStack, Plug
 } from "lucide-react";
 import { requirePermission } from "@/lib/auth/server";
 import { getServerSession } from "next-auth";
@@ -38,6 +38,8 @@ export default async function ConfigurationLandingPage() {
       description: "Target closure days by severity × behavioural/physical, plus the deroster review SLA and escalation contact. Applies to new observations only." },
     { title: "Severity Matrix Calibration", href: "/configuration/severity-calibration", icon: Gauge, permission: "OBSERVATION.READ",
       description: "Where observers disagree with the suggested observation severity. A sub-category overridden consistently in one direction means the matrix rule is wrong, not the observers." },
+    { title: "Integrations", href: "/configuration/integrations", icon: Plug, permission: "INTEGRATION.READ",
+      description: "Connect observation reporting to the JSL SAS portal (awaiting the SAS API specification): endpoint, field mapping, connection test and sync log." },
     { title: "AI Agents", href: "/configuration/agents", icon: Sparkles, permission: "AGENT.RCA_INVOKE",
       description: "Operations dashboard for user-initiated AI agents. View metrics, change authority levels, manage prompts, trigger calibration." },
     // HIRA admin — Phase 1 of IMS expansion. Each tile is a master that

@@ -9,7 +9,7 @@ import { RegisterTabs, RegisterWorkspacePane } from "@/components/analytics/regi
 import { resolveTab } from "@/lib/registers";
 import { Can } from "@/components/auth/can";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Camera, Plus } from "lucide-react";
 import { statusColor, humanize, workflowChipColor } from "@/lib/utils";
 import { buildObservationListWhere, getReadScope } from "@/lib/auth/list-filters";
 import { ObservationsTable, type ObservationRow } from "./observations-table";
@@ -21,6 +21,8 @@ import { InsightEmptyState } from "@/components/observations/insight-empty-state
 import { ObservationAnalyticsPanels, type CategoryDatum } from "@/components/observations/analytics-panels";
 import { fetchInsights } from "@/lib/insights";
 import { fetchWeeklyInsights, type WeeklyInsight } from "@/lib/weekly-insights";
+import { ObservationLiveDashboard } from "@/components/observations/live-dashboard";
+import { resolvePlantContext } from "@/lib/plant-context";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,7 @@ const SCOPE_LABELS: Record<string, string> = {
 };
 
 export default async function ObservationsPage(props: {
-  searchParams: Promise<{ tab?: string; status?: string; insight?: string; cat?: string; area?: string }>;
+  searchParams: Promise<{ tab?: string; status?: string; insight?: string; cat?: string; area?: string; plantId?: string }>;
 }) {
   const searchParams = await props.searchParams;
 
@@ -40,11 +42,22 @@ export default async function ObservationsPage(props: {
   // route, not screens of their own — see @/lib/registers.
   const activeTab = resolveTab("observations", searchParams.tab);
   if (activeTab !== "register") {
+    // The Live tab is the real-time dashboard (polls GET /api/observations/live).
+    const live =
+      activeTab === "live"
+        ? await resolvePlantContext(searchParams.plantId ?? null).then((ctx) => (
+            <ObservationLiveDashboard
+              plants={ctx.plants.map((p) => ({ id: p.id, name: p.name }))}
+              defaultPlantId={searchParams.plantId ?? null}
+            />
+          ))
+        : undefined;
     return (
       <RegisterWorkspacePane
         register="observations"
         tab={activeTab}
         searchParams={props.searchParams}
+        panes={live ? { live } : undefined}
       />
     );
   }
@@ -352,11 +365,18 @@ export default async function ObservationsPage(props: {
         description="Capture safe & unsafe acts and conditions across all plants"
         action={
           <Can permission="OBSERVATION.CREATE">
-            <Button asChild>
-              <Link href="/observations/new">
-                <Plus size={16} /> New Observation
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href="/capture/snap">
+                  <Camera size={16} /> Quick photo report
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href="/observations/new">
+                  <Plus size={16} /> New Observation
+                </Link>
+              </Button>
+            </div>
           </Can>
         }
       />

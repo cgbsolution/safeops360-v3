@@ -7,7 +7,7 @@ import { backendFetch } from "@/lib/backend/fetch";
 export const dynamic = "force-dynamic";
 
 export default async function NewPermitPage(
-  props: { searchParams: Promise<{ hiraEntryId?: string; hiraEntryHazardId?: string }> }
+  props: { searchParams: Promise<{ hiraEntryId?: string; hiraEntryHazardId?: string; scan?: string }> }
 ) {
   const user = await requirePermission("PTW.CREATE");
   const searchParams = await props.searchParams;
@@ -47,6 +47,7 @@ export default async function NewPermitPage(
         plants={plants.map((p) => ({ id: p.id, name: p.name, areas: p.areas.map((a) => ({ id: a.id, name: a.name })) }))}
         defaultPlantId={defaultPlantId}
         hiraPrefill={hiraPrefill}
+        openScan={searchParams.scan === "1"}
       />
     </div>
   );

@@ -24,6 +24,8 @@ const TAB_TITLE: Record<string, string> = {
   analytics: "Analytics",
   signals: "Signals",
   benchmarking: "Benchmarking",
+  "control-center": "Control Center",
+  live: "Live",
 };
 
 export async function RegisterWorkspacePane({

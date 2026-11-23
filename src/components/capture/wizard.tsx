@@ -500,9 +500,11 @@ export function CaptureWizard() {
       previewUrl: URL.createObjectURL(blob),
     };
     setMedia((m) => [...m, item]);
-    // AI assist: only when enabled, online, and no category chosen yet
-    // (whichever taxonomy this flow is classifying against).
-    if (allowAi && boot?.features.aiCaptureAssist && !l1 && !stopCat && navigator.onLine && lang) {
+    // AI assist: when enabled, online, and no AI suggestion accepted yet. The
+    // Category screen comes BEFORE the Photo screen, so gating on "no category
+    // chosen" meant this never ran; the card now confirms or replaces the
+    // reporter's pick ("Is this right?" → Yes / Change).
+    if (allowAi && boot?.features.aiCaptureAssist && !aiAccepted && navigator.onLine && lang) {
       void runVisionSuggest(blob, lang);
     }
   }

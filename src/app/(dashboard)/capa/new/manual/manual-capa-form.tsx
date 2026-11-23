@@ -7,6 +7,7 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCopilotForm } from "@/components/copilot/use-copilot-form";
 
 const INPUT =
   "flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-600";
@@ -66,6 +67,56 @@ export function ManualCapaForm({
   const [sourceMetadataRationale, setSourceMetadataRationale] = useState("");
 
   const plantUsers = users.filter((u) => !u.plantId || u.plantId === plantId);
+
+  // Copilot: drafts the problem and classification from what the user tells
+  // it. The primary owner is a person, so the user picks them.
+  useCopilotForm({
+    kind: "CAPA",
+    title: "New CAPA form",
+    fields: () => [
+      { name: "plantId", label: "Plant", type: "select", required: true, value: plantId,
+        options: plants.map((p) => ({ value: p.id, label: p.name })) },
+      { name: "sourceTypeCode", label: "Source type", type: "select", required: true, value: sourceTypeCode,
+        options: sourceTypes.map((s) => ({ value: s.code, label: s.name })) },
+      { name: "rationale", label: "Rationale for raising without a source record", type: "textarea", maxLength: 1000,
+        value: sourceMetadataRationale, help: "Needed only when the source type is MANUAL." },
+      { name: "title", label: "Title", type: "text", required: true, maxLength: 200, value: title,
+        help: "Short summary for the CAPA list." },
+      { name: "problemDescription", label: "Problem description", type: "textarea", required: true, minLength: 50,
+        maxLength: 4000, value: problemDescription, help: "At least 50 characters: the problem, where, and the evidence." },
+      { name: "problemImpact", label: "Impact if not addressed", type: "textarea", maxLength: 2000, value: problemImpact },
+      { name: "detectionMethod", label: "Detection method", type: "text", maxLength: 200, value: detectionMethod },
+      { name: "detectedAt", label: "Detected at", type: "date", required: true, value: detectedAt },
+      { name: "primaryCategory", label: "Primary category", type: "select", required: true, value: primaryCategory,
+        options: PRIMARY_CATEGORIES.map((c) => ({ value: c, label: c.replace(/_/g, " ") })) },
+      { name: "subCategoryCode", label: "Sub-category", type: "select", value: subCategoryCode,
+        options: subCategories.map((s) => ({ value: s.code, label: s.name })) },
+      { name: "actionType", label: "Action type", type: "select", required: true, value: actionType,
+        options: ACTION_TYPES.map((a) => ({ value: a.code, label: a.label })) },
+      { name: "severity", label: "Severity", type: "select", required: true, value: severity,
+        options: SEVERITIES.map((s) => ({ value: s, label: s })) },
+      { name: "priority", label: "Priority", type: "select", required: true, value: priority,
+        options: PRIORITIES.map((p) => ({ value: p, label: p })) },
+      { name: "primaryOwnerChosen", label: "Primary owner chosen", type: "boolean", value: Boolean(primaryOwnerUserId),
+        readOnly: true, help: "Required. The user picks the owner on the form." }
+    ],
+    apply: (p) => {
+      const str = (k: string) => (p[k] == null ? "" : String(p[k]));
+      if ("plantId" in p && p.plantId) setPlantId(str("plantId"));
+      if ("sourceTypeCode" in p && p.sourceTypeCode) setSourceTypeCode(str("sourceTypeCode"));
+      if ("rationale" in p) setSourceMetadataRationale(str("rationale"));
+      if ("title" in p) setTitle(str("title"));
+      if ("problemDescription" in p) setProblemDescription(str("problemDescription"));
+      if ("problemImpact" in p) setProblemImpact(str("problemImpact"));
+      if ("detectionMethod" in p) setDetectionMethod(str("detectionMethod"));
+      if ("detectedAt" in p && p.detectedAt) setDetectedAt(str("detectedAt"));
+      if ("primaryCategory" in p && p.primaryCategory) setPrimaryCategory(str("primaryCategory"));
+      if ("subCategoryCode" in p) setSubCategoryCode(str("subCategoryCode"));
+      if ("actionType" in p && p.actionType) setActionType(str("actionType"));
+      if ("severity" in p && p.severity) setSeverity(str("severity"));
+      if ("priority" in p && p.priority) setPriority(str("priority"));
+    }
+  });
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();

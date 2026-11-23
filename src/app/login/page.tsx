@@ -155,6 +155,25 @@ export default function LoginPage() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [searchQuery]);
 
+  // Return to the page that sent the user here (e.g. a QR label scanned while
+  // signed out). Same-site relative paths only, so this can't become an open
+  // redirect: must start with "/" but not "//" or "/\\".
+  function safeCallbackPath(): string | null {
+    if (typeof window === "undefined") return null;
+    const raw = new URLSearchParams(window.location.search).get("callbackUrl");
+    if (!raw) return null;
+    let path = raw;
+    try {
+      const u = new URL(raw, window.location.origin);
+      if (u.origin !== window.location.origin) return null;
+      path = u.pathname + u.search + u.hash;
+    } catch {
+      return null;
+    }
+    if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\") || path.startsWith("/login")) return null;
+    return path;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -193,7 +212,7 @@ export default function LoginPage() {
     } else {
       setLoading(false);
       setRedirecting(true);
-      router.push("/inbox");
+      router.push(safeCallbackPath() ?? "/inbox");
     }
   }
 
