@@ -5,6 +5,7 @@
 // zone guidance shown on the Control Center. Polygons are stored in % of the
 // layout image, 0–100.
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -164,8 +165,7 @@ export function ZoneSetup({ plantId }: { plantId: string | null }) {
                 style={{ aspectRatio: "2 / 1" }}
               >
                 {layout?.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element -- signed storage URL
-                  <img src={layout.imageUrl} alt="Plant layout" className="absolute inset-0 h-full w-full object-fill opacity-70" />
+                  <Image src={layout.imageUrl} alt="Plant layout" fill unoptimized className="object-fill opacity-70" />
                 )}
                 <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
                   {layout?.zones.filter((z) => z.id !== zoneId && z.polygon.length >= 3).map((z) => (

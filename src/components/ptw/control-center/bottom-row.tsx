@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { complianceBand, fmtPct, type ControlCenterPayload } from "@/lib/ptw/ops";
-import { OpsPanel, SEV_TEXT } from "./panel";
+import { CcPanel, sev } from "./panel";
 
 const BAND = {
-  ok: { color: "var(--ops-ok)", label: "on target" },
-  warn: { color: "var(--ops-warn)", label: "watch" },
-  crit: { color: "var(--ops-crit)", label: "below target" },
-  na: { color: "var(--ops-muted)", label: "nothing to measure" },
+  ok: { bar: "bg-emerald-500", text: "text-emerald-700", label: "on target" },
+  warn: { bar: "bg-amber-500", text: "text-amber-700", label: "watch" },
+  crit: { bar: "bg-rose-500", text: "text-rose-700", label: "below target" },
+  na: { bar: "bg-slate-300", text: "text-slate-500", label: "nothing to measure" },
 };
 
 type P = { data: ControlCenterPayload | null; loading?: boolean; error?: string | null };
@@ -16,71 +20,71 @@ const st = ({ data, loading, error }: P) => (!data && loading ? "loading" : !dat
 
 export function ComplianceHealth(p: P) {
   return (
-    <OpsPanel title="Compliance health" subtitle="Green ≥ 90 · amber 75–89 · red < 75" state={st(p)} error={p.error}>
+    <CcPanel title="Compliance health" subtitle="Green ≥ 90 · amber 75–89 · red < 75" state={st(p)} error={p.error}>
       <ul className="space-y-3">
         {(p.data?.compliance ?? []).map((c) => {
           const band = BAND[complianceBand(c.pct)];
           return (
             <li key={c.key}>
-              <div className="mb-1 flex justify-between gap-2 text-[13px]">
-                <span className="ops-text-2">{c.label}</span>
-                <span className="ops-num font-semibold" style={{ color: band.color }}>
+              <div className="mb-1 flex justify-between gap-2 text-sm">
+                <span className="text-slate-700">{c.label}</span>
+                <span className={cn("font-semibold tabular-nums", band.text)}>
                   {fmtPct(c.pct)}
-                  <span className="ml-1 text-[11px] font-normal ops-muted">{c.den ? `${c.num}/${c.den}` : ""} · {band.label}</span>
+                  <span className="ml-1 text-[11px] font-normal text-slate-400">{c.den ? `${c.num}/${c.den}` : ""} · {band.label}</span>
                 </span>
               </div>
-              <div className="h-2 rounded-full" style={{ background: "var(--ops-surface-3)" }}>
-                <div className="h-full rounded-full" style={{ width: `${c.pct ?? 0}%`, background: band.color }} />
+              <div className="h-2 rounded-full bg-slate-100">
+                <div className={cn("h-full rounded-full", band.bar)} style={{ width: `${c.pct ?? 0}%` }} />
               </div>
             </li>
           );
         })}
       </ul>
-    </OpsPanel>
+    </CcPanel>
   );
 }
 
 export function ContractorsPeople(p: P) {
   const d = p.data;
   return (
-    <OpsPanel
+    <CcPanel
       title="Contractors & people"
-      right={d ? <span className="ops-chip ops-num">{d.muster.workers} under permit</span> : null}
+      right={d ? <Badge className="border-slate-200 bg-slate-50 tabular-nums text-slate-700">{d.muster.workers} under permit</Badge> : null}
       state={st(p)}
       error={p.error}
       empty={d && !d.contractors.length ? "No crews on running permits." : undefined}
     >
-      <div className="ops-scroll overflow-x-auto">
-        <table className="w-full min-w-[320px] text-left text-[13px]">
-          <thead>
-            <tr className="ops-label">
-              <th scope="col" className="pb-2 font-semibold">Contractor</th>
-              <th scope="col" className="pb-2 text-right font-semibold">Permits</th>
-              <th scope="col" className="pb-2 text-right font-semibold">Workers</th>
-              <th scope="col" className="pb-2 pl-3 font-semibold">Flag</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="overflow-x-auto">
+        <Table className="min-w-[320px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Contractor</TableHead>
+              <TableHead className="text-right">Permits</TableHead>
+              <TableHead className="text-right">Workers</TableHead>
+              <TableHead>Flag</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {(d?.contractors ?? []).map((c) => (
-              <tr key={c.name} className="border-t" style={{ borderColor: "var(--ops-border)" }}>
-                <td className="py-2 ops-text-2">{c.name}</td>
-                <td className="ops-num py-2 text-right">{c.permits}</td>
-                <td className="ops-num py-2 text-right">{c.workers}</td>
-                <td className="py-2 pl-3 text-[12px] font-semibold" style={{ color: c.flagSeverity ? SEV_TEXT[c.flagSeverity] : "var(--ops-muted)" }}>
-                  {c.flag ?? "—"}
-                </td>
-              </tr>
+              <TableRow key={c.name}>
+                <TableCell>{c.name}</TableCell>
+                <TableCell className="text-right tabular-nums">{c.permits}</TableCell>
+                <TableCell className="text-right tabular-nums">{c.workers}</TableCell>
+                <TableCell className={cn("text-xs font-semibold", c.flagSeverity ? sev(c.flagSeverity).text : "text-slate-400")}>{c.flag ?? "—"}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {d && (
-        <p className="mt-3 text-[12px] ops-muted">
+        <p className="mt-3 text-xs text-slate-500">
           Muster count ready · {d.muster.workers} on site
-          {d.muster.cardsExpiring7d ? ` · ${d.muster.cardsExpiring7d} competency card${d.muster.cardsExpiring7d === 1 ? "" : "s"} expire within 7 days` : " · no competency cards expiring within 7 days"}
+          {d.muster.cardsExpiring7d
+            ? ` · ${d.muster.cardsExpiring7d} competency card${d.muster.cardsExpiring7d === 1 ? "" : "s"} expire within 7 days`
+            : " · no competency cards expiring within 7 days"}
         </p>
       )}
-    </OpsPanel>
+    </CcPanel>
   );
 }
 
@@ -98,42 +102,44 @@ export function SafetySignals(p: P) {
       ]
     : [];
   return (
-    <OpsPanel
+    <CcPanel
       title="Linked safety signals · 30 days"
-      right={<Link href="/ptw?tab=signals" className="text-[13px] font-semibold">Open Signals →</Link>}
+      right={
+        <Button asChild variant="link" size="sm" className="h-auto p-0">
+          <Link href="/ptw?tab=signals">Open Signals →</Link>
+        </Button>
+      }
       state={st(p)}
       error={p.error}
     >
       <div className="grid grid-cols-2 gap-2">
         {stats.map((x) => (
-          <div key={x.label} className="ops-inset px-3 py-2">
-            <div className="ops-label">{x.label}</div>
-            <div className="ops-num text-[24px] font-bold">
+          <div key={x.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{x.label}</div>
+            <div className="text-xl font-bold tabular-nums text-slate-900">
               {x.value}
-              {x.extra && <span className="ml-2 text-[12px] font-medium ops-muted">{x.extra}</span>}
+              {x.extra && <span className="ml-2 text-xs font-medium text-slate-500">{x.extra}</span>}
             </div>
           </div>
         ))}
       </div>
       <div className="mt-4 flex items-end justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="ops-label mb-1">Permits per week · 12 wk</div>
-          <svg viewBox={`0 0 ${weekly.length * 10} 40`} className="h-10 w-full" role="img"
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Permits per week · 12 wk</div>
+          <svg viewBox={`0 0 ${Math.max(1, weekly.length) * 10} 40`} className="h-10 w-full" role="img"
                aria-label={`Permits per week, oldest to newest: ${weekly.join(", ")}`} preserveAspectRatio="none">
             {weekly.map((n, i) => (
               <rect key={i} x={i * 10 + 1} width={8} y={40 - (n / max) * 38} height={(n / max) * 38}
-                    fill={i === weekly.length - 1 ? "var(--ops-gold)" : "var(--ops-surface-3)"} rx={1} />
+                    className={i === weekly.length - 1 ? "fill-primary-600" : "fill-slate-300"} rx={1} />
             ))}
           </svg>
         </div>
         <div className="text-right">
-          <div className="ops-label">Expiry rate</div>
-          <div className="ops-num text-[22px] font-bold" style={{ color: rate ? "var(--ops-crit)" : "var(--ops-text)" }}>
-            {rate === null ? "n/a" : `${rate.toFixed(1)}%`}
-          </div>
-          {s && <div className="text-[11px] ops-muted">{s.expiryRate.expired} / {s.expiryRate.total} · 12 wk</div>}
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Expiry rate</div>
+          <div className={cn("text-xl font-bold tabular-nums", rate ? "text-rose-600" : "text-slate-900")}>{rate === null ? "n/a" : `${rate.toFixed(1)}%`}</div>
+          {s && <div className="text-[11px] text-slate-500">{s.expiryRate.expired} / {s.expiryRate.total} · 12 wk</div>}
         </div>
       </div>
-    </OpsPanel>
+    </CcPanel>
   );
 }

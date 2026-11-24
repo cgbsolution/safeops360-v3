@@ -1,16 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Plus, ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { fmtClock, restoreLine, type ControlCenterPayload, type OpsImpairment } from "@/lib/ptw/ops";
 import { RaiseImpairmentDialog } from "@/components/ptw/impairments/raise-impairment-dialog";
-import { OpsPanel, SEV_COLOR, SEV_TEXT } from "./panel";
+import { CcPanel, sev } from "./panel";
 
-const STATUS_COLOR: Record<OpsImpairment["status"], string> = {
-  on_track: "var(--ops-ok)",
-  due_soon: "var(--ops-warn)",
-  overdue: "var(--ops-crit)",
-  awaiting_approval: "var(--ops-muted)",
+const STATUS_CLS: Record<OpsImpairment["status"], string> = {
+  on_track: "text-emerald-700",
+  due_soon: "text-amber-700",
+  overdue: "text-rose-700",
+  awaiting_approval: "text-slate-500",
 };
 
 export function ImpairmentsPanel({
@@ -19,14 +23,12 @@ export function ImpairmentsPanel({
   error,
   readOnly,
   onChanged,
-  onOpen,
 }: {
   data: ControlCenterPayload | null;
   loading?: boolean;
   error?: string | null;
   readOnly?: boolean;
   onChanged?: () => void;
-  onOpen?: (i: OpsImpairment) => void;
 }) {
   const [open, setOpen] = useState(false);
   const list = data?.impairments ?? [];
@@ -35,15 +37,22 @@ export function ImpairmentsPanel({
   const canRaise = !readOnly && !!data?.permissions?.raiseImpairment && data.setup.tablesReady;
 
   return (
-    <OpsPanel
+    <CcPanel
       title="Impairments — safety systems out of service"
       subtitle={data ? `${active.length} active${overdue ? ` · ${overdue} past restore time` : ""}` : undefined}
       right={
-        canRaise ? (
-          <button type="button" className="ops-btn" onClick={() => setOpen(true)}>
-            <Plus size={16} aria-hidden /> Raise impairment
-          </button>
-        ) : null
+        <>
+          {!readOnly && (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/ptw?tab=impairments">Open register</Link>
+            </Button>
+          )}
+          {canRaise && (
+            <Button size="sm" onClick={() => setOpen(true)}>
+              <Plus size={14} className="mr-1" /> Raise impairment
+            </Button>
+          )}
+        </>
       }
       state={!data && loading ? "loading" : !data && error ? "error" : "ready"}
       error={error}
@@ -55,56 +64,50 @@ export function ImpairmentsPanel({
           : undefined
       }
     >
-      <div className="ops-scroll overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse text-left text-[13px]">
-          <thead>
-            <tr className="ops-label">
+      <div className="overflow-x-auto">
+        <Table className="min-w-[900px]">
+          <TableHeader>
+            <TableRow>
               {["System", "Zone", "Reason", "Since", "Restore by", "Precautions in place", "Effect on permits", "Approved by"].map((h) => (
-                <th key={h} scope="col" className="border-b px-2 pb-2 font-semibold" style={{ borderColor: "var(--ops-border)" }}>{h}</th>
+                <TableHead key={h}>{h}</TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {list.map((i) => (
-              <tr key={i.id} className="align-top">
-                <td className="border-b px-2 py-2.5" style={{ borderColor: "var(--ops-border)" }}>
-                  <button type="button" onClick={() => onOpen?.(i)} className="text-left">
-                    <span className="flex items-center gap-1.5 font-semibold">
-                      <ShieldAlert size={14} aria-hidden style={{ color: "var(--ops-crit)" }} /> {i.systemName}
-                    </span>
-                    <span className="ops-mono text-[12px] ops-muted">{i.code}</span>
-                  </button>
-                </td>
-                <td className="border-b px-2 py-2.5 ops-text-2" style={{ borderColor: "var(--ops-border)" }}>{i.areaName}</td>
-                <td className="border-b px-2 py-2.5 ops-text-2" style={{ borderColor: "var(--ops-border)" }}>{i.reason}</td>
-                <td className="ops-num border-b px-2 py-2.5" style={{ borderColor: "var(--ops-border)" }}>{fmtClock(i.startedAt)}</td>
-                <td className="border-b px-2 py-2.5" style={{ borderColor: "var(--ops-border)" }}>
-                  <span className="ops-num">{i.plannedRestoreAt ? fmtClock(i.plannedRestoreAt) : "—"}</span>
-                  <span className="block text-[12px] font-semibold" style={{ color: STATUS_COLOR[i.status] }}>{restoreLine(i)}</span>
-                </td>
-                <td className="border-b px-2 py-2.5 ops-text-2" style={{ borderColor: "var(--ops-border)" }}>
-                  {i.precautions.length ? i.precautions.join(" · ") : <span className="ops-muted">none recorded</span>}
-                </td>
-                <td className="border-b px-2 py-2.5 font-semibold" style={{ borderColor: "var(--ops-border)", color: SEV_TEXT[i.effectSeverity] }}>
-                  {i.effect}
-                </td>
-                <td className="border-b px-2 py-2.5 ops-text-2" style={{ borderColor: "var(--ops-border)" }}>{i.approvedBy ?? <span className="ops-muted">pending</span>}</td>
-              </tr>
+              <TableRow key={i.id} className="align-top">
+                <TableCell>
+                  <div className="flex items-center gap-1.5 font-medium text-slate-900">
+                    <ShieldAlert size={14} aria-hidden className="text-rose-600" /> {i.systemName}
+                  </div>
+                  <div className="font-mono text-xs text-slate-500">{i.code}</div>
+                </TableCell>
+                <TableCell>{i.areaName}</TableCell>
+                <TableCell className="text-slate-600">{i.reason}</TableCell>
+                <TableCell className="tabular-nums">{fmtClock(i.startedAt)}</TableCell>
+                <TableCell>
+                  <span className="tabular-nums">{i.plannedRestoreAt ? fmtClock(i.plannedRestoreAt) : "—"}</span>
+                  <span className={cn("block text-xs font-semibold", STATUS_CLS[i.status])}>{restoreLine(i)}</span>
+                </TableCell>
+                <TableCell className="text-slate-600">
+                  {i.precautions.length ? i.precautions.join(" · ") : <span className="text-slate-400">none recorded</span>}
+                </TableCell>
+                <TableCell className={cn("font-medium", sev(i.effectSeverity).text)}>{i.effect}</TableCell>
+                <TableCell>{i.approvedBy ?? <span className="text-slate-400">pending</span>}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {data && data.impairmentRules.length > 0 && (
         <div className="mt-4">
-          <div className="ops-label mb-2">Conflict rules checked on every permit request</div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Conflict rules checked on every permit request</div>
+          <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
             {data.impairmentRules.map((r) => (
-              <div key={`${r.when}-${r.then}`} className="ops-inset px-3 py-2 text-[13px]">
-                <div className="ops-text-2">{r.when}</div>
-                <div className="mt-1 font-semibold" style={{ color: r.effect === "block_new" ? SEV_COLOR.critical : SEV_COLOR.warning }}>
-                  → {r.then}
-                </div>
+              <div key={`${r.when}-${r.then}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                <div className="text-slate-600">{r.when}</div>
+                <div className={cn("mt-1 font-semibold", r.effect === "block_new" ? "text-rose-700" : "text-amber-700")}>→ {r.then}</div>
               </div>
             ))}
           </div>
@@ -114,6 +117,6 @@ export function ImpairmentsPanel({
       {canRaise && data && (
         <RaiseImpairmentDialog open={open} onOpenChange={setOpen} plantId={data.plant.id} areas={data.areas} onCreated={onChanged} />
       )}
-    </OpsPanel>
+    </CcPanel>
   );
 }

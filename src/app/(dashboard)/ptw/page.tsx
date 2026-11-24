@@ -90,7 +90,6 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
         register="ptw"
         tab={activeTab}
         searchParams={props.searchParams}
-        bare={activeTab === "control-center"}
         panes={
           activeTab === "control-center"
             ? { "control-center": <Suspense fallback={null}><PtwControlCenter plants={plantOptions} defaultPlantId={plantCtx?.plantId ?? null} /></Suspense> }

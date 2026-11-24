@@ -6,10 +6,13 @@
 // data — the board never blanks). Filters live in the URL so a view is
 // shareable. `mode="wall"` is the TV view: no filters, 1.4× type, rotating
 // between Overview and Map + Guidance every 45 s (paused while hovered).
+// Portal look throughout (shadcn components, standard page header + tabs).
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { usePolling } from "@/hooks/use-polling";
 import { readApiError } from "@/lib/client-errors";
 import { defaultZone, filterQuery, type ControlCenterPayload, type OpsException, type RangeKey, type ZoneGuidance } from "@/lib/ptw/ops";
@@ -145,39 +148,49 @@ export function PtwControlCenter({
     </div>
   );
 
+  const errorBox = (msg: string, retry?: boolean) => (
+    <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+      <AlertTriangle size={16} aria-hidden /> {msg}
+      {retry && <Button size="sm" variant="outline" onClick={refresh}>Retry</Button>}
+    </div>
+  );
+
   if (wall) {
+    // TV view: the portal's own look, scaled up 1.4× for distance reading.
     return (
       <div
-        data-theme="ops"
-        data-wall="true"
-        className="min-h-screen p-6"
+        className="min-h-screen bg-slate-50 p-6"
+        style={{ zoom: 1.4 }}
         onMouseMove={onWallMove}
         onMouseLeave={onWallLeave}
       >
-        <header className="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <div className="ops-label" style={{ color: "var(--ops-gold)" }}>Permit to Work · Control Center</div>
-            <h1 className="ops-num font-bold leading-tight" style={{ fontSize: "calc(26px * var(--ops-scale))" }}>
-              {d?.plant.name ?? "Connecting…"}
-            </h1>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-primary-700">Permit to Work · Control Center</div>
+            <h1 className="font-display text-2xl font-bold text-slate-900">{d?.plant.name ?? "Connecting…"}</h1>
           </div>
           <div className="flex items-center gap-4">
-            <div role="tablist" aria-label="Wall view" className="flex gap-2">
+            <div role="tablist" aria-label="Wall view" className="flex items-center gap-2">
               {["Overview", "Map + Guidance"].map((label, i) => (
-                <button key={label} type="button" role="tab" aria-selected={view === i} onClick={() => setView(i as 0 | 1)}
-                        className="ops-btn" style={view === i ? { borderColor: "var(--ops-gold)", color: "var(--ops-gold-text)" } : undefined}>
+                <Button
+                  key={label}
+                  type="button"
+                  role="tab"
+                  size="sm"
+                  aria-selected={view === i}
+                  variant={view === i ? "default" : "outline"}
+                  onClick={() => setView(i as 0 | 1)}
+                >
                   {label}
-                </button>
+                </Button>
               ))}
-              {paused && <span className="ops-chip self-center">paused</span>}
+              {paused && <Badge className="border-slate-200 bg-white text-slate-600">paused</Badge>}
             </div>
             <LiveClock updatedAt={updatedAt} failures={failures} large />
           </div>
-        </header>
+        </div>
         {err && !d ? (
-          <div role="alert" className="ops-panel ops-tint-crit flex items-center gap-2" style={{ color: "var(--ops-crit-text)" }}>
-            <AlertTriangle size={18} aria-hidden /> {err}
-          </div>
+          errorBox(err)
         ) : view === 0 ? (
           <div className="space-y-4">
             <ShiftBrief data={d} onViewActions={scrollToExceptions} />
@@ -209,18 +222,23 @@ export function PtwControlCenter({
   }
 
   return (
-    <div data-theme="ops" className="-m-4 min-h-screen space-y-4 p-4 lg:-m-8 lg:p-6">
-      <HeaderBar data={d} filters={filters} plants={plants} onChange={setFilters} updatedAt={updatedAt} failures={failures} wallHref={wallHref} />
-      {err && (
-        <div role="alert" className="ops-panel ops-tint-crit flex flex-wrap items-center gap-3" style={{ color: "var(--ops-crit-text)" }}>
-          <AlertTriangle size={18} aria-hidden /> {err}
-          <button type="button" className="ops-btn" onClick={refresh}>Retry</button>
-        </div>
-      )}
+    <div className="space-y-4">
+      <HeaderBar
+        data={d}
+        filters={filters}
+        plants={plants}
+        onChange={setFilters}
+        updatedAt={updatedAt}
+        failures={failures}
+        wallHref={wallHref}
+        onRefresh={refresh}
+        loading={loading}
+      />
+      {err && errorBox(err, true)}
       {d && !d.setup.tablesReady && (
-        <div className="ops-panel ops-tint-warn text-[13px]" style={{ color: "var(--ops-warn-text)" }}>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Impairments, zone guidance, persisted exceptions and the shift brief need the Control Center tables. An
-          administrator runs <span className="ops-mono">prisma/apply-ptw-control-center-ddl.ts</span> once; until then
+          administrator runs <code className="font-mono">prisma/apply-ptw-control-center-ddl.ts</code> once; until then
           the board shows live permit data with the default conflict rules.
         </div>
       )}
@@ -242,7 +260,7 @@ export function PtwControlCenter({
           <TypeMix data={d} loading={loading} error={err} />
         </div>
       </div>
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
         <ComplianceHealth data={d} loading={loading} error={err} />
         <ContractorsPeople data={d} loading={loading} error={err} />
         <SafetySignals data={d} loading={loading} error={err} />

@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "PTW Control Center — wall display"
 export default async function PtwWallPage(props: { searchParams: Promise<{ token?: string }> }) {
   const { token } = await props.searchParams;
   return (
-    <Suspense fallback={<div data-theme="ops" className="min-h-screen" />}>
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
       <PtwControlCenter mode="wall" kioskToken={token ?? null} />
     </Suspense>
   );

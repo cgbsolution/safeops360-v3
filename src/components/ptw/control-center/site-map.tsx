@@ -1,15 +1,19 @@
 "use client";
 
-// Live site map. Zones are real <button>s clipped to their polygon (so the hit
+// Live site map. Zones are shadcn Buttons clipped to their polygon (so the hit
 // area is exactly the zone and Tab reaches every one); an SVG layer draws the
-// outlines, the selected-zone gold outline and the SIMOPS ring. Pins are 44 px
-// buttons around a 26 px coloured circle. Status is never colour-only: overdue
+// outlines, the selected-zone outline and the SIMOPS ring. Pins are 44 px
+// Buttons around a 26 px coloured circle. Status is never colour-only: overdue
 // and flagged rings are named in the legend and in each pin's accessible name.
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { ShieldAlert } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { PERMIT_TYPES, typeInfo, type ControlCenterPayload, type OpsZone } from "@/lib/ptw/ops";
-import { OpsPanel } from "./panel";
+import { CcPanel } from "./panel";
 
 type Box = { x0: number; y0: number; x1: number; y1: number };
 
@@ -26,32 +30,28 @@ function clipPath(poly: { x: number; y: number }[], b: Box): string {
 }
 
 const LEGEND_TYPES = ["HOT_WORK", "CONFINED_SPACE", "ELECTRICAL_LOTO", "WORK_AT_HEIGHT", "LIFTING", "EXCAVATION"];
+const RING = { overdue: "0 0 0 3px #fff, 0 0 0 6px #e11d48", flagged: "0 0 0 3px #fff, 0 0 0 6px #f59e0b", plain: "0 0 0 2px #fff" };
 
 export function MapLegend() {
   return (
-    <ul className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] ops-text-2" aria-label="Map legend">
+    <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-slate-600" aria-label="Map legend">
       {LEGEND_TYPES.map((t) => (
         <li key={t} className="flex items-center gap-1.5">
-          <span
-            className="ops-num inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold"
-            style={{ background: PERMIT_TYPES[t].color, color: "var(--ops-glyph)" }}
-            aria-hidden
-          >
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-slate-900"
+                style={{ background: PERMIT_TYPES[t].color }} aria-hidden>
             {PERMIT_TYPES[t].glyph}
           </span>
           {PERMIT_TYPES[t].label}
         </li>
       ))}
       <li className="flex items-center gap-1.5">
-        <span className="inline-block h-4 w-4 rounded-full" style={{ boxShadow: "0 0 0 2px var(--ops-bg), 0 0 0 4px var(--ops-crit)", background: "var(--ops-surface-3)" }} aria-hidden />
-        Overdue
+        <span className="inline-block h-3.5 w-3.5 rounded-full bg-slate-200" style={{ boxShadow: RING.overdue }} aria-hidden /> Overdue
       </li>
       <li className="flex items-center gap-1.5">
-        <span className="inline-block h-4 w-4 rounded-full" style={{ boxShadow: "0 0 0 2px var(--ops-bg), 0 0 0 4px var(--ops-warn)", background: "var(--ops-surface-3)" }} aria-hidden />
-        Flagged
+        <span className="inline-block h-3.5 w-3.5 rounded-full bg-slate-200" style={{ boxShadow: RING.flagged }} aria-hidden /> Flagged
       </li>
       <li className="flex items-center gap-1.5">
-        <ShieldAlert size={14} aria-hidden style={{ color: "var(--ops-crit)" }} /> Impairment
+        <ShieldAlert size={13} aria-hidden className="text-rose-600" /> Impairment
       </li>
     </ul>
   );
@@ -73,7 +73,7 @@ export function SiteMap({
   error?: string | null;
 }) {
   const [focused, setFocused] = useState<string | null>(null);
-  const zones = data?.map.zones.filter((z) => z.polygon.length >= 3) ?? [];
+  const zones = useMemo(() => data?.map.zones.filter((z) => z.polygon.length >= 3) ?? [], [data]);
   const boxes = useMemo(() => new Map(zones.map((z) => [z.id, bbox(z.polygon)])), [zones]);
 
   const summary = data
@@ -84,30 +84,34 @@ export function SiteMap({
 
   // One ring per pair of areas, even if several permit pairs conflict there.
   const rings = useMemo(() => {
-    const seen = new Map<string, { areaIds: string[]; label: string }>();
+    const seen = new Map<string, { areaIds: string[]; label: string; box: Box }>();
     for (const c of data?.map.conflicts ?? []) {
       const key = [...c.areaIds].sort().join("|");
-      if (!seen.has(key)) seen.set(key, c);
+      const bs = c.areaIds.map((a) => boxes.get(a)).filter(Boolean) as Box[];
+      if (seen.has(key) || !bs.length) continue;
+      seen.set(key, {
+        areaIds: c.areaIds,
+        label: c.label,
+        box: {
+          x0: Math.min(...bs.map((b) => b.x0)), x1: Math.max(...bs.map((b) => b.x1)),
+          y0: Math.min(...bs.map((b) => b.y0)), y1: Math.max(...bs.map((b) => b.y1)),
+        },
+      });
     }
     return [...seen.values()];
-  }, [data]);
+  }, [data, boxes]);
 
   return (
-    <OpsPanel
+    <CcPanel
       title="Live site map — where work is happening"
       right={<MapLegend />}
       state={!data && loading ? "loading" : !data && error ? "error" : "ready"}
       error={error}
       empty={data && !zones.length ? "This plant has no zones yet. Add areas, then draw them under Impairments → Zone setup." : undefined}
-      className="min-w-0"
     >
-      <div
-        className="relative w-full overflow-hidden rounded-[10px]"
-        style={{ aspectRatio: "2 / 1", minHeight: 300, background: "var(--ops-surface-2)", border: "1px solid var(--ops-border)" }}
-      >
+      <div className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50" style={{ aspectRatio: "2 / 1", minHeight: 300 }}>
         {data?.map.layoutImageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- signed storage URL, not a static asset
-          <img src={data.map.layoutImageUrl} alt="" className="absolute inset-0 h-full w-full object-fill opacity-40" />
+          <Image src={data.map.layoutImageUrl} alt="" fill unoptimized className="object-fill opacity-50" />
         )}
 
         {/* Decorative layer: outlines, selection, SIMOPS rings. The summary lives here. */}
@@ -120,36 +124,28 @@ export function SiteMap({
                 key={z.id}
                 points={z.polygon.map((p) => `${p.x},${p.y}`).join(" ")}
                 fill="none"
-                stroke={on || foc ? "var(--ops-gold)" : "var(--ops-zone-border)"}
+                stroke={on || foc ? "hsl(var(--primary))" : "#cbd5e1"}
                 strokeWidth={on || foc ? 2 : 1}
                 vectorEffect="non-scaling-stroke"
                 strokeDasharray={foc && !on ? "4 3" : undefined}
               />
             );
           })}
-          {rings.map((r) => {
-            const bs = r.areaIds.map((a) => boxes.get(a)).filter(Boolean) as Box[];
-            if (!bs.length) return null;
-            const x0 = Math.min(...bs.map((b) => b.x0));
-            const x1 = Math.max(...bs.map((b) => b.x1));
-            const y0 = Math.min(...bs.map((b) => b.y0));
-            const y1 = Math.max(...bs.map((b) => b.y1));
-            return (
-              <ellipse
-                key={r.areaIds.join("|")}
-                className="ops-simops-ring"
-                cx={(x0 + x1) / 2}
-                cy={(y0 + y1) / 2}
-                rx={(x1 - x0) / 2 + 2}
-                ry={(y1 - y0) / 2 + 3}
-                fill="none"
-                stroke="var(--ops-warn)"
-                strokeWidth={2}
-                strokeDasharray="6 5"
-                vectorEffect="non-scaling-stroke"
-              />
-            );
-          })}
+          {rings.map((r) => (
+            <ellipse
+              key={r.areaIds.join("|")}
+              className="motion-safe:animate-pulse"
+              cx={(r.box.x0 + r.box.x1) / 2}
+              cy={(r.box.y0 + r.box.y1) / 2}
+              rx={(r.box.x1 - r.box.x0) / 2 + 2}
+              ry={(r.box.y1 - r.box.y0) / 2 + 3}
+              fill="none"
+              stroke="#f59e0b"
+              strokeWidth={2}
+              strokeDasharray="6 5"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
         </svg>
 
         <div role="group" aria-label="Zones and permits" className="absolute inset-0">
@@ -165,57 +161,48 @@ export function SiteMap({
             />
           ))}
 
-          {rings.map((r) => {
-            const bs = r.areaIds.map((a) => boxes.get(a)).filter(Boolean) as Box[];
-            if (!bs.length) return null;
-            const cx = (Math.min(...bs.map((b) => b.x0)) + Math.max(...bs.map((b) => b.x1))) / 2;
-            const cy = (Math.min(...bs.map((b) => b.y0)) + Math.max(...bs.map((b) => b.y1))) / 2;
-            return (
-              <span
-                key={`chip-${r.areaIds.join("|")}`}
-                className="ops-chip pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 font-semibold"
-                style={{ left: `${cx}%`, top: `${cy}%`, background: "var(--ops-warn-bg)", borderColor: "var(--ops-warn)", color: "var(--ops-warn-text)" }}
-              >
-                {r.label}
-              </span>
-            );
-          })}
+          {rings.map((r) => (
+            <Badge
+              key={`chip-${r.areaIds.join("|")}`}
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 border-amber-300 bg-amber-50 font-semibold text-amber-800"
+              style={{ left: `${(r.box.x0 + r.box.x1) / 2}%`, top: `${(r.box.y0 + r.box.y1) / 2}%` }}
+            >
+              {r.label}
+            </Badge>
+          ))}
 
           {(data?.map.pins ?? []).map((p) => {
             const info = typeInfo(p.type);
-            const ring = p.overdue
-              ? "0 0 0 3px var(--ops-surface-2), 0 0 0 6px var(--ops-crit)"
-              : p.flagged
-                ? "0 0 0 3px var(--ops-surface-2), 0 0 0 6px var(--ops-warn)"
-                : "0 0 0 2px var(--ops-surface-2)";
             const state = [p.overdue && "overdue", p.flagged && "flagged", p.status === "SUSPENDED" && "suspended"].filter(Boolean).join(", ");
             return (
-              <button
+              <Button
                 key={p.permitId}
                 type="button"
+                variant="bare"
+                size="bare"
                 onClick={() => onOpenPermit(p.permitId)}
                 aria-label={`${p.number}, ${info.label}${state ? `, ${state}` : ""}. Open permit`}
                 title={`${p.number} · ${info.label}${state ? ` · ${state}` : ""}`}
-                className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full"
-                style={{ left: `${p.x}%`, top: `${p.y}%`, zIndex: 3 }}
+                className="absolute z-[3] flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full"
+                style={{ left: `${p.x}%`, top: `${p.y}%` }}
               >
                 <span
-                  className="ops-num flex h-[26px] w-[26px] items-center justify-center rounded-full text-[12px] font-bold"
-                  style={{ background: info.color, color: "var(--ops-glyph)", boxShadow: ring, opacity: p.status === "SUSPENDED" ? 0.6 : 1 }}
+                  className={cn("flex h-[26px] w-[26px] items-center justify-center rounded-full text-[12px] font-bold text-slate-900", p.status === "SUSPENDED" && "opacity-60")}
+                  style={{ background: info.color, boxShadow: p.overdue ? RING.overdue : p.flagged ? RING.flagged : RING.plain }}
                   aria-hidden
                 >
                   {info.glyph}
                 </span>
-              </button>
+              </Button>
             );
           })}
         </div>
       </div>
-      <p className="mt-2 text-[12px] ops-muted">
+      <p className="mt-2 text-xs text-slate-500">
         Click a zone for site guidance · click a pin to open the permit
         {data?.map.autoLayout && " · zones are laid out automatically until a layout is drawn"}
       </p>
-    </OpsPanel>
+    </CcPanel>
   );
 }
 
@@ -236,36 +223,37 @@ function ZoneButton({
 }) {
   const imp = zone.impairmentCodes.length > 0;
   return (
-    <button
+    <Button
       type="button"
+      variant="bare"
+      size="bare"
       onClick={() => onSelect(zone.id)}
       onFocus={onFocus}
       onBlur={onBlur}
       aria-pressed={selected}
       aria-label={`${zone.name}: ${zone.permitCount} permit${zone.permitCount === 1 ? "" : "s"} on site${imp ? `, impaired ${zone.impairmentCodes.join(", ")}` : ""}. Show site guidance`}
-      className="absolute flex flex-col justify-between p-2 text-left focus-visible:outline-none"
+      className={cn(
+        "absolute flex flex-col items-start justify-between whitespace-normal p-2 text-left focus-visible:ring-0 focus-visible:ring-offset-0",
+        selected ? "bg-primary-50" : "bg-white hover:bg-slate-100",
+        zone.dimmed && "opacity-50"
+      )}
       style={{
         left: `${box.x0}%`,
         top: `${box.y0}%`,
         width: `${box.x1 - box.x0}%`,
         height: `${box.y1 - box.y0}%`,
         clipPath: clipPath(zone.polygon, box),
-        background: selected ? "var(--ops-zone-selected)" : "var(--ops-zone)",
-        opacity: zone.dimmed ? 0.45 : 1,
       }}
     >
-      <span className="text-[12px] font-semibold leading-tight" style={{ color: selected ? "var(--ops-gold-text)" : "var(--ops-text-2)" }}>
+      <span className={cn("text-xs font-semibold leading-tight", selected ? "text-primary-800" : "text-slate-700")}>
         {zone.name}
-        {zone.activeCount > 0 && <span className="ml-1 ops-muted">· {zone.activeCount} active</span>}
+        {zone.activeCount > 0 && <span className="ml-1 font-normal text-slate-500">· {zone.activeCount} active</span>}
       </span>
       {imp && (
-        <span
-          className="ops-chip ops-mono w-fit text-[11px] font-semibold"
-          style={{ background: "var(--ops-crit-bg)", borderColor: "var(--ops-crit-border)", color: "var(--ops-crit-text)" }}
-        >
+        <Badge className="w-fit gap-1 border-rose-200 bg-rose-50 font-mono text-[11px] text-rose-700">
           <ShieldAlert size={12} aria-hidden /> {zone.impairmentCodes.join(" · ")}
-        </span>
+        </Badge>
       )}
-    </button>
+    </Button>
   );
 }

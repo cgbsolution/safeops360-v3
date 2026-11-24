@@ -1,8 +1,13 @@
 "use client";
 
+// Filter bar under the standard page header (same pattern as the IMS / MIS
+// dashboard): plant, shift, range and area pickers, live status, refresh and
+// wall mode. shadcn controls only.
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Monitor, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Select, SelectItem } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { fmtAgo, type ControlCenterPayload, type RangeKey } from "@/lib/ptw/ops";
@@ -15,14 +20,6 @@ const RANGES: { key: RangeKey; label: string }[] = [
   { key: "7d", label: "Last 7 days" },
 ];
 
-const TABS = [
-  { key: "control-center", label: "Control Center", href: "/ptw" },
-  { key: "register", label: "Permits", href: "/ptw?tab=register" },
-  { key: "analytics", label: "Analytics", href: "/ptw?tab=analytics" },
-  { key: "signals", label: "Signals", href: "/ptw?tab=signals" },
-  { key: "impairments", label: "Impairments", href: "/ptw?tab=impairments" },
-];
-
 function useNow(ms: number) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -32,25 +29,24 @@ function useNow(ms: number) {
   return now;
 }
 
-/** Live clock + "updated Ns ago" + reconnect state. Re-renders once a second (text only, no animation). */
+/** Clock + "updated Ns ago", or a reconnecting notice after a failed refresh. */
 export function LiveClock({ updatedAt, failures, large }: { updatedAt: Date | null; failures: number; large?: boolean }) {
   const now = useNow(1000);
-  const reconnecting = failures > 0;
   return (
-    <div className="flex items-center gap-3" aria-live="off">
-      <div className="text-right">
-        <div className={cn("ops-num font-semibold", large ? "text-[44px] leading-none" : "text-[22px] leading-none")}>
+    <div className="flex items-center gap-3 text-right">
+      <div>
+        <div className={cn("font-semibold tabular-nums text-slate-900", large ? "text-4xl" : "text-lg leading-none")}>
           {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })}
         </div>
-        <div className="mt-1 flex items-center justify-end gap-1.5 text-[11px] ops-muted">
-          {reconnecting ? (
-            <span className="ops-chip ops-tint-warn" style={{ color: "var(--ops-warn-text)" }} role="status">
+        <div className="mt-1 flex items-center justify-end gap-1.5 text-[11px] text-slate-500">
+          {failures > 0 ? (
+            <span role="status" className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-800">
               <RefreshCw size={11} aria-hidden /> Reconnecting…
             </span>
           ) : (
             <>
-              <span className="ops-live-dot inline-block h-2 w-2 rounded-full" style={{ background: "var(--ops-ok)" }} aria-hidden />
-              <span>LIVE · updated {updatedAt ? fmtAgo(updatedAt, now) : "—"}</span>
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" aria-hidden />
+              <span>Live · updated {updatedAt ? fmtAgo(updatedAt, now) : "—"}</span>
             </>
           )}
         </div>
@@ -67,6 +63,8 @@ export function HeaderBar({
   updatedAt,
   failures,
   wallHref,
+  onRefresh,
+  loading,
 }: {
   data: ControlCenterPayload | null;
   filters: Filters;
@@ -75,103 +73,67 @@ export function HeaderBar({
   updatedAt: Date | null;
   failures: number;
   wallHref: string;
+  onRefresh: () => void;
+  loading?: boolean;
 }) {
   const shifts = data?.shifts ?? [];
-  const areaName = filters.area ? data?.areas.find((a) => a.id === filters.area)?.name : null;
   const activeShift = filters.range === "shift" ? filters.shift ?? data?.filters.shift ?? null : null;
   return (
-    <header className="space-y-4">
-      <nav aria-label="Permit to Work" className="flex flex-wrap gap-1 border-b pb-2" style={{ borderColor: "var(--ops-border)" }}>
-        {TABS.map((t) => (
-          <Link
-            key={t.key}
-            href={t.href}
-            aria-current={t.key === "control-center" ? "page" : undefined}
-            className={cn(
-              "inline-flex min-h-[44px] items-center rounded-lg px-3 text-[13px] font-semibold",
-              t.key === "control-center" ? "ops-tint-warn" : "hover:bg-[color:var(--ops-surface-3)]"
-            )}
-            style={{
-              color: t.key === "control-center" ? "var(--ops-gold-text)" : "var(--ops-text-2)",
-              border: t.key === "control-center" ? "1px solid var(--ops-gold)" : "1px solid transparent",
-            }}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
-
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div
-            className="ops-num flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[13px] font-bold"
-            style={{ background: "var(--ops-gold)", color: "var(--ops-glyph)" }}
-            aria-hidden
-          >
-            S360
-          </div>
-          <div className="min-w-0">
-            <h1 className="ops-num truncate text-[20px] font-bold leading-tight">Permit to Work · Control Center</h1>
-            <p className="truncate text-[13px] ops-muted">
-              {data?.plant.name ?? "Loading plant…"}
-              {areaName ? ` — ${areaName}` : data?.plant.location ? ` — ${data.plant.location}` : ""}
-            </p>
-          </div>
+    <div className="flex flex-wrap items-center gap-2">
+      {plants.length > 1 && (
+        <Select
+          aria-label="Plant"
+          className="h-9 w-56"
+          value={filters.plant ?? data?.plant.id ?? ""}
+          onValueChange={(v) => onChange({ plant: v || null, area: null })}
+        >
+          {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+        </Select>
+      )}
+      {shifts.length > 0 && (
+        <div role="group" aria-label="Shift" className="inline-flex rounded-md border border-slate-200 bg-white p-0.5">
+          {shifts.map((s) => {
+            const on = activeShift === s.code;
+            return (
+              <Button
+                key={s.code}
+                type="button"
+                size="sm"
+                variant={on ? "default" : "ghost"}
+                aria-pressed={on}
+                className="h-8"
+                onClick={() => onChange(on ? { shift: null, range: "today" } : { shift: s.code, range: "shift" })}
+              >
+                Shift {s.code}
+                {on && ` · ${String(s.startHour).padStart(2, "0")}:00–${String(s.endHour).padStart(2, "0")}:00`}
+              </Button>
+            );
+          })}
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label="Shift" className="ops-inset flex gap-1 p-1">
-            {shifts.map((s) => {
-              const on = activeShift === s.code;
-              return (
-                <button
-                  key={s.code}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => onChange(on ? { shift: null, range: "today" } : { shift: s.code, range: "shift" })}
-                  className="min-h-[36px] rounded-full px-3 text-[12px] font-semibold"
-                  style={on ? { background: "var(--ops-gold)", color: "var(--ops-glyph)" } : { color: "var(--ops-text-2)" }}
-                >
-                  Shift {s.code}
-                  {on && ` · ${String(s.startHour).padStart(2, "0")}:00–${String(s.endHour).padStart(2, "0")}:00`}
-                </button>
-              );
-            })}
-          </div>
-          {plants.length > 1 && (
-            <Select
-              aria-label="Plant"
-              className="ops-select w-52"
-              value={filters.plant ?? data?.plant.id ?? ""}
-              onValueChange={(v) => onChange({ plant: v || null, area: null })}
-            >
-              {plants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-            </Select>
-          )}
-          <Select
-            aria-label="Range"
-            className="ops-select w-36"
-            value={filters.range}
-            onValueChange={(v) => onChange({ range: v as RangeKey, shift: v === "shift" ? filters.shift : null })}
-          >
-            {RANGES.map((r) => <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>)}
-          </Select>
-          <Select
-            aria-label="Area"
-            className="ops-select w-48"
-            value={filters.area ?? ""}
-            onValueChange={(v) => onChange({ area: v || null })}
-          >
-            <SelectItem value="">All areas</SelectItem>
-            {(data?.areas ?? []).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-          </Select>
-        </div>
-
+      )}
+      <Select
+        aria-label="Range"
+        className="h-9 w-40"
+        value={filters.range}
+        onValueChange={(v) => onChange({ range: v as RangeKey, shift: v === "shift" ? filters.shift : null })}
+      >
+        {RANGES.map((r) => <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>)}
+      </Select>
+      <Select aria-label="Area" className="h-9 w-52" value={filters.area ?? ""} onValueChange={(v) => onChange({ area: v || null })}>
+        <SelectItem value="">All areas</SelectItem>
+        {(data?.areas ?? []).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+      </Select>
+      <Button variant="outline" size="sm" onClick={onRefresh} disabled={loading}>
+        <RefreshCw size={14} className={cn("mr-1.5", loading && "animate-spin")} /> Refresh
+      </Button>
+      <Button asChild variant="outline" size="sm">
+        <Link href={wallHref} target="_blank" rel="noreferrer">
+          <Monitor size={14} className="mr-1.5" /> Wall mode
+        </Link>
+      </Button>
+      <div className="ml-auto">
         <LiveClock updatedAt={updatedAt} failures={failures} />
-        <a href={wallHref} target="_blank" rel="noreferrer" className="ops-btn ops-btn-gold">
-          <Monitor size={16} aria-hidden /> Wall mode
-        </a>
       </div>
-    </header>
+    </div>
   );
 }
