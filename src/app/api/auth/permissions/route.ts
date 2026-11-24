@@ -8,7 +8,12 @@ import { authOptions } from "@/lib/auth";
 import { mintBackendToken } from "@/lib/backend-token";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
-const BACKEND_TIMEOUT_MS = 2500;
+// Was 2.5 s. Computing a role's permission map is ~1.4 s from a cold cache
+// against the Supabase pooler, so 2.5 s left almost no headroom for the proxy
+// hop — and a timeout returned an EMPTY map, hiding every gated action from a
+// user who holds them. Failures now return 503 so the client retries and
+// keeps its last good map instead of treating "slow" as "no permissions".
+const BACKEND_TIMEOUT_MS = 10_000;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -38,12 +43,12 @@ export async function GET() {
       signal: controller.signal
     });
     if (!r.ok) {
-      return NextResponse.json({ permissions: {} }, { status: 200 });
+      return NextResponse.json({ permissions: {}, error: `Backend returned ${r.status}` }, { status: 503 });
     }
     const j = (await r.json()) as { permissions?: Record<string, boolean> };
     return NextResponse.json({ permissions: j.permissions ?? {} });
   } catch {
-    return NextResponse.json({ permissions: {} }, { status: 200 });
+    return NextResponse.json({ permissions: {}, error: "Permissions service timed out" }, { status: 503 });
   } finally {
     clearTimeout(timer);
   }

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { UserPicker } from "@/components/ui/user-picker";
 import { Save, Loader2, ClipboardCheck } from "lucide-react";
+import { errorText } from "@/lib/client-errors";
 
 const ROOT_CAUSE_CATEGORIES = [
   "Procedural",
@@ -76,7 +77,7 @@ export function CapaEditPanel({
       router.refresh();
     } else {
       const j = await r.json().catch(() => ({}));
-      setError(j.error ?? "Save failed");
+      setError(errorText(j, "Save failed"));
     }
   }
 

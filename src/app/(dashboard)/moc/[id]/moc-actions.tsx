@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { confirmDialog, promptDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
+import { errorText } from "@/lib/client-errors";
 
 // Next logical state for each lifecycle step (the "advance" button).
 const NEXT: Record<string, { to: string; label: string }> = {
@@ -59,7 +60,7 @@ export function MocActions({ crId, status, urgency }: { crId: string; status: st
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast({ variant: "error", title: "Action blocked", description: j.error });
+        toast({ variant: "error", title: "Action blocked", description: errorText(j) });
         setBusy(false);
         return;
       }

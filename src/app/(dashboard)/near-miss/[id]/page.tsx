@@ -39,6 +39,7 @@ import {
   Printer,
   ExternalLink
 } from "lucide-react";
+import { TaskHandoverPanel } from "@/components/workflow/task-handover-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -272,6 +273,15 @@ export default async function NearMissDetail(
             />
           )}
 
+          {/* Not my task: show who the record is waiting on; HSE Manager / Admin can take over or reassign. */}
+          {instance && !myTask && (
+            <TaskHandoverPanel
+              plantId={n.plantId}
+              tasks={(instance.pendingTasks as any[])
+                .filter((t) => OPEN_TASK_STATUSES.includes(t.status) && t.assignedToId !== userId)
+                .map((t) => ({ id: t.id, stepName: t.stepName, status: t.status, assignedAt: t.assignedAt, dueAt: t.dueAt, assigneeName: t.assignedTo?.name ?? null }))}
+            />
+          )}
           {/* Action panels */}
           {myTask && myTask.taskType === "APPROVAL" && (() => {
             // Roles eligible to take this task — used by the Reassign

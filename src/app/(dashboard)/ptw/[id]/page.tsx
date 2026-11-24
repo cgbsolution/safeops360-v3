@@ -22,6 +22,7 @@ import { ActiveOperationsPanel } from "@/components/ptw/active-operations-panel"
 import { ClosurePanel } from "@/components/ptw/closure-panel";
 import { AnnexuresPanel } from "@/components/ptw/annexures-panel";
 import { AcceptPanel } from "@/components/ptw/accept-panel";
+import { ImpairmentControlsPanel } from "@/components/ptw/impairment-controls-panel";
 import { PtwLifecycleActions } from "@/components/ptw/lifecycle-actions";
 import { PtwLotoPanel } from "@/components/loto/ptw-loto-panel";
 import {
@@ -40,6 +41,7 @@ import { PanelBoundary } from "@/components/ui/panel-boundary";
 import { getPtwActivationGate } from "@/lib/ptw/activation-gate";
 import { formatDateTime, statusColor, humanize } from "@/lib/utils";
 import { CheckCircle2, XCircle, Clock, FileText, Hammer, AlertTriangle, PlayCircle, RefreshCcw } from "lucide-react";
+import { TaskHandoverPanel } from "@/components/workflow/task-handover-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -194,7 +196,7 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
       <PageHeader
         title={p.number}
         description={`${humanize(p.type)} · ${p.scopeOfWork.slice(0, 60)}`}
-        breadcrumbs={[{ label: "Permits", href: "/ptw" }, { label: p.number }]}
+        breadcrumbs={[{ label: "Permits", href: "/ptw?tab=register" }, { label: p.number }]}
         action={
           <div className="flex items-center gap-2">
             {isUnexecutedClosure ? (
@@ -328,6 +330,10 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
             canCancel={canCancel}
             canArchive={canVerifyRoles}
           />
+
+          {/* Safety systems impaired in this zone: the controls the permit must
+              carry (fire watch, co-sign, gas monitor…). Hidden when none apply. */}
+          <ImpairmentControlsPanel permitId={p.id} />
 
           {/* Suspend / Resume banner — appears on ACTIVE or SUSPENDED permits */}
           <SuspendResumePanel
@@ -594,6 +600,15 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
             </Card>
           )}
 
+          {/* Not my task: show who the record is waiting on; HSE Manager / Admin can take over or reassign. */}
+          {instance && !myTask && (
+            <TaskHandoverPanel
+              plantId={p.plantId}
+              tasks={(instance.pendingTasks as any[])
+                .filter((t) => OPEN_TASK_STATUSES.includes(t.status) && t.assignedToId !== userId)
+                .map((t) => ({ id: t.id, stepName: t.stepName, status: t.status, assignedAt: t.assignedAt, dueAt: t.dueAt, assigneeName: t.assignedTo?.name ?? null }))}
+            />
+          )}
           {/* Action panels — closed-loop rebuild: every approval carries
               field evidence (GPS + photo + signature); the closure approval
               needs GPS + signature (photo optional per policy). */}

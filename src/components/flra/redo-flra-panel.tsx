@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { RefreshCcw, Loader2, AlertCircle, Lock } from "lucide-react";
+import { errorText } from "@/lib/client-errors";
 
 // Re-do panel for a Site Safety Check (FLRA in the schema).
 // Triggered when conditions change at site (weather, scope shift, equipment).
@@ -42,7 +43,7 @@ export function RedoFlraPanel({
       });
       const j = await r.json();
       if (!r.ok) {
-        setError(j.error ?? "Re-do failed");
+        setError(errorText(j, "Re-do failed"));
         return;
       }
       router.push(`/flra/${j.newFlraId}`);

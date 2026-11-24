@@ -41,7 +41,7 @@ export default async function NewPermitPage(
       <PageHeader
         title="New Permit to Work"
         description="Initiate a permit request for high-risk work"
-        breadcrumbs={[{ label: "Permits", href: "/ptw" }, { label: "New" }]}
+        breadcrumbs={[{ label: "Permits", href: "/ptw?tab=register" }, { label: "New" }]}
       />
       <PermitForm
         plants={plants.map((p) => ({ id: p.id, name: p.name, areas: p.areas.map((a) => ({ id: a.id, name: a.name })) }))}

@@ -78,6 +78,8 @@ export type RegisterSpec = {
   /** Breadcrumb trail prefix for non-register tabs. */
   section?: string;
   tabs: WorkspaceTab[];
+  /** Tab shown when the URL carries no `tab` (default "register"). */
+  defaultTab?: string;
 };
 
 /** Register tab + analytics pane + optional signals pane, in that order. */
@@ -147,13 +149,18 @@ export const REGISTERS: Record<RegisterKey, RegisterSpec> = {
     signalsModule: "PTW",
     permission: "PTW.READ",
     section: "Operational Safety",
-    // Control Center: the live board (app/routers/ptw_cc.py). A pane on /ptw,
-    // so it stays under the PTW licence module with no route-map change.
-    tabs: standardTabs("/ptw", {
-      registerLabel: "Permits",
-      signals: true,
-      extra: [{ key: "control-center", label: "Control Center", href: "/ptw?tab=control-center" }],
-    }),
+    // Control Center (app/routers/ptw_ops.py) is the default pane on /ptw; the
+    // register moved to ?tab=register. Impairments is the safety-system
+    // impairment register + zone setup. Both are panes on /ptw, so they stay
+    // under the PTW licence module with no route-map change.
+    defaultTab: "control-center",
+    tabs: [
+      { key: "control-center", label: "Control Center", href: "/ptw" },
+      { key: "register", label: "Permits", href: "/ptw?tab=register" },
+      { key: "analytics", label: "Analytics", href: "/ptw?tab=analytics" },
+      { key: "signals", label: "Signals", href: "/ptw?tab=signals" },
+      { key: "impairments", label: "Impairments", href: "/ptw?tab=impairments" },
+    ],
   },
   loto: {
     key: "loto",
@@ -306,9 +313,10 @@ export function registerSpec(key: RegisterKey): RegisterSpec {
  */
 export function resolveTab(key: RegisterKey, raw: string | undefined): string {
   const wanted = (raw ?? "").trim().toLowerCase();
-  if (!wanted || wanted === "register") return "register";
+  if (!wanted) return REGISTERS[key].defaultTab ?? "register";
+  if (wanted === "register") return "register";
   const tab = REGISTERS[key].tabs.find((t) => t.key === wanted && !t.crossRoute);
-  return tab ? tab.key : "register";
+  return tab ? tab.key : REGISTERS[key].defaultTab ?? "register";
 }
 
 /** Every register that contributes an analytics flow, in reading order. */

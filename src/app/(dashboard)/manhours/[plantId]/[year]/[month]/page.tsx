@@ -14,6 +14,7 @@ import { ApprovalPanel } from "@/components/workflow/approval-panel";
 import { formatDateTime, formatNumber, humanize } from "@/lib/utils";
 import { Lock, Unlock, Pencil } from "lucide-react";
 import { ltifr, trir, severityRate, NO_INJURIES, type InjuryCounts } from "@/lib/manhours/frequency-rates";
+import { TaskHandoverPanel } from "@/components/workflow/task-handover-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -187,6 +188,15 @@ export default async function ManhoursDetailPage(
 
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
+          {/* Not my task: show who the record is waiting on; HSE Manager / Admin can take over or reassign. */}
+          {instance && !myTask && (
+            <TaskHandoverPanel
+              plantId={record.plantId}
+              tasks={(instance.pendingTasks as any[])
+                .filter((t) => OPEN_TASK_STATUSES.includes(t.status) && t.assignedToId !== userId)
+                .map((t) => ({ id: t.id, stepName: t.stepName, status: t.status, assignedAt: t.assignedAt, dueAt: t.dueAt, assigneeName: t.assignedTo?.name ?? null }))}
+            />
+          )}
           {myTask && myTask.taskType === "APPROVAL" && (
             <ApprovalPanel
               task={{ id: myTask.id, stepName: myTask.stepName, taskType: myTask.taskType, dueAt: myTask.dueAt, assignedAt: myTask.assignedAt }}

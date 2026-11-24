@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Clock, PenLine, Lock, AlertCircle, Loader2 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { errorText } from "@/lib/client-errors";
 
 type CrewRow = {
   id: string;
@@ -59,7 +60,7 @@ export function CrewSignoffPanel({
       const r = await fetch(`/api/flra/${flraId}/sign`, { method: "POST" });
       const j = await r.json();
       if (!r.ok) {
-        setError(j.error ?? "Sign-off failed");
+        setError(errorText(j, "Sign-off failed"));
       } else {
         router.refresh();
       }

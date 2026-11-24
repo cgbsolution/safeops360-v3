@@ -18,6 +18,7 @@ import { InspectionExecutionPanel } from "@/components/inspections/inspection-ex
 import { TypedExecutionPanel } from "@/components/inspections/typed-execution-panel";
 import { healStuckInspectionWorkflow } from "@/lib/inspections/workflow-cleanup";
 import { formatDate, statusColor, humanize } from "@/lib/utils";
+import { TaskHandoverPanel } from "@/components/workflow/task-handover-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -293,6 +294,15 @@ export default async function InspectionDetailPage(props: { params: Promise<{ id
                 ))}
               </CardContent>
             </Card>
+          )}
+          {/* Not my task: show who the record is waiting on; HSE Manager / Admin can take over or reassign. */}
+          {instance && !myTask && (
+            <TaskHandoverPanel
+              plantId={i.plantId}
+              tasks={(instance.pendingTasks as any[])
+                .filter((t) => OPEN_TASK_STATUSES.includes(t.status) && t.assignedToId !== userId)
+                .map((t) => ({ id: t.id, stepName: t.stepName, status: t.status, assignedAt: t.assignedAt, dueAt: t.dueAt, assigneeName: t.assignedTo?.name ?? null }))}
+            />
           )}
           {myTask && myTask.taskType === "VERIFICATION" && (
             <VerificationPanel task={{ id: myTask.id, stepName: myTask.stepName, taskType: myTask.taskType, dueAt: myTask.dueAt }} />

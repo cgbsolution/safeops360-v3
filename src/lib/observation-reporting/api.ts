@@ -48,11 +48,74 @@ export type SnapSuggestion = {
   immediateAction: string;
   composedDescription: string;
   lowConfidence: boolean;
+  consequence?: string;
+  /** Prefilled override reason when the final severity differs from the matrix. */
+  severityReason?: string | null;
+};
+
+export type ControlLevel = "ELIMINATION" | "SUBSTITUTION" | "ENGINEERING" | "ADMINISTRATIVE" | "PPE";
+
+/** The Copilot-style reading of the photo (POST /api/observations/snap-analyze | snap-refine). */
+export type SnapAnalysis = {
+  photoFindings: string;
+  classification: {
+    observationType: ObsType;
+    categoryLabel?: string | null;
+    subCategoryLabel?: string | null;
+    category?: string | null;
+    why: string | null;
+  };
+  severity: {
+    final: Severity;
+    matrix: Severity | null;
+    matrixRationale: string | null;
+    plantPractice: Severity | null;
+    photo: Severity;
+    reasons: string[];
+  };
+  fatalPotential: { level: "YES" | "POSSIBLE" | "NO"; question: string | null };
+  consequence: string | null;
+  correctiveActions: { action: string; controlLevel: ControlLevel; source: "PHOTO" | "REFERENCE"; ref?: string | null }[];
+  responsibleFunction: string | null;
+  closureTargetDays: number;
+  closureTarget: string;
+  questions: string[];
+  similarCases: number | null;
+  reply: string | null;
 };
 
 export type SnapAnalyzeResponse =
-  | { ok: true; suggestion: SnapSuggestion; nearest: NearestArea | null }
+  | {
+      ok: true;
+      suggestion: SnapSuggestion;
+      analysis: SnapAnalysis;
+      /** Model draft echoed back; send it (with the user's edits merged in) as `current` on refine. */
+      draft: Record<string, unknown>;
+      nearest: NearestArea | null;
+    }
   | { ok: false; reason: string; nearest: NearestArea | null };
+
+export type RefineTurn = { role: "user" | "assistant"; text: string };
+
+/** Quick prompts offered before the photo is read (context for the AI). */
+export const SNAP_NOTE_PROMPTS = [
+  "Check PPE",
+  "Electrical hazard",
+  "Work at height",
+  "Hot work / fire risk",
+  "Housekeeping",
+  "Good practice to recognise",
+];
+
+/** Quick follow-ups offered after the reading. */
+export const SNAP_REFINE_PROMPTS = [
+  "Make the description more detailed",
+  "Make it shorter",
+  "Write it in Hindi",
+  "Look again at the PPE",
+  "Re-check the severity",
+  "Is there fatal potential?",
+];
 
 export async function apiJson<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const { json, ...rest } = init ?? {};

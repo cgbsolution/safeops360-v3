@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { usePermission } from "@/components/auth/can";
+import { errorText } from "@/lib/client-errors";
 
 export interface BulkExportConfig<TData> {
   /** Base filename, no extension — a date stamp is appended. */
@@ -87,7 +88,7 @@ export function DataTableBulkActions<TData>({
         toast({
           variant: "error",
           title: "Export failed",
-          description: j.error ?? `The server returned status ${res.status}.`
+          description: errorText(j, `The server returned status ${res.status}.`)
         });
         return;
       }

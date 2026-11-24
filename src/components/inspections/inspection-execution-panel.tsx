@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { CheckCircle2, AlertCircle, Send, Loader2 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { errorText } from "@/lib/client-errors";
 
 function safeParseList(s: string | null | undefined): string[] {
   if (!s) return [];
@@ -92,7 +93,7 @@ export function InspectionExecutionPanel({
     });
     if (!patch.ok) {
       const j = await patch.json().catch(() => ({}));
-      setError(j.error ?? "Failed to save inspection results");
+      setError(errorText(j, "Failed to save inspection results"));
       setBusy(false);
       return;
     }
@@ -109,7 +110,7 @@ export function InspectionExecutionPanel({
     setBusy(false);
     if (!advance.ok) {
       const j = await advance.json().catch(() => ({}));
-      setError(j.error ?? "Failed to advance workflow");
+      setError(errorText(j, "Failed to advance workflow"));
       return;
     }
     router.refresh();

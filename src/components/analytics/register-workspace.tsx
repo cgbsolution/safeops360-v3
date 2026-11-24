@@ -25,6 +25,7 @@ const TAB_TITLE: Record<string, string> = {
   signals: "Signals",
   benchmarking: "Benchmarking",
   "control-center": "Control Center",
+  impairments: "Impairments",
   live: "Live",
 };
 
@@ -34,6 +35,7 @@ export async function RegisterWorkspacePane({
   searchParams,
   panes,
   analyticsExtra,
+  bare,
 }: {
   register: RegisterKey;
   /** Already normalised by `resolveTab` — never a value this register lacks. */
@@ -41,6 +43,8 @@ export async function RegisterWorkspacePane({
   // Next 15: a promise, and it must be awaited. Reading it synchronously
   // typechecks but fails `next build`, which then ships a stale page.
   searchParams: Promise<Record<string, string | undefined>>;
+  /** Render the override pane with no PageHeader / tab strip (it draws its own chrome). */
+  bare?: boolean;
   /** Register-specific panes, keyed by tab. Overrides the default for that tab. */
   panes?: Record<string, React.ReactNode>;
   /**
@@ -69,6 +73,7 @@ export async function RegisterWorkspacePane({
   );
 
   const override = panes?.[tab];
+  if (override !== undefined && bare) return <>{override}</>;
   if (override !== undefined) {
     return (
       <div>

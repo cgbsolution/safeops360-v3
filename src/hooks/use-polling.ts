@@ -24,7 +24,19 @@ export type PollingState<T> = {
 
 export function usePolling<T>(
   url: string | null,
-  { intervalMs = 30_000, maxBackoffMs = 5 * 60_000 }: { intervalMs?: number; maxBackoffMs?: number } = {}
+  {
+    intervalMs = 30_000,
+    maxBackoffMs = 5 * 60_000,
+    headers,
+    keepOnUrlChange = false,
+  }: {
+    intervalMs?: number;
+    maxBackoffMs?: number;
+    /** Extra request headers (e.g. the wall display's x-kiosk-token). */
+    headers?: Record<string, string>;
+    /** Keep showing the previous url's data while the new one loads (same-plant filter changes). */
+    keepOnUrlChange?: boolean;
+  } = {}
 ): PollingState<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +47,7 @@ export function usePolling<T>(
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failuresRef = useRef(0);
   const lastStart = useRef(0);
+  const headerKey = headers ? JSON.stringify(headers) : "";
 
   const load = useCallback(async () => {
     if (!url) return;
@@ -42,7 +55,7 @@ export function usePolling<T>(
     const id = ++reqId.current;
     setLoading(true);
     try {
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(url, { cache: "no-store", headers: headerKey ? JSON.parse(headerKey) : undefined });
       if (!res.ok) throw new Error(await readApiError(res, "Could not refresh"));
       const json = (await res.json()) as T;
       if (id !== reqId.current) return;
@@ -92,7 +105,7 @@ export function usePolling<T>(
       document.removeEventListener("visibilitychange", onWake);
       window.removeEventListener("focus", onWake);
     };
-  }, [url, load, schedule]);
+  }, [url, load, schedule]); // eslint-disable-line react-hooks/exhaustive-deps -- keepOnUrlChange is read once per url
 
   const refresh = useCallback(() => { load().then(schedule); }, [load, schedule]);
   return { data, error, loading, updatedAt, failures, refresh };

@@ -40,6 +40,7 @@ import {
 } from "@/components/incidents/incident-detail-sections";
 import { humanize } from "@/lib/utils";
 import { ArrowUpRight, Camera } from "lucide-react";
+import { TaskHandoverPanel } from "@/components/workflow/task-handover-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -280,6 +281,15 @@ export default async function IncidentDetailPage(props: { params: Promise<{ id: 
                   costPropertyDamage: (i as any).costPropertyDamage ? Number((i as any).costPropertyDamage) : null,
                   costLostProduction: (i as any).costLostProduction ? Number((i as any).costLostProduction) : null
                 }}
+              />
+            )}
+            {/* Not my task: show who the record is waiting on; HSE Manager / Admin can take over or reassign. */}
+            {instance && !myTask && (
+              <TaskHandoverPanel
+                plantId={i.plantId}
+                tasks={(instance.pendingTasks as any[])
+                  .filter((t) => OPEN_TASK_STATUSES.includes(t.status) && t.assignedToId !== userId)
+                  .map((t) => ({ id: t.id, stepName: t.stepName, status: t.status, assignedAt: t.assignedAt, dueAt: t.dueAt, assigneeName: t.assignedTo?.name ?? null }))}
               />
             )}
             {myTask && myTask.taskType === "APPROVAL" && myTask.stepName !== "HSE Manager Classification" && (

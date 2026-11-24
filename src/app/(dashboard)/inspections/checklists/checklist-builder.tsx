@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GripVertical, Save, AlertCircle, Camera, MessageSquare, Star, ChevronUp, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { errorText } from "@/lib/client-errors";
 
 const ITEM_TYPES = [
   { value: "PASS_FAIL", label: "Pass / Fail" },
@@ -177,7 +178,7 @@ export function ChecklistBuilder({ initial, inspectionTypes, preselectedTypeId }
     setSubmitting(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? `Save failed (${res.status}).`);
+      setError(errorText(j, `Save failed (${res.status}).`));
       return;
     }
     const j = await res.json();

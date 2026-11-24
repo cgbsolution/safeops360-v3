@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { DEP_STATUS_CHIP } from "../_meta";
+import { errorText } from "@/lib/client-errors";
 
 type Dep = {
   id: string;
@@ -36,7 +37,7 @@ export function DependentRecords({ crId, deps }: { crId: string; deps: Dep[] }) 
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        toast({ variant: "error", title: "Update failed", description: j.error });
+        toast({ variant: "error", title: "Update failed", description: errorText(j) });
         setBusy(null);
         return;
       }

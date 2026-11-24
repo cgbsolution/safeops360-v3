@@ -49,6 +49,7 @@ const DEROSTER_DECISION_ROLES = [
 ];
 import { formatDate, statusColor, severityColor, humanize } from "@/lib/utils";
 import { CalendarDays, MapPin, User as UserIcon, AlertCircle, Clock, Camera, CheckCircle2 as CheckCircle2Icon } from "lucide-react";
+import { TaskHandoverPanel } from "@/components/workflow/task-handover-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -411,6 +412,15 @@ export default async function ObservationDetailPage(
             />
           )}
 
+          {/* Not my task: show who the record is waiting on; HSE Manager / Admin can take over or reassign. */}
+          {instance && !myTask && (
+            <TaskHandoverPanel
+              plantId={o.plantId}
+              tasks={(instance.pendingTasks as any[])
+                .filter((t) => OPEN_TASK_STATUSES.includes(t.status) && t.assignedToId !== userId)
+                .map((t) => ({ id: t.id, stepName: t.stepName, status: t.status, assignedAt: t.assignedAt, dueAt: t.dueAt, assigneeName: t.assignedTo?.name ?? null }))}
+            />
+          )}
           {/* Action panel — appears at top of main column when a task is assigned to me */}
           {myTask && myTask.taskType === "APPROVAL" && (() => {
             // The CHECKER step (Section Head Review) is now the place

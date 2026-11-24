@@ -7,6 +7,7 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, Star, ShieldAlert } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
+import { errorText } from "@/lib/client-errors";
 
 type Assignment = {
   id: string;
@@ -48,7 +49,7 @@ export function UserRoleManager({
     if (res.ok) router.refresh();
     else {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "Update failed");
+      setError(errorText(j, "Update failed"));
     }
   }
 
@@ -67,7 +68,7 @@ export function UserRoleManager({
       router.refresh();
     } else {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "Assignment failed");
+      setError(errorText(j, "Assignment failed"));
     }
   }
 

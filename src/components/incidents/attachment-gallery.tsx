@@ -10,6 +10,7 @@ import {
   FileVideo, FileSpreadsheet
 } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
+import { errorText } from "@/lib/client-errors";
 
 type AttachmentRow = {
   id: string;
@@ -97,7 +98,7 @@ export function AttachmentGallery({
     try {
       const r = await fetch(`/api/incidents/${incidentId}/attachments/${att.id}/download?inline=1`);
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "Failed to load");
+      if (!r.ok) throw new Error(errorText(j, "Failed to load"));
       setLightbox({ url: j.url, mimeType: att.mimeType, fileName: att.fileName });
     } catch (e: any) {
       toast({ title: "Preview failed", description: e?.message ?? "Failed to load preview", variant: "error" });
@@ -108,7 +109,7 @@ export function AttachmentGallery({
     try {
       const r = await fetch(`/api/incidents/${incidentId}/attachments/${att.id}/download`);
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "Failed to load");
+      if (!r.ok) throw new Error(errorText(j, "Failed to load"));
       window.location.href = j.url;
     } catch (e: any) {
       toast({ title: "Download failed", description: e?.message ?? "Failed to download", variant: "error" });

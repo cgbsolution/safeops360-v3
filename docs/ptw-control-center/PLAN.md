@@ -1,6 +1,6 @@
 # PTW Control Center — Build Plan
 
-Status: **plan only, awaiting sign-off before Phase 1 code.** Nothing has been changed except this file.
+Status: **built (Phases 1–4), uncommitted.** The DDL, permissions and demo seed are written but have **not** been run against any database — see §8 Runbook. Build notes and deviations from this plan are in §8–§9.
 
 Repos:
 - `safeops_360` is Next.js 15 / React 19, Prisma (schema + hand-written DDL scripts), shadcn UI, lucide, Recharts, Playwright.
@@ -175,3 +175,44 @@ src/features/ptw/impairments/   register tab, raise/approve/restore forms, guida
 - **`competency_expiring`** uses the training-engine certificate expiry for active crew.
 - **`handover_unacknowledged`** has no handover entity today. Proposal: a permit ACTIVE across a shift boundary with no `PermitEvent`/evidence from the incoming shift's receiver within 30 min. Confirm, or drop it for v1.
 - **The 10k-permit p95** is measured locally against the dev DB, not production.
+
+---
+
+## 8. Runbook (in this order)
+
+The DDL is additive and idempotent. The backend runs **before** it in degraded
+mode: live permit data, default rules, no impairments, no persisted exceptions.
+
+1. `npm run db:apply-ptw-control-center`. This creates 10 tables, the nullable Area and crew columns, `ptw_step_key()`, the two PermitEvent triggers, the backfill and the default rules.
+2. `npm run db:apply-ptw-control-center-permissions`. This grants `PTW_IMPAIRMENT.READ/CREATE/APPROVE`, `PTW_ZONE.MANAGE` and `PTW_KIOSK.MANAGE`.
+3. Restart the backend. The scheduler picks up `ptw_exceptions_evaluate` (5 min), `ptw_impairment_escalate` (30 min) and `ptw_shift_brief` (15 min).
+4. Demo plant, **non-production databases only**: `ALLOW_DEMO_SEED=1 npm run db:seed-ptw-control-center`. It prints the plant id.
+5. Performance check: `python -m scripts.ptw_cc_perf --plant <id> [--add-history 10000]`. `--add-history` inserts permits and needs `ALLOW_DEMO_SEED=1`.
+6. E2E smoke test: `E2E_PTW_EMAIL=… E2E_PTW_PASSWORD=… E2E_PTW_PLANT=… npx playwright test e2e/ptw-control-center.spec.ts`.
+
+## 9. What was built and where it differs from §2
+
+- **Tenancy (replaces D3).** `QueryScope.apply()` already filters `tenantId` whenever a model has one. So every new table carries `tenantId DEFAULT 'default'` and gets the tenant filter at no extra cost. Isolation is still by plant.
+- **Permits that count as open.** A permit is open when its status is not DRAFT, CLOSED, CANCELLED or REJECTED and `closedAt` is null. `closureType` is **not** a closed signal, because `/complete` stamps it while closure is still pending.
+- **SLA per permit.** The approval SLA comes from the permit's own current `WorkflowStep.slaHours`. Cold-work Issuer Review is 4 h and hot work is 2 h, so one plant-wide number would flag cold work early.
+- **Extra rule `impairment_controls_missing`.** This is the require_controls twin of `hot_work_blocked_by_impairment`. Every running permit hit by an impairment then gets a high exception, whatever the rule's effect.
+- **New `PermitControl` table.** It stores the "ticked or attached" controls. The approval gate refuses any approval step until every required control is recorded. Ticking `fire_officer_cosign` needs `PTW_IMPAIRMENT.APPROVE`. A fire watch assigned on the permit satisfies `fire_watch`.
+- **Kiosk tokens.** They are opaque random strings stored as SHA-256 hashes and revocable. They are not JWTs, so `get_current_user` rejects them. Only `GET /api/ptw/kiosk/control-center` and `GET /api/ptw/kiosk/zones/{id}/guidance` accept them. The Next.js proxy forwards `x-kiosk-token`.
+- **Fonts.** Inter, Space Grotesk and JetBrains Mono are named first in the ops font stacks, with no webfont download (airgap). Installed fonts are used as fallback.
+- **Map before anyone draws zones.** Zones are laid out on an automatic grid until polygons are drawn. That layout is display only: SIMOPS distance uses drawn polygons only.
+- **Brief without AI.** When AI isn't configured, or the model call fails, a deterministic template brief is written from the same counts-only inputs. Model name and latency are logged server-side only.
+- **v1 live board.** It moved to `GET /api/ptw/control-center/board`, and its UI component was removed. The brief's path now serves the new payload.
+- **Old links.** `/ptw` now opens the Control Center. `/ptw?status=…`, `?type=…`, `?archived=…` and `?step=…` still land on the register, and the "Permits" breadcrumbs point at `?tab=register`.
+- **Proxy multipart.** The proxy now forwards multipart bodies as bytes, so the layout image upload isn't corrupted by `text()`.
+
+## 10. Verification status (from the build session)
+
+| Check | Result |
+|---|---|
+| Backend unit tests (`tests/test_ptw_ops.py`, 52) and existing PTW, workflow and scope suites | 212 passed |
+| Frontend formatter tests (`npm run test:unit`) | 9 passed |
+| `tsc --noEmit` (frontend) | clean |
+| ESLint | not runnable: the repo has no ESLint config (`next lint` asks to create one) |
+| Payload SQL against the real schema, read-only, DDL not applied | works; p50 147 ms for a 170-permit plant |
+| Seed numbers (12 active, 4 expired-open / 2 today, 6 past SLA, 87 workers, 1 SIMOPS at 8 m, 49/352 expired) | asserted on the demo scenario in unit tests; the DB seed has not been run |
+| 10k-permit p95, 8 h wall soak, contrast audit, 5-width layout screenshots, Playwright run | **not run.** They need the DDL and seed on a non-production database |

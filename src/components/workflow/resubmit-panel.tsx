@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RotateCcw, AlertTriangle } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { errorText } from "@/lib/client-errors";
 
 // Shown on a rejected record's detail page to the original initiator.
 // Submitting routes the workflow back to the first review step (CHECKER).
@@ -40,7 +41,7 @@ export function ResubmitPanel({
       router.refresh();
     } else {
       const j = await r.json().catch(() => ({}));
-      setError(j.error ?? "Re-submit failed");
+      setError(errorText(j, "Re-submit failed"));
     }
   }
 

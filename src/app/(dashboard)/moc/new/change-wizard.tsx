@@ -212,6 +212,11 @@ export function ChangeWizard({ plantId }: { plantId: string }) {
       escalationDays: Number(escalationDays) || 5,
       submit: doSubmit
     };
+    if (doSubmit && reviewers.length === 0) {
+      setError("Add at least one reviewer before submitting — a change request with no approval chain can never be approved. You can still save it as a draft.");
+      setBusy(false);
+      return;
+    }
     try {
       const res = await fetch("/api/moc/change-requests", {
         method: "POST",
@@ -695,9 +700,10 @@ function ImpactStep(p: any) {
         </Label>
       </div>
       {p.trainingRequired && (
-        <Field label="Training certificate ID" hint="Paste an ACTIVE TrainingCertificate id now, or link it on the detail page before approval.">
-          <Input value={p.trainingCertificateId} onChange={(e: any) => p.setTrainingCertificateId(e.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-sm" placeholder="TrainingCertificate.id" />
-        </Field>
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          After you create the change request, link the completed training certificate from its page
+          (Training required → Link training certificate). Approval is held until it is linked.
+        </p>
       )}
 
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">

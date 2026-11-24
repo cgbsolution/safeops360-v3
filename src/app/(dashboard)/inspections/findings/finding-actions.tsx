@@ -11,6 +11,7 @@ import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Can } from "@/components/auth/can";
 import { CheckCircle2, Clock, Copy, AlertCircle, ShieldCheck } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { errorText } from "@/lib/client-errors";
 
 const ROOT_CAUSE_CATEGORIES = ["MAN", "MACHINE", "METHOD", "MATERIAL", "MEASUREMENT", "ENVIRONMENT"] as const;
 
@@ -47,7 +48,7 @@ export function FindingActions({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? `Action failed (${res.status}).`);
+      setError(errorText(j, `Action failed (${res.status}).`));
       return false;
     }
     router.refresh();

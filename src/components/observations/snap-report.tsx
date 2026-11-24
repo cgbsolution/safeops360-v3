@@ -44,9 +44,12 @@ import {
   type NearestArea,
   type ObsType,
   type Severity,
+  type RefineTurn,
+  type SnapAnalysis,
   type SnapAnalyzeResponse,
   type SnapContext,
 } from "@/lib/observation-reporting/api";
+import { SnapAnalysisCard, SnapNoteBox, SnapRefineBox } from "./snap-copilot";
 
 type Stage = "capture" | "analyzing" | "review" | "submitting" | "done";
 type AreaBasis = "QR" | "NEAREST" | "LAST_USED" | "MANUAL" | null;
@@ -102,7 +105,17 @@ export function SnapReport() {
   const [overrideReason, setOverrideReason] = useState("");
   const [description, setDescription] = useState("");
   const [immediateAction, setImmediateAction] = useState("");
+  const [consequence, setConsequence] = useState("");
   const [workerId, setWorkerId] = useState<string | null>(null);
+
+  // Copilot-style reading + prompt-driven changes.
+  const [note, setNote] = useState("");
+  const [analysis, setAnalysis] = useState<SnapAnalysis | null>(null);
+  const [draft, setDraft] = useState<Record<string, unknown>>({});
+  const [history, setHistory] = useState<RefineTurn[]>([]);
+  const [refineText, setRefineText] = useState("");
+  const [refining, setRefining] = useState(false);
+  const [refineError, setRefineError] = useState<string | null>(null);
 
   const [catList, setCatList] = useState<{ axis: string; items: Cat[] }>({ axis: "", items: [] });
   const [subs, setSubs] = useState<Sub[]>([]);
@@ -233,20 +246,15 @@ export function SnapReport() {
       return URL.createObjectURL(blob);
     });
     setStage("analyzing");
+    setHistory([]);
+    setRefineText("");
+    setRefineError(null);
     let res: SnapAnalyzeResponse | null = null;
     if (ctx?.aiEnabled !== false) {
       try {
         res = await apiJson<SnapAnalyzeResponse>("/api/observations/snap-analyze", {
           method: "POST",
-          json: {
-            imageB64: await blobToBase64(blob),
-            mimeType: blob.type || "image/jpeg",
-            plantId: plantId || undefined,
-            areaId: areaId || undefined,
-            lat: geo.coords?.lat,
-            lng: geo.coords?.lng,
-            lang: typeof navigator !== "undefined" && navigator.language?.startsWith("hi") ? "hi" : "en",
-          },
+          json: { ...(await photoPayload(blob)), note: note.trim() || undefined },
         });
       } catch {
         res = null;
@@ -254,21 +262,9 @@ export function SnapReport() {
     }
     if (res?.nearest) setNearest(res.nearest);
     if (res && res.ok) {
-      const s = res.suggestion;
-      setAiUsed(true);
-      setAiNote(null);
-      setLowConfidence(s.lowConfidence);
-      setType(s.observationType);
-      setCategoryCode(s.categoryCode ?? NONE);
-      setSubCategoryCode(s.subCategoryCode ?? NONE);
-      if (!isAtRisk(s.observationType) && s.category) setHazardCategory(s.category);
-      setSeverity(s.severity);
-      setSeverityTouched(false);
-      setAiSeverity(s.aiSeverity);
-      setMatrixSeverity(s.matrixSeverity);
-      setDescription(s.composedDescription || s.description);
-      setImmediateAction(s.immediateAction);
+      applyResult(res);
     } else {
+      setAnalysis(null);
       setAiUsed(false);
       setAiNote(
         ctx?.aiEnabled === false || (res && !res.ok && res.reason === "ai_disabled")
@@ -277,6 +273,87 @@ export function SnapReport() {
       );
     }
     setStage("review");
+  }
+
+  async function photoPayload(blob: Blob) {
+    return {
+      imageB64: await blobToBase64(blob),
+      mimeType: blob.type || "image/jpeg",
+      plantId: plantId || undefined,
+      areaId: areaId || undefined,
+      lat: geo.coords?.lat,
+      lng: geo.coords?.lng,
+      lang: typeof navigator !== "undefined" && navigator.language?.startsWith("hi") ? "hi" : "en",
+    };
+  }
+
+  /** Apply an analyze/refine result to the card and every form field. */
+  function applyResult(res: Extract<SnapAnalyzeResponse, { ok: true }>) {
+    const s = res.suggestion;
+    setAiUsed(true);
+    setAiNote(null);
+    setLowConfidence(s.lowConfidence);
+    setType(s.observationType);
+    setCategoryCode(s.categoryCode ?? NONE);
+    setSubCategoryCode(s.subCategoryCode ?? NONE);
+    if (!isAtRisk(s.observationType) && s.category) setHazardCategory(s.category);
+    setSeverity(s.severity);
+    // Keep the chosen severity when it deliberately differs from the matrix
+    // (plant practice, fatal potential, or the reporter's own instruction);
+    // the form then asks for the reason, prefilled from the reading.
+    const differs = !!s.matrixSeverity && s.severity !== s.matrixSeverity;
+    setSeverityTouched(differs);
+    setOverrideReason(differs ? s.severityReason ?? "" : "");
+    setAiSeverity(s.aiSeverity);
+    setMatrixSeverity(s.matrixSeverity);
+    setDescription(s.composedDescription || s.description);
+    setConsequence(s.consequence ?? "");
+    setImmediateAction(s.immediateAction);
+    setAnalysis(res.analysis);
+    setDraft(res.draft ?? {});
+  }
+
+  /** The draft as it stands on screen, so a prompt edits the reporter's version. */
+  function currentDraft(): Record<string, unknown> {
+    return {
+      ...draft,
+      observationType: type,
+      categoryCode: categoryCode || null,
+      subCategoryCode: subCategoryCode || null,
+      hazardCategory: isAtRisk(type) ? null : hazardCategory,
+      severity,
+      severityReason: overrideReason || null,
+      description,
+      consequence,
+      immediateAction,
+    };
+  }
+
+  async function refine(instruction: string) {
+    if (!photo || !instruction.trim() || refining) return;
+    setRefining(true);
+    setRefineError(null);
+    try {
+      const res = await apiJson<SnapAnalyzeResponse>("/api/observations/snap-refine", {
+        method: "POST",
+        json: { ...(await photoPayload(photo)), instruction: instruction.trim(), current: currentDraft(), history },
+      });
+      if (res.ok) {
+        applyResult(res);
+        setHistory((h) => [...h, { role: "user", text: instruction.trim() }, { role: "assistant", text: res.analysis.reply || "Updated." }]);
+        setRefineText("");
+      } else {
+        setRefineError(
+          res.reason === "ai_disabled"
+            ? "Photo reading is switched off here, so a prompt cannot change the form. Edit the fields directly."
+            : "Copilot could not apply that just now. Try again, or edit the fields directly."
+        );
+      }
+    } catch (e: any) {
+      setRefineError(e?.message ?? "Copilot could not apply that just now.");
+    } finally {
+      setRefining(false);
+    }
   }
 
   function resetAll() {
@@ -288,7 +365,14 @@ export function SnapReport() {
     setAiNote(null);
     setDescription("");
     setImmediateAction("");
+    setConsequence("");
     setOverrideReason("");
+    setAnalysis(null);
+    setDraft({});
+    setHistory([]);
+    setRefineText("");
+    setRefineError(null);
+    setNote("");
     setWorkerId(null);
     setSeverityTouched(false);
     setCreated(null);
@@ -325,6 +409,7 @@ export function SnapReport() {
         severity,
         description: description.trim(),
         immediateAction: immediateAction.trim() || null,
+        consequence: consequence.trim() || null,
         date: new Date().toISOString(),
         ...(isAtRisk(type) ? { categoryCode, subCategoryCode } : { category: hazardCategory }),
         ...(matrixSeverity ? { suggestedSeverity: matrixSeverity } : {}),
@@ -464,6 +549,7 @@ export function SnapReport() {
             <span className="text-2xl font-bold">Take photo</span>
             <span className="px-6 text-center text-sm text-white/70">Point at the unsafe act or condition. One photo is enough.</span>
           </Button>
+          <SnapNoteBox value={note} onChange={setNote} />
           {locationBlock}
         </div>
       )}
@@ -476,7 +562,7 @@ export function SnapReport() {
           )}
           <div className="flex items-center gap-2 text-[#0B1F4D]">
             <Sparkles className="h-5 w-5 animate-pulse text-[#C9A961]" />
-            <span className="font-semibold">Reading your photo…</span>
+            <span className="font-semibold">Copilot is reading your photo…</span>
           </div>
         </div>
       )}
@@ -499,6 +585,25 @@ export function SnapReport() {
             </div>
           ) : (
             aiNote && <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">{aiNote}</div>
+          )}
+
+          {analysis && (
+            <>
+              <SnapAnalysisCard
+                analysis={analysis}
+                busy={refining}
+                onUseAction={(a) => setImmediateAction(a)}
+                onAsk={(text, send) => (send ? void refine(text) : setRefineText(text))}
+              />
+              <SnapRefineBox
+                value={refineText}
+                onChange={setRefineText}
+                onSend={(t) => void refine(t)}
+                busy={refining}
+                error={refineError}
+                history={history}
+              />
+            </>
           )}
 
           <div className="space-y-3 rounded-2xl border border-[#D9E1EF] bg-white p-4">
@@ -573,6 +678,9 @@ export function SnapReport() {
             <Field label="What did you see" required hint={`${description.trim().length}/${minDesc} characters minimum`}>
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="What is unsafe, where exactly, who is exposed" />
             </Field>
+            <Field label="What could happen">
+              <Textarea value={consequence} onChange={(e) => setConsequence(e.target.value)} rows={2} placeholder="The realistic outcome if nothing changes" />
+            </Field>
             <Field label="Immediate action">
               <Textarea value={immediateAction} onChange={(e) => setImmediateAction(e.target.value)} rows={2} placeholder="What was done or should be done right now" />
             </Field>
@@ -589,7 +697,7 @@ export function SnapReport() {
                 size="lg"
                 className="h-14 w-full text-lg"
                 onClick={submit}
-                disabled={stage === "submitting"}
+                disabled={stage === "submitting" || refining}
                 data-testid="snap-submit"
               >
                 {stage === "submitting" ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}

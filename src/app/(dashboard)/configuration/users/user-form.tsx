@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Save, Eye, EyeOff } from "lucide-react";
+import { errorText } from "@/lib/client-errors";
 
 type Plant = { id: string; name: string; code: string };
 type Role = { id: string; code: string; name: string };
@@ -63,7 +64,7 @@ export function UserForm({
     setSubmitting(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? `Save failed (${res.status}).`);
+      setError(errorText(j, `Save failed (${res.status}).`));
       return;
     }
     const j = await res.json();

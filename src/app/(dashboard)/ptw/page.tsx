@@ -16,7 +16,9 @@ import { PtwTable, type PermitRow } from "./ptw-table";
 import { FilterTab, FilterTabsList } from "@/components/ui/filter-tabs";
 import { AnalyticsStripSkeleton } from "@/components/dashboard/analytics-strip";
 import { PtwAnalyticsStrip } from "@/components/ptw/analytics-strip";
-import { PtwControlCenter } from "@/components/ptw/control-center";
+import { PtwControlCenter } from "@/components/ptw/control-center/control-center";
+import { PtwImpairmentsWorkspace } from "@/components/ptw/impairments/impairments-workspace";
+import { STEP_FILTERS } from "@/lib/ptw/steps";
 import { PtwInsightsPanel } from "@/components/ptw/insights-panel";
 import { resolvePlantContext } from "@/lib/plant-context";
 
@@ -66,16 +68,19 @@ function permitWorkflowColor(workflowStatus: string | undefined, permitStatus: s
   return statusColor(permitStatus);
 }
 
-export default async function PTWPage(props: { searchParams: Promise<{ tab?: string; type?: string; status?: string; archived?: string; plantId?: string; plant?: string }> }) {
+export default async function PTWPage(props: { searchParams: Promise<{ tab?: string; type?: string; status?: string; archived?: string; plantId?: string; plant?: string; step?: string }> }) {
   const searchParams = await props.searchParams;
 
   // Tier-2 workspace tabs. Analytics, Signals and Control Center are PANES on
   // this route, not screens of their own — see @/lib/registers.
-  const activeTab = resolveTab("ptw", searchParams.tab);
+  // Control Center is the default pane, but an old register link (?status=,
+  // ?type=, ?archived=, ?step=) still lands on the register it was written for.
+  const registerFilter = searchParams.status || searchParams.type || searchParams.archived || searchParams.step;
+  const activeTab = resolveTab("ptw", searchParams.tab ?? (registerFilter ? "register" : undefined));
   if (activeTab !== "register") {
     // Plant picker options for the live board and the insights panel (both
     // re-check plant scope server-side; this list only drives the dropdown).
-    const needsPlants = activeTab === "control-center" || activeTab === "analytics";
+    const needsPlants = activeTab === "control-center" || activeTab === "analytics" || activeTab === "impairments";
     const plantCtx = needsPlants
       ? await resolvePlantContext(searchParams.plantId ?? searchParams.plant ?? null)
       : null;
@@ -85,10 +90,13 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
         register="ptw"
         tab={activeTab}
         searchParams={props.searchParams}
+        bare={activeTab === "control-center"}
         panes={
           activeTab === "control-center"
-            ? { "control-center": <PtwControlCenter plants={plantOptions} defaultPlantId={plantCtx?.plantId ?? null} /> }
-            : undefined
+            ? { "control-center": <Suspense fallback={null}><PtwControlCenter plants={plantOptions} defaultPlantId={plantCtx?.plantId ?? null} /></Suspense> }
+            : activeTab === "impairments"
+              ? { impairments: <PtwImpairmentsWorkspace plants={plantOptions} defaultPlantId={searchParams.plant ?? plantCtx?.plantId ?? null} /> }
+              : undefined
         }
         analyticsExtra={
           activeTab === "analytics"
@@ -121,6 +129,19 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
   const where: any = { AND: [scopeWhere, { isDeleted: false, isArchived: showArchived }] };
   if (searchParams.type) where.AND.push({ type: searchParams.type });
   if (searchParams.status) where.AND.push({ status: searchParams.status });
+  // Pipeline tile → register: a step is a status set, plus the current
+  // workflow step name for the approval sub-steps (all under SUBMITTED).
+  const stepFilter = searchParams.step ? STEP_FILTERS[searchParams.step] : undefined;
+  if (stepFilter) {
+    where.AND.push({ status: { in: stepFilter.statuses } });
+    if (stepFilter.workflowStepContains) {
+      const inst = await prisma.workflowInstance.findMany({
+        where: { module: "PTW", currentStepName: { contains: stepFilter.workflowStepContains, mode: "insensitive" } },
+        select: { recordId: true },
+      });
+      where.AND.push({ id: { in: inst.map((i) => i.recordId) } });
+    }
+  }
 
   // Three independent reads — run them in parallel.
   const [items, typeCounts, statusCounts] = await Promise.all([
@@ -200,7 +221,7 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
               </a>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link href={showArchived ? "/ptw" : "/ptw?archived=1"}>
+              <Link href={showArchived ? "/ptw?tab=register" : "/ptw?archived=1"}>
                 <Archive size={14} /> {showArchived ? "Live Permits" : "Archived"}
               </Link>
             </Button>
@@ -222,6 +243,14 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
         }
       />
       <RegisterTabs register="ptw" />
+      {stepFilter && (
+        <div className="mb-3 flex items-center gap-2 text-sm text-slate-700">
+          <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 font-medium text-amber-900">
+            Pipeline step: {stepFilter.label}
+          </span>
+          <Link href="/ptw?tab=register" className="text-primary-700 underline-offset-4 hover:underline">Clear</Link>
+        </div>
+      )}
 
       <div className="mb-4">
         <Suspense fallback={<AnalyticsStripSkeleton />}>

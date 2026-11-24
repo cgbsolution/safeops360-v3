@@ -17,6 +17,7 @@ import {
   useEvidenceCapture,
 } from "@/components/ptw/evidence-capture";
 import { Select, SelectItem } from "@/components/ui/select";
+import { errorText } from "@/lib/client-errors";
 
 type Task = {
   id: string;
@@ -222,18 +223,21 @@ type PickableUser = {
   department: string | null;
 };
 
-function ReassignDialog({
+export function ReassignDialog({
   taskId,
   plantId,
   eligibleRoles,
   onClose,
-  onDone
+  onDone,
+  allowSelf = false
 }: {
   taskId: string;
   plantId?: string;
   eligibleRoles?: string[];
   onClose: () => void;
   onDone: () => void;
+  /** List the current user too (hand-over panel: an HSE Manager taking a task over). */
+  allowSelf?: boolean;
 }) {
   const [users, setUsers] = useState<PickableUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -249,14 +253,14 @@ function ReassignDialog({
     let cancelled = false;
     (async () => {
       try {
-        const params = new URLSearchParams({ excludeSelf: "true", take: "100" });
+        const params = new URLSearchParams({ excludeSelf: allowSelf ? "false" : "true", take: "100" });
         if (plantId) params.set("plantId", plantId);
         for (const r of eligibleRoles ?? []) params.append("role", r);
         const r = await fetch(`/api/users?${params.toString()}`);
         const j = await r.json();
         if (cancelled) return;
         if (!r.ok) {
-          setError(j.error ?? "Failed to load users");
+          setError(errorText(j, "Failed to load users"));
           setUsers([]);
         } else {
           setUsers(Array.isArray(j.users) ? j.users : []);
@@ -271,7 +275,7 @@ function ReassignDialog({
       }
     })();
     return () => { cancelled = true; };
-  }, [plantId, JSON.stringify(eligibleRoles ?? [])]);
+  }, [plantId, allowSelf, JSON.stringify(eligibleRoles ?? [])]);
 
   async function go() {
     if (!toUserId || !reason.trim()) return;

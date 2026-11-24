@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShieldAlert, GraduationCap, Save, Send } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { errorText } from "@/lib/client-errors";
 
 const CATEGORIES = ["ROUTINE", "STATUTORY", "PRE_OPERATIONAL", "POST_INCIDENT", "CONDITION_BASED", "THIRD_PARTY", "FOCUSED"] as const;
 const FREQUENCIES = ["DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "HALF_YEARLY", "ANNUAL"] as const;
@@ -107,7 +108,7 @@ export function InspectionTypeForm({ initial, trainingPrograms }: Props) {
     setSubmitting(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? `Save failed (${res.status}).`);
+      setError(errorText(j, `Save failed (${res.status}).`));
       return;
     }
     const j = await res.json();

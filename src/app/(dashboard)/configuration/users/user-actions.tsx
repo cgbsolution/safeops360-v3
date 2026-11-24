@@ -7,6 +7,7 @@ import { Trash2, KeyRound } from "lucide-react";
 import { Can } from "@/components/auth/can";
 import { confirmDialog, promptDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
+import { errorText } from "@/lib/client-errors";
 
 export function UserActions({ userId, userName, userEmail }: { userId: string; userName: string; userEmail: string }) {
   const router = useRouter();
@@ -30,7 +31,7 @@ export function UserActions({ userId, userName, userEmail }: { userId: string; u
       router.refresh();
     } else {
       const j = await res.json().catch(() => ({}));
-      toast({ title: "Delete failed", description: j.error ?? "Delete failed.", variant: "error" });
+      toast({ title: "Delete failed", description: errorText(j, "Delete failed."), variant: "error" });
     }
   }
 
@@ -52,7 +53,7 @@ export function UserActions({ userId, userName, userEmail }: { userId: string; u
       toast({ title: "Password reset.", variant: "success" });
     } else {
       const j = await res.json().catch(() => ({}));
-      toast({ title: "Reset failed", description: j.error ?? "Reset failed.", variant: "error" });
+      toast({ title: "Reset failed", description: errorText(j, "Reset failed."), variant: "error" });
     }
   }
 

@@ -36,6 +36,7 @@ import {
   type StepType,
   dtoStepToEditor
 } from "./types";
+import { errorText } from "@/lib/client-errors";
 
 const NODE_WIDTH = 288;
 const NODE_GAP = 70;
@@ -429,7 +430,7 @@ function EditorInner({ initial }: { initial: DefinitionDTO }) {
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      toast({ title: "Delete failed", description: j.error ?? "Failed to delete", variant: "error" });
+      toast({ title: "Delete failed", description: errorText(j, "Failed to delete"), variant: "error" });
       return;
     }
     router.push("/configuration/workflows");

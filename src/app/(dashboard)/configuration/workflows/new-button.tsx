@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Plus, X, Loader2 } from "lucide-react";
+import { errorText } from "@/lib/client-errors";
 
 const MODULES = [
   { value: "OBSERVATION", label: "Safety Observation" },
@@ -45,7 +46,7 @@ export function NewWorkflowButton() {
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setError(j.error ?? "Failed to create");
+      setError(errorText(j, "Failed to create"));
       return;
     }
     const j = await r.json();

@@ -9,6 +9,7 @@ import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { Image as ImageIcon, FileText, Film, Trash2, Download, Camera, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { errorText } from "@/lib/client-errors";
 
 type Attachment = {
   id: string;
@@ -83,7 +84,7 @@ export function ObservationAttachmentGallery({
     if (res.ok && j.url) {
       window.open(j.url, "_blank", "noopener");
     } else {
-      toast({ title: "Download failed", description: j.error ?? "Could not generate download link", variant: "error" });
+      toast({ title: "Download failed", description: errorText(j, "Could not generate download link"), variant: "error" });
     }
   }
 

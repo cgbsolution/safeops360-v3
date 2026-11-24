@@ -17,6 +17,9 @@ import {
 } from "../_meta";
 import { markRecordTasksReadForViewer } from "@/lib/workflow/read-state";
 import { MocActions } from "./moc-actions";
+import { ApprovalChainEditor, TrainingLink } from "./moc-fixups";
+
+const MOC_CLOSED = new Set(["closed_successful", "closed_aborted", "closed_rejected", "withdrawn", "expired", "rolled_back"]);
 import { DependentRecords } from "./dependent-records";
 import { MocAttachments } from "./moc-attachments";
 import { PssrPanel, EffectivenessPanel } from "./moc-lifecycle";
@@ -28,6 +31,7 @@ type ApprovalStep = {
   id: string;
   sequence: number;
   role: string;
+  specificUserId?: string | null;
   isRequired: boolean;
   decision: string;
   decidedAt: string | null;
@@ -51,6 +55,7 @@ type StateHistory = {
 };
 type CRDetail = {
   id: string;
+  plantId: string;
   number: string;
   title: string;
   description: string;
@@ -309,6 +314,13 @@ export default async function MocDetailPage(props: { params: Promise<{ id: strin
               </Field>
               <Field label="Linked MOCs">{cr.linkedMocIds.length ? cr.linkedMocIds.join(", ") : "—"}</Field>
             </div>
+            <TrainingLink
+              crId={cr.id}
+              plantId={cr.plantId}
+              trainingRequired={cr.trainingRequired}
+              trainingCertificateId={cr.trainingCertificateId}
+              closed={MOC_CLOSED.has(cr.status)}
+            />
           </Section>
 
           <Section title="Supporting documents">
@@ -361,6 +373,7 @@ export default async function MocDetailPage(props: { params: Promise<{ id: strin
                 ))}
               </ol>
             )}
+            <ApprovalChainEditor crId={cr.id} plantId={cr.plantId} steps={cr.approvalSteps} closed={MOC_CLOSED.has(cr.status)} />
           </Section>
 
           <Section title="Dependent records — keep the registers honest">

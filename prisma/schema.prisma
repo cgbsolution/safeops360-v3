@@ -12529,3 +12529,178 @@ model HiraCopilotShadowRun {
   @@index([entryId])
   @@map("hira_copilot_shadow_runs")
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PTW Control Center v2 (docs/ptw-control-center/PLAN.md)
+//
+//  ⚠ Tables live in the DB via prisma/apply-ptw-control-center-ddl.ts, NOT via
+//    `prisma db push` (which would drop the other hand-DDL tables). Declared
+//    here for the type system only — FK-by-value, no Prisma relations, so the
+//    existing models' relation graphs are untouched. The columns the DDL adds
+//    to EXISTING tables (Area.geometry / sortOrder / layoutId,
+//    PermitCrewMember.checkedInAt / checkedOutAt) are deliberately NOT declared
+//    on those models: Prisma selects every declared scalar, so declaring them
+//    would break every Area / crew read on a database where the DDL has not run.
+//    Owned by the Python backend (app/models/ptw_ops.py).
+// ═══════════════════════════════════════════════════════════════════════
+
+model PlantLayout {
+  id          String   @id
+  tenantId    String   @default("default")
+  plantId     String   @unique
+  storagePath String?
+  imageUrl    String?
+  widthPx     Int?
+  heightPx    Int?
+  widthM      Float?
+  heightM     Float?
+  updatedById String?
+  updatedAt   DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model ZoneGuidance {
+  id                    String   @id
+  tenantId              String   @default("default")
+  plantId               String
+  areaId                String   @unique
+  restrictedHours       String?
+  instructions          String[] @default([])
+  mandatoryPpe          String[] @default([])
+  assemblyPoint         String?
+  extinguisherLocations String?
+  permitTypeRules       Json     @default("[]")
+  updatedById           String?
+  updatedAt             DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([plantId])
+}
+
+model Impairment {
+  id               String    @id
+  tenantId         String    @default("default")
+  plantId          String
+  code             String
+  systemType       String // sprinkler | fire_detection | fire_alarm | gas_detection | interlock | emergency_lighting | other
+  systemName       String
+  areaId           String?
+  reason           String
+  startedAt        DateTime  @db.Timestamptz(6)
+  plannedRestoreAt DateTime? @db.Timestamptz(6)
+  restoredAt       DateTime? @db.Timestamptz(6)
+  restoredById     String?
+  precautions      String[]  @default([])
+  approvedById     String?
+  approvedAt       DateTime? @db.Timestamptz(6)
+  status           String    @default("requested") // requested | approved | active | restored | cancelled
+  cancelledReason  String?
+  escalationCount  Int       @default(0)
+  lastEscalatedAt  DateTime? @db.Timestamptz(6)
+  createdById      String
+  createdAt        DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([tenantId, plantId, status], map: "Impairment_plant_status_idx")
+  @@index([areaId])
+}
+
+model ImpairmentRule {
+  id               String   @id
+  tenantId         String   @default("default")
+  plantId          String?
+  systemType       String
+  permitType       String // PermitType value or '*'
+  effect           String // block_new | require_controls | allow
+  requiredControls String[] @default([])
+  message          String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model SimopsRule {
+  id           String   @id
+  tenantId     String   @default("default")
+  plantId      String?
+  permitTypeA  String
+  permitTypeB  String
+  minDistanceM Float?
+  sameArea     Boolean  @default(true)
+  severity     String   @default("critical")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model PermitControl {
+  id            String   @id
+  tenantId      String   @default("default")
+  permitId      String
+  controlKey    String
+  satisfiedAt   DateTime @default(now()) @db.Timestamptz(6)
+  satisfiedById String
+  attachmentId  String?
+  note          String?
+
+  @@unique([permitId, controlKey])
+}
+
+model PermitEvent {
+  id        String   @id
+  tenantId  String   @default("default")
+  permitId  String
+  fromStep  String?
+  toStep    String
+  actorId   String?
+  actorRole String?
+  note      String?
+  synthetic Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([toStep, createdAt], map: "PermitEvent_toStep_createdAt_idx")
+}
+
+model PtwException {
+  id               String    @id
+  tenantId         String    @default("default")
+  plantId          String
+  ruleKey          String
+  severity         String // critical | high | medium | low
+  dedupeKey        String
+  permitId         String?
+  impairmentId     String?
+  areaId           String?
+  title            String
+  detail           String?
+  ref              String?
+  openedAt         DateTime  @default(now()) @db.Timestamptz(6)
+  resolvedAt       DateTime? @db.Timestamptz(6)
+  ownerUserId      String?
+  notified         Json      @default("[]")
+  acknowledgedAt   DateTime? @db.Timestamptz(6)
+  acknowledgedById String?
+  updatedAt        DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([plantId, resolvedAt], map: "PtwException_plant_open_idx")
+}
+
+model PtwShiftBrief {
+  id          String   @id
+  tenantId    String   @default("default")
+  plantId     String
+  shift       String
+  generatedAt DateTime @default(now()) @db.Timestamptz(6)
+  text        String
+  inputsHash  String
+}
+
+model PtwKioskToken {
+  id          String    @id
+  tenantId    String    @default("default")
+  plantId     String
+  label       String
+  tokenHash   String    @unique
+  createdById String
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  revokedAt   DateTime? @db.Timestamptz(6)
+  lastSeenAt  DateTime? @db.Timestamptz(6)
+
+  @@index([plantId])
+}

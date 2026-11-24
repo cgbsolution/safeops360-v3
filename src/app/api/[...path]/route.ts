@@ -119,10 +119,15 @@ async function forward(req: NextRequest, params: { path: string[] }): Promise<Ne
   // licence-provider.tsx). Absent → ceiling-only enforcement.
   const activePlant = req.cookies.get("safeops_active_plant")?.value;
   if (activePlant) headers["x-active-plant"] = activePlant;
+  // PTW Control Center wall display: a kiosk token (no session) for the one
+  // read-only endpoint that accepts it. Every other endpoint ignores it.
+  const kioskToken = req.headers.get("x-kiosk-token");
+  if (kioskToken) headers["x-kiosk-token"] = kioskToken;
 
   let body: BodyInit | undefined;
   if (req.method !== "GET" && req.method !== "HEAD") {
-    body = await req.text();
+    // Multipart carries binary parts (layout images); text() would corrupt them.
+    body = ct?.startsWith("multipart/") ? await req.arrayBuffer() : await req.text();
   }
 
   // Server-Timing exposes per-hop latency in browser DevTools so we can see

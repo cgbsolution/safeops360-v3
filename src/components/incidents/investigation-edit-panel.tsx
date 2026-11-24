@@ -17,6 +17,7 @@ import {
   normaliseRcaMethod
 } from "@/lib/rca/types";
 import { Save, Loader2, ClipboardCheck } from "lucide-react";
+import { errorText } from "@/lib/client-errors";
 
 // Editable by HSE_MANAGER / ADMIN while the incident workflow is open.
 // Captures classification + investigation team + RCA + CAPA in one panel.
@@ -94,7 +95,7 @@ export function InvestigationEditPanel({
       router.refresh();
     } else {
       const j = await r.json().catch(() => ({}));
-      setError(j.error ?? "Save failed");
+      setError(errorText(j, "Save failed"));
     }
   }
 

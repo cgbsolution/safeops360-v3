@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateTime, cn } from "@/lib/utils";
 import type { EditorStep } from "./types";
 import { Label } from "@/components/ui/label";
+import { errorText } from "@/lib/client-errors";
 
 type SimAssignee = { id: string; name: string; designation: string | null; plant?: string | null };
 type SimStepResult = {
@@ -77,7 +78,7 @@ export function TestRunPanel({
       });
       const j = await r.json();
       if (!r.ok) {
-        setError(j.error ?? "Test run failed");
+        setError(errorText(j, "Test run failed"));
         return;
       }
       setResult(j);

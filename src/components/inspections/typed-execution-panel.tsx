@@ -14,6 +14,7 @@ import {
   Star, Send, Save, Loader2, ShieldAlert, AlertTriangle
 } from "lucide-react";
 import { Select, SelectItem } from "@/components/ui/select";
+import { errorText } from "@/lib/client-errors";
 
 type Item = {
   id: string;
@@ -161,7 +162,7 @@ export function TypedExecutionPanel({ inspectionId, inspectionNumber, items, exi
     setSubmitting(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? `Save failed (${res.status}).`);
+      setError(errorText(j, `Save failed (${res.status}).`));
       return;
     }
     router.refresh();

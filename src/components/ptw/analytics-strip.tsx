@@ -128,7 +128,7 @@ export async function PtwAnalyticsStrip() {
         label: "Permits · 12 wk",
       },
       alerts: [
-        { label: "Overdue", count: overdueCount, tone: "bad", href: "/ptw" },
+        { label: "Overdue", count: overdueCount, tone: "bad", href: "/ptw?tab=register" },
         // No competency-gate-block model exists yet — graceful 0.
         { label: "Competency blocks", count: 0, tone: "warn", href: "/ptw" },
       ],

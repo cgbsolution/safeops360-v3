@@ -7,6 +7,7 @@ import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { formatDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { errorText } from "@/lib/client-errors";
 
 type Version = {
   id: string;
@@ -54,7 +55,7 @@ export function VersionHistoryDrawer({
       const r = await fetch(`/api/workflow/definitions/${definitionId}/restore/${versionId}`, { method: "POST" });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        toast({ title: "Restore failed", description: j.error ?? "Restore failed", variant: "error" });
+        toast({ title: "Restore failed", description: errorText(j, "Restore failed"), variant: "error" });
         return;
       }
       onRestored();

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Save, Loader2 } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { errorText } from "@/lib/client-errors";
 
 const SCOPES = ["ALL_PLANTS", "OWN_PLANT", "OWN_DEPARTMENT", "OWN_RECORDS"] as const;
 type Scope = typeof SCOPES[number];
@@ -74,7 +75,7 @@ export function RolePermissionMatrix({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? `Save failed (${res.status}).`);
+      setError(errorText(j, `Save failed (${res.status}).`));
       return;
     }
     setSavedAt(new Date());

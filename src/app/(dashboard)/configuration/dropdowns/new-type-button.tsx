@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, X } from "lucide-react";
+import { errorText } from "@/lib/client-errors";
 
 export function NewDropdownTypeButton() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export function NewDropdownTypeButton() {
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? `Create failed (${res.status}).`);
+      setError(errorText(j, `Create failed (${res.status}).`));
       return;
     }
     router.push(`/configuration/dropdowns/${sanitized}`);

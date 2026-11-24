@@ -34,17 +34,29 @@ async function fetchPermissions(userId: string | null): Promise<Record<string, b
   if (inflight) return inflight;
   inflight = (async () => {
     try {
-      const r = await fetch("/api/auth/permissions");
-      if (!r.ok) return {};
-      const j = await r.json();
-      const perms = j.permissions ?? {};
-      // Don't cache empty maps — let the next call retry. Avoids the "stale
-      // empty permissions for 30s" bug after a fresh login.
-      if (Object.keys(perms).length > 0) {
-        cachedPermissions = perms;
-        cacheLoadedAt = Date.now();
+      // A slow or failed permissions call used to resolve to {} — which hides
+      // every permission-gated button and menu, so a user who holds the grants
+      // saw "no access" and nothing to click. Retry with backoff, and on a
+      // final failure keep the last good map rather than an empty one.
+      for (const wait of [0, 1500, 4000]) {
+        if (wait) await new Promise((res) => setTimeout(res, wait));
+        try {
+          const r = await fetch("/api/auth/permissions", { cache: "no-store" });
+          if (!r.ok) continue;
+          const j = await r.json();
+          const perms = j.permissions ?? {};
+          // Don't cache empty maps — let the next call retry. Avoids the "stale
+          // empty permissions for 30s" bug after a fresh login.
+          if (Object.keys(perms).length > 0) {
+            cachedPermissions = perms;
+            cacheLoadedAt = Date.now();
+            return perms;
+          }
+        } catch {
+          /* network blip — retry */
+        }
       }
-      return perms;
+      return cachedPermissions ?? {};
     } finally {
       inflight = null;
     }

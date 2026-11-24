@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, ChevronUp, ChevronDown, Save, Eye, EyeOff } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
+import { errorText } from "@/lib/client-errors";
 
 type Item = {
   id?: string;
@@ -82,7 +83,7 @@ export function DropdownEditor({ type, initialItems }: { type: string; initialIt
     setBusy(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? `Save failed (${res.status}).`);
+      setError(errorText(j, `Save failed (${res.status}).`));
       return;
     }
     const saved = await res.json();
@@ -116,7 +117,7 @@ export function DropdownEditor({ type, initialItems }: { type: string; initialIt
       router.refresh();
     } else {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "Delete failed.");
+      setError(errorText(j, "Delete failed."));
     }
   }
 
