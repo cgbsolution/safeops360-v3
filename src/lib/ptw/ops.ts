@@ -86,7 +86,7 @@ export type ControlCenterPayload = {
   generatedAt: string;
   plant: { id: string; name: string | null; location: string | null };
   filters: { area: string | null; shift: string | null; range: RangeKey; windowStart: string; windowEnd: string };
-  shifts: { code: string; label: string | null; startHour: number; endHour: number }[];
+  shifts: { id?: string | null; code: string; label: string | null; startHour: number; endHour: number }[];
   areas: { id: string; name: string }[];
   brief: { text: string; generatedAt: string; shift?: string | null } | null;
   kpis: {
@@ -271,6 +271,30 @@ export function pctInWindow(t: string | Date, start: string | Date, end: string 
   const x = new Date(t).getTime();
   if (b <= a) return 0;
   return Math.min(100, Math.max(0, ((x - a) / (b - a)) * 100));
+}
+
+export type ShiftMaster = { id: string; code: string; label: string; startHour: number; endHour: number };
+
+/** The shift containing a local clock time (hours, fractional), or null in a
+ *  gap. On an overlap the shift that started most recently wins. Mirrors the
+ *  backend's shift_at, so the form's suggestion matches what the server stores. */
+export function shiftForTime<T extends { startHour: number; endHour: number }>(hour: number, shifts: T[]): T | null {
+  let best: { s: T; elapsed: number } | null = null;
+  for (const s of shifts) {
+    const start = s.startHour;
+    const end = s.endHour % 24;
+    const inside = start < end ? hour >= start && hour < end : hour >= start || hour < end;
+    if (!inside) continue;
+    const elapsed = (hour - start + 24) % 24;
+    if (!best || elapsed < best.elapsed) best = { s, elapsed };
+  }
+  return best?.s ?? null;
+}
+
+/** "14:00–22:00" */
+export function shiftHours(s: { startHour: number; endHour: number }): string {
+  const f = (h: number) => `${String(h % 24).padStart(2, "0")}:00`;
+  return `${f(s.startHour)}–${f(s.endHour)}`;
 }
 
 /** Query string for the control-center filters (only the set ones). */

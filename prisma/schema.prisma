@@ -1182,6 +1182,9 @@ model Permit {
   // ─── Step 2: location detail ───
   departmentId       String?
   department         Department? @relation("PermitDepartment", fields: [departmentId], references: [id])
+  // Shift the work is planned in — FK by value to MasterItem(type=SHIFT), like
+  // Incident / NearMiss.shiftId. Column via prisma/apply-permit-shift-ddl.ts.
+  shiftId            String?
   specificLocation   String? // more granular than `location` legacy free-text
   gpsLatitude        Float?
   gpsLongitude       Float?

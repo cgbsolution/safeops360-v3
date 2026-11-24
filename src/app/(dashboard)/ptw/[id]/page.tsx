@@ -110,6 +110,9 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
   // Soft-deleted permits (governed-entity delete) are treated as gone — a
   // deep-link/bookmark to one 404s rather than rendering a removed record.
   if (!p || p.isDeleted) redirectMissingRecord("/ptw", "Permit");
+  const shift = p.shiftId
+    ? await prisma.masterItem.findUnique({ where: { id: p.shiftId }, select: { label: true } })
+    : null;
 
   // Opening the record clears its Inbox unread state, however the viewer got
   // here. No-op unless they're the action owner.
@@ -840,6 +843,13 @@ export default async function PermitDetailPage(props: { params: Promise<{ id: st
                 <div>
                   <div className="text-xs text-slate-500">Valid To</div>
                   <div className="font-medium">{formatDateTime(p.validTo)}</div>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Clock size={14} className="text-slate-400 mt-0.5" />
+                <div>
+                  <div className="text-xs text-slate-500">Shift</div>
+                  <div className="font-medium">{shift?.label ?? "Not set"}</div>
                 </div>
               </div>
               {p.expiredAt && (

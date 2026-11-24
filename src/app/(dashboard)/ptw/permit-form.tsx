@@ -45,6 +45,7 @@ import {
   type PtwDraft
 } from "@/lib/ptw/wizard-config";
 import { Select, SelectItem } from "@/components/ui/select";
+import { shiftForTime, type ShiftMaster } from "@/lib/ptw/ops";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { UserPicker } from "@/components/ui/user-picker";
@@ -188,6 +189,11 @@ export function PermitForm({
     "";
   const [plantId, setPlantId] = useState(initialPlantId);
   const [departmentId, setDepartmentId] = useState("");
+  // Shift: same SHIFT master list as incidents / near misses and the Control
+  // Center filter. Auto-follows Valid From until the user picks one.
+  const [shifts, setShifts] = useState<ShiftMaster[]>([]);
+  const [shiftId, setShiftId] = useState("");
+  const [shiftTouched, setShiftTouched] = useState(false);
   const [areaId, setAreaId] = useState(hiraPrefill?.areaId ?? "");
   const [specificLocation, setSpecificLocation] = useState(hiraPrefill?.specificLocation ?? "");
   const [scopeOfWork, setScopeOfWork] = useState(hiraPrefill?.scopeOfWork ?? "");
@@ -322,6 +328,24 @@ export function PermitForm({
     return () => { cancelled = true; };
   }, [plantId]);
 
+  // Shift masters (plant-agnostic) — fetch once.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/ptw/masters/shifts")
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((j) => { if (alive && Array.isArray(j.items)) setShifts(j.items); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  // Suggest the shift that contains Valid From, until the user chooses one.
+  useEffect(() => {
+    if (shiftTouched || !validFrom || !shifts.length) return;
+    const d = new Date(validFrom);
+    if (Number.isNaN(d.getTime())) return;
+    setShiftId(shiftForTime(d.getHours() + d.getMinutes() / 60, shifts)?.id ?? "");
+  }, [validFrom, shifts, shiftTouched]);
+
   // Contractor companies (plant-agnostic master) — fetch once.
   useEffect(() => {
     let alive = true;
@@ -424,6 +448,7 @@ export function PermitForm({
       validTo,
       plantId: plantId || null,
       departmentId: departmentId || null,
+      shiftId: shiftId || null,
       areaId: areaId || null,
       specificLocation: specificLocation || null,
       scopeOfWork: scopeOfWork || null,
@@ -493,6 +518,10 @@ export function PermitForm({
       if (!has("departmentId")) setDepartmentId("");
     }
     if (has("departmentId")) setDepartmentId(p.departmentId ?? "");
+    if (has("shiftId")) {
+      setShiftId(p.shiftId ?? "");
+      setShiftTouched(!!p.shiftId);
+    }
     if (has("areaId")) setAreaId(p.areaId ?? "");
     if (has("specificLocation")) setSpecificLocation(p.specificLocation ?? "");
     if (has("scopeOfWork")) setScopeOfWork(p.scopeOfWork ?? "");
@@ -681,6 +710,7 @@ export function PermitForm({
       issuerId,
       receiverId,
       departmentId: departmentId || null,
+      shiftId: shiftId || null,
       specificLocation: specificLocation || null,
       contractorCompanyId: contractorCompanyId || null,
       // Keep the legacy free-text field populated from the picked company.
@@ -949,7 +979,7 @@ export function PermitForm({
               )}
             </section>
 
-            <section className="grid gap-3 sm:grid-cols-3">
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <Label>Valid From <span className="text-rose-600">*</span></Label>
                 <Input type="datetime-local" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} required />
@@ -957,6 +987,27 @@ export function PermitForm({
               <div>
                 <Label>Valid To <span className="text-rose-600">*</span></Label>
                 <Input type="datetime-local" value={validTo} onChange={(e) => setValidTo(e.target.value)} required />
+              </div>
+              <div>
+                <Label>Shift</Label>
+                <Select
+                  aria-label="Shift"
+                  value={shiftId}
+                  onValueChange={(v) => { setShiftId(v); setShiftTouched(true); }}
+                  disabled={!shifts.length}
+                >
+                  <SelectItem value="">{shifts.length ? "— No shift —" : "No shifts configured"}</SelectItem>
+                  {shifts.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                  ))}
+                </Select>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {!shiftTouched && shiftId
+                    ? "Suggested from Valid From"
+                    : !shiftId && shifts.length && validFrom
+                      ? "Valid From falls outside every active shift"
+                      : "\u00a0"}
+                </p>
               </div>
               {validityHours !== null && (
                 <div className={cn(

@@ -154,6 +154,7 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
         validFrom: true,
         validTo: true,
         status: true,
+        shiftId: true,
         plant: { select: { name: true } },
         area: { select: { name: true } }
       },
@@ -177,6 +178,13 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
       })
     : [];
   const instanceByRecord = new Map(instances.map((i) => [i.recordId, i]));
+  const shiftIds = [...new Set(items.map((i) => i.shiftId).filter((x): x is string => !!x))];
+  const shiftCode = new Map(
+    (shiftIds.length
+      ? await prisma.masterItem.findMany({ where: { id: { in: shiftIds } }, select: { id: true, code: true } })
+      : []
+    ).map((m) => [m.id, m.code])
+  );
   const statusCountMap: Record<string, number> = {};
   statusCounts.forEach((c) => {
     statusCountMap[c.status] = c._count;
@@ -202,6 +210,7 @@ export default async function PTWPage(props: { searchParams: Promise<{ tab?: str
       scopeOfWork: p.scopeOfWork,
       validFrom: p.validFrom.toISOString(),
       validTo: p.validTo.toISOString(),
+      shift: p.shiftId ? shiftCode.get(p.shiftId) ?? null : null,
       workflowStep,
       workflowColor
     };

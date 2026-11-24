@@ -13,6 +13,7 @@ import {
   fmtPct,
   pctInWindow,
   typeInfo,
+  shiftForTime,
   restoreLine,
   sortExceptions,
 } from "./ops";
@@ -91,4 +92,17 @@ test("typeInfo never throws on a missing or unknown type (crashed the timeline l
   assert.equal(typeInfo(null).label, "other");
   assert.equal(typeInfo("NEW_TYPE").label, "new type");
   assert.equal(typeInfo("HOT_WORK").glyph, "H");
+});
+
+test("shiftForTime: overlap picks the latest start, gaps return null, night wraps midnight", () => {
+  const S = [
+    { code: "B", startHour: 14, endHour: 22 },
+    { code: "C", startHour: 22, endHour: 6 },
+    { code: "G", startHour: 9, endHour: 17 },
+  ];
+  assert.equal(shiftForTime(10, S)?.code, "G");
+  assert.equal(shiftForTime(15.5, S)?.code, "B");
+  assert.equal(shiftForTime(23, S)?.code, "C");
+  assert.equal(shiftForTime(3, S)?.code, "C");
+  assert.equal(shiftForTime(7, S), null);
 });

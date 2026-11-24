@@ -101,6 +101,7 @@ export function HeaderBar({
                 size="sm"
                 variant={on ? "default" : "ghost"}
                 aria-pressed={on}
+                title={s.label ?? `Shift ${s.code}`}
                 className="h-8"
                 onClick={() => onChange(on ? { shift: null, range: "today" } : { shift: s.code, range: "shift" })}
               >

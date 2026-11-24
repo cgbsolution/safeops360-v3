@@ -19,6 +19,7 @@ export interface PermitRow {
   scopeOfWork: string;
   validFrom: string;
   validTo: string;
+  shift: string | null;
   workflowStep: string;
   workflowColor: string;
 }
@@ -73,6 +74,7 @@ const columns: ColumnDef<PermitRow>[] = [
       <div className="whitespace-nowrap text-xs">
         <div>{formatDate(row.original.validFrom)}</div>
         <div className="text-muted-foreground">to {formatDate(row.original.validTo)}</div>
+        {row.original.shift && <div className="text-muted-foreground">Shift {row.original.shift}</div>}
       </div>
     ),
     sortingFn: "datetime",
@@ -121,6 +123,7 @@ export function PtwTable({ data }: { data: PermitRow[] }) {
           { header: "Scope of work", value: (r) => r.scopeOfWork },
           { header: "Valid from", value: (r) => formatDate(r.validFrom) },
           { header: "Valid to", value: (r) => formatDate(r.validTo) },
+          { header: "Shift", value: (r) => r.shift ?? "" },
           { header: "Workflow step", value: (r) => r.workflowStep }
         ]
       }}

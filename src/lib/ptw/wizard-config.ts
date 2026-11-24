@@ -56,6 +56,7 @@ export type PtwDraft = {
   validTo?: string | null;
   plantId?: string | null;
   departmentId?: string | null;
+  shiftId?: string | null;
   areaId?: string | null;
   specificLocation?: string | null;
   scopeOfWork?: string | null;
