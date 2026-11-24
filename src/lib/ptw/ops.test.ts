@@ -12,6 +12,7 @@ import {
   fmtDuration,
   fmtPct,
   pctInWindow,
+  typeInfo,
   restoreLine,
   sortExceptions,
 } from "./ops";
@@ -83,4 +84,11 @@ test("window position and filter query", () => {
   assert.equal(pctInWindow("2026-11-25T00:00:00Z", "2026-11-23T00:00:00Z", "2026-11-24T00:00:00Z"), 100);
   assert.equal(filterQuery({ plant: "p1", range: "today" }), "?plant=p1");
   assert.equal(filterQuery({ plant: "p1", area: "z", shift: "B", range: "shift" }), "?plant=p1&area=z&shift=B&range=shift");
+});
+
+test("typeInfo never throws on a missing or unknown type (crashed the timeline legend)", () => {
+  assert.equal(typeInfo(undefined).color, "#94A3B8");
+  assert.equal(typeInfo(null).label, "other");
+  assert.equal(typeInfo("NEW_TYPE").label, "new type");
+  assert.equal(typeInfo("HOT_WORK").glyph, "H");
 });

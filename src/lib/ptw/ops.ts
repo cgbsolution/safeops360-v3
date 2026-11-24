@@ -162,7 +162,14 @@ export const PERMIT_TYPES: Record<string, { label: string; color: string; glyph:
   EXCAVATION: { label: "Excavation", color: "#F472B6", glyph: "X" },
   GENERAL_COLD: { label: "Cold work", color: "#94A3B8", glyph: "G" },
 };
-export const typeInfo = (t: string) => PERMIT_TYPES[t] ?? { label: t.replace(/_/g, " ").toLowerCase(), color: "#94A3B8", glyph: "?" };
+/** Display info for a permit type. Never throws: an unknown or missing type
+ *  (legend swatch, a new enum value) gets a neutral slate entry. */
+export const typeInfo = (t: string | null | undefined) =>
+  (t ? PERMIT_TYPES[t] : undefined) ?? {
+    label: t ? t.replace(/_/g, " ").toLowerCase() : "other",
+    color: "#94A3B8",
+    glyph: "?",
+  };
 
 export const SEVERITY_ORDER: Severity[] = ["critical", "high", "medium", "low"];
 export const SEVERITY_LABEL: Record<Severity, string> = { critical: "CRITICAL", high: "HIGH", medium: "MEDIUM", low: "LOW" };

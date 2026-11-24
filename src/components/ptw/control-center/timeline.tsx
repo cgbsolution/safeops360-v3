@@ -29,17 +29,18 @@ function ticks(start: Date, end: Date): { at: Date; label: string }[] {
   });
 }
 
-function barStyle(b: OpsBar): React.CSSProperties {
-  const c = typeInfo(b.type).color;
+function barStyle(b: Pick<OpsBar, "kind"> & { type?: string }): React.CSSProperties {
+  // Overrun / closed don't use the type colour — and the legend swatches call
+  // this with no type at all, so only look the colour up when it is needed.
   switch (b.kind) {
     case "overrun":
       return { background: "repeating-linear-gradient(135deg, #FF8A8A 0 4px, #6B2537 4px 8px)" };
-    case "scheduled":
-      return { background: "transparent", border: `1.5px dashed ${c}` };
     case "closed":
       return { background: "#475569" };
+    case "scheduled":
+      return { background: "transparent", border: `1.5px dashed ${typeInfo(b.type).color}` };
     default:
-      return { background: c };
+      return { background: typeInfo(b.type).color };
   }
 }
 
@@ -64,7 +65,7 @@ export function Timeline({ data, loading, error, onOpenPermit }: {
       right={
         <ul className="flex flex-wrap gap-3 text-[12px] ops-text-2" aria-label="Timeline legend">
           <li className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-5 rounded-sm" style={{ background: "#F59E0B" }} aria-hidden />Active (type colour)</li>
-          <li className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-5 rounded-sm" style={barStyle({ kind: "overrun" } as OpsBar)} aria-hidden />Overrun</li>
+          <li className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-5 rounded-sm" style={barStyle({ kind: "overrun" })} aria-hidden />Overrun</li>
           <li className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-5 rounded-sm" style={{ border: "1.5px dashed #9FB0C8" }} aria-hidden />Scheduled</li>
           <li className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-5 rounded-sm" style={{ background: "#475569" }} aria-hidden />Closed</li>
         </ul>
