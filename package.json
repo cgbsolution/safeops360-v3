@@ -45,6 +45,7 @@
     "db:apply-incident-intel": "tsx prisma/apply-incident-intel-ddl.ts",
     "db:apply-attachment": "tsx prisma/apply-attachment-ddl.ts",
     "db:apply-kaizen-gap": "tsx prisma/apply-kaizen-gap-ddl.ts",
+    "db:apply-kaizen-governance": "tsx prisma/apply-kaizen-governance-ddl.ts",
     "db:apply-ims": "tsx prisma/apply-ims-ddl.ts",
     "db:apply-ims-permissions": "tsx prisma/apply-ims-permissions.ts",
     "db:apply-pha": "tsx prisma/apply-pha-ddl.ts",

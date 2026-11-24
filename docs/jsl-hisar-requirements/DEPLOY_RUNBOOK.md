@@ -1,6 +1,8 @@
 # JSL Hisar build: deploy runbook
 
-Covers every module built for the JSL Hisar requirement list (see `GAP_ANALYSIS.md`). Nothing here has been run against production yet.
+Covers every module built for the JSL Hisar requirement list (see `GAP_ANALYSIS.md`).
+
+**Status 2026-11-24:** the backend went live before step 1, so every screen on the new tables returned 500 ("relation ToolboxTalk does not exist"). Step 1 was then run in full against production, all 14 scripts, plus `npm run db:apply-kaizen-governance` (5 `KaizenPost` columns and `KaizenCommitteeRotation` that the backend has mapped since the first commit but no script created). A schema audit against every SQLAlchemy model now shows no missing tables or columns, apart from the PTW Control Center's own tables, which are optional (see `docs/ptw-control-center/PLAN.md` §8).
 
 ## Why order matters
 
